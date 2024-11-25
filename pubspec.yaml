@@ -1,5 +1,5 @@
 name: neetiflow
-description: "A new Flutter project."
+description: "A universal CRM system for managing business tasks and operations"
 publish_to: 'none'
 version: 0.1.0
 
@@ -9,12 +9,52 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_auth: ^5.3.3
+  
+  # Firebase
+  firebase_core: ^2.27.1
+  firebase_auth: ^4.17.9
+  cloud_firestore: ^4.15.9
+  firebase_storage: ^11.6.10
+  
+  # State Management
+  flutter_bloc: ^8.1.4
+  equatable: ^2.0.5
+  
+  # UI Components
+  flutter_svg: ^2.0.10+1
+  google_fonts: ^6.2.1
+  fl_chart: ^0.66.2
+  table_calendar: ^3.1.0
+  file_picker: ^6.2.0
+  
+  # Utils
+  intl: ^0.19.0
+  uuid: ^4.3.3
+  path: ^1.9.0
+  logger: ^2.1.0
+  shared_preferences: ^2.2.2
+  url_launcher: ^6.2.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^3.0.1
+  bloc_test: ^9.1.6
+  mockito: ^5.4.4
+  build_runner: ^2.4.8
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+    
+  fonts:
+    - family: Noto Sans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+        - asset: assets/fonts/NotoSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/NotoSans-Italic.ttf
+          style: italic

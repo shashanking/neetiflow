@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "691923559988",
+    "project_id": "neeti-flow-crm",
+    "storage_bucket": "neeti-flow-crm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:691923559988:android:b5b07400ef16d32269cc61",
+        "android_client_info": {
+          "package_name": "com.neetiflow.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvOWBUIN81H2Fbp2E0XyseIQnUlEphe6I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
