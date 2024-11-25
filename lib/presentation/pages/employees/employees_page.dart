@@ -66,416 +66,410 @@ class _EmployeesPageState extends State<EmployeesPage> {
                               ? state.employees
                               : [];
 
-          return Scaffold(
-            body: BlocListener<EmployeesBloc, EmployeesState>(
-              listener: (context, state) {
-                if (state is EmployeeOperationSuccess) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.message),
-                      backgroundColor: Colors.green,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+          return BlocListener<EmployeesBloc, EmployeesState>(
+            listener: (context, state) {
+              if (state is EmployeeOperationSuccess) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                  ),
+                );
+              } else if (state is EmployeesError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Builder(
+              builder: (context) {
+                if (state is EmployeesLoading) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
                   );
-                } else if (state is EmployeesError) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.message),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                }
+
+                if (state is EmployeesError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error: ${state.message}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: () {
+                            context.read<EmployeesBloc>().add(
+                              LoadEmployees(authState.employee.companyId!),
+                            );
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
                     ),
                   );
                 }
-              },
-              child: Builder(
-                builder: (context) => PageWrapper(
-                  title: 'Employees',
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: FilledButton.icon(
-                        onPressed: () => _showAddEmployeeDialog(context, authState.employee),
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Add Employee'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+
+                if (employeesList.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No employees found',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add your first employee to get started',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: () => _showAddEmployeeDialog(
+                            context,
+                            authState.employee,
+                          ),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Employee'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final filteredEmployees = _filterEmployees(employeesList);
+                final roleStats = _getRoleStats(employeesList);
+
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text('Employees'),
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: FilledButton.icon(
+                          onPressed: () => _showAddEmployeeDialog(context, authState.employee),
+                          icon: const Icon(Icons.person_add),
+                          label: const Text('Add Employee'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                  child: BlocBuilder<EmployeesBloc, EmployeesState>(
-                    builder: (context, state) {
-                      if (state is EmployeesLoading) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-
-                      if (state is EmployeesError) {
-                        return Center(
+                    ],
+                  ),
+                  body: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: Colors.red,
+                              // Search and Filter
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _searchController,
+                                              decoration: InputDecoration(
+                                                hintText: 'Search employees...',
+                                                prefixIcon: const Icon(Icons.search),
+                                                border: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _searchQuery = value;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          PopupMenuButton<EmployeeRole?>(
+                                            tooltip: 'Filter by role',
+                                            icon: Icon(
+                                              Icons.filter_list,
+                                              color: _selectedRole != null
+                                                  ? Theme.of(context).colorScheme.primary
+                                                  : null,
+                                            ),
+                                            itemBuilder: (context) => [
+                                              const PopupMenuItem(
+                                                value: null,
+                                                child: Text('All Roles'),
+                                              ),
+                                              ...EmployeeRole.values.map((role) {
+                                                return PopupMenuItem(
+                                                  value: role,
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        role == EmployeeRole.admin
+                                                            ? Icons.admin_panel_settings
+                                                            : role == EmployeeRole.manager
+                                                                ? Icons.manage_accounts
+                                                                : Icons.person,
+                                                        size: 20,
+                                                        color: _selectedRole == role
+                                                            ? Theme.of(context).colorScheme.primary
+                                                            : null,
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        role.toString().split('.').last,
+                                                        style: TextStyle(
+                                                          color: _selectedRole == role
+                                                              ? Theme.of(context).colorScheme.primary
+                                                              : null,
+                                                          fontWeight: _selectedRole == role
+                                                              ? FontWeight.bold
+                                                              : null,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              }),
+                                            ],
+                                            onSelected: (role) {
+                                              setState(() {
+                                                _selectedRole = role;
+                                              });
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      if (_searchQuery.isNotEmpty || _selectedRole != null) ...[
+                                        const SizedBox(height: 16),
+                                        Wrap(
+                                          spacing: 8,
+                                          children: [
+                                            if (_searchQuery.isNotEmpty)
+                                              Chip(
+                                                label: Text('Search: $_searchQuery'),
+                                                onDeleted: () {
+                                                  setState(() {
+                                                    _searchQuery = '';
+                                                    _searchController.clear();
+                                                  });
+                                                },
+                                              ),
+                                            if (_selectedRole != null)
+                                              Chip(
+                                                label: Text('Role: ${_selectedRole.toString().split('.').last}'),
+                                                onDeleted: () {
+                                                  setState(() {
+                                                    _selectedRole = null;
+                                                  });
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 16),
-                              Text(
-                                'Error: ${state.message}',
-                                style: Theme.of(context).textTheme.titleMedium,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              FilledButton.icon(
-                                onPressed: () {
-                                  context.read<EmployeesBloc>().add(
-                                    LoadEmployees(authState.employee.companyId!),
-                                  );
-                                },
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry'),
+                              // Stats Cards
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Employee Statistics',
+                                        style: Theme.of(context).textTheme.titleLarge,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final isSmallScreen = constraints.maxWidth < 600;
+                                          final stats = [
+                                            _StatCard(
+                                              icon: Icons.people,
+                                              title: 'Total',
+                                              value: roleStats['total'].toString(),
+                                            ),
+                                            _StatCard(
+                                              icon: Icons.admin_panel_settings,
+                                              title: 'Admins',
+                                              value: roleStats['admin'].toString(),
+                                            ),
+                                            _StatCard(
+                                              icon: Icons.manage_accounts,
+                                              title: 'Managers',
+                                              value: roleStats['manager'].toString(),
+                                            ),
+                                            _StatCard(
+                                              icon: Icons.work,
+                                              title: 'Employees',
+                                              value: roleStats['employee'].toString(),
+                                            ),
+                                          ];
+
+                                          return isSmallScreen
+                                              ? Column(
+                                                  children: stats
+                                                      .map((stat) => Padding(
+                                                            padding: const EdgeInsets.only(bottom: 16),
+                                                            child: stat,
+                                                          ))
+                                                      .toList(),
+                                                )
+                                              : Row(
+                                                  children: stats
+                                                      .map((stat) => Expanded(child: Padding(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                            child: stat,
+                                                          )))
+                                                      .toList(),
+                                                );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        );
-                      }
+                        ),
+                      ),
+                      // Employee Grid
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        sliver: SliverLayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.crossAxisExtent;
+                            final crossAxisCount = width < 600
+                                ? 1
+                                : width < 900
+                                    ? 2
+                                    : width < 1200
+                                        ? 3
+                                        : 4;
 
-                      if (state is EmployeesLoaded) {
-                        if (employeesList.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.people_outline,
-                                  size: 64,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No employees found',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Add your first employee to get started',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                                const SizedBox(height: 24),
-                                FilledButton.icon(
-                                  onPressed: () => _showAddEmployeeDialog(
-                                    context,
-                                    authState.employee,
+                            if (filteredEmployees.isEmpty) {
+                              return SliverToBoxAdapter(
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32),
+                                    child: Column(
+                                      children: [
+                                        const Icon(
+                                          Icons.search_off,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'No employees found matching your search',
+                                          style: Theme.of(context).textTheme.titleMedium,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Add Employee'),
                                 ),
-                              ],
-                            ),
-                          );
-                        }
+                              );
+                            }
 
-                        final filteredEmployees = _filterEmployees(employeesList);
-                        final roleStats = _getRoleStats(employeesList);
-
-                        return CustomScrollView(
-                          slivers: [
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    // Search and Filter
-                                    Card(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: TextField(
-                                                    controller: _searchController,
-                                                    decoration: InputDecoration(
-                                                      hintText: 'Search employees...',
-                                                      prefixIcon: const Icon(Icons.search),
-                                                      border: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                      ),
-                                                    ),
-                                                    onChanged: (value) {
-                                                      setState(() {
-                                                        _searchQuery = value;
-                                                      });
-                                                    },
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                PopupMenuButton<EmployeeRole?>(
-                                                  tooltip: 'Filter by role',
-                                                  icon: Icon(
-                                                    Icons.filter_list,
-                                                    color: _selectedRole != null
-                                                        ? Theme.of(context).colorScheme.primary
-                                                        : null,
-                                                  ),
-                                                  itemBuilder: (context) => [
-                                                    const PopupMenuItem(
-                                                      value: null,
-                                                      child: Text('All Roles'),
-                                                    ),
-                                                    ...EmployeeRole.values.map((role) {
-                                                      return PopupMenuItem(
-                                                        value: role,
-                                                        child: Row(
-                                                          children: [
-                                                            Icon(
-                                                              role == EmployeeRole.admin
-                                                                  ? Icons.admin_panel_settings
-                                                                  : role == EmployeeRole.manager
-                                                                      ? Icons.manage_accounts
-                                                                      : Icons.person,
-                                                              size: 20,
-                                                              color: _selectedRole == role
-                                                                  ? Theme.of(context).colorScheme.primary
-                                                                  : null,
-                                                            ),
-                                                            const SizedBox(width: 8),
-                                                            Text(
-                                                              role.toString().split('.').last,
-                                                              style: TextStyle(
-                                                                color: _selectedRole == role
-                                                                    ? Theme.of(context).colorScheme.primary
-                                                                    : null,
-                                                                fontWeight: _selectedRole == role
-                                                                    ? FontWeight.bold
-                                                                    : null,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                    }),
-                                                  ],
-                                                  onSelected: (role) {
-                                                    setState(() {
-                                                      _selectedRole = role;
-                                                    });
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                            if (_searchQuery.isNotEmpty || _selectedRole != null) ...[
-                                              const SizedBox(height: 16),
-                                              Wrap(
-                                                spacing: 8,
-                                                children: [
-                                                  if (_searchQuery.isNotEmpty)
-                                                    Chip(
-                                                      label: Text('Search: $_searchQuery'),
-                                                      onDeleted: () {
-                                                        setState(() {
-                                                          _searchQuery = '';
-                                                          _searchController.clear();
-                                                        });
-                                                      },
-                                                    ),
-                                                  if (_selectedRole != null)
-                                                    Chip(
-                                                      label: Text('Role: ${_selectedRole.toString().split('.').last}'),
-                                                      onDeleted: () {
-                                                        setState(() {
-                                                          _selectedRole = null;
-                                                        });
-                                                      },
-                                                    ),
-                                                ],
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    // Stats Cards
-                                    Card(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Employee Statistics',
-                                              style: Theme.of(context).textTheme.titleLarge,
-                                            ),
-                                            const SizedBox(height: 16),
-                                            LayoutBuilder(
-                                              builder: (context, constraints) {
-                                                final isSmallScreen = constraints.maxWidth < 600;
-                                                final stats = [
-                                                  _StatCard(
-                                                    icon: Icons.people,
-                                                    title: 'Total',
-                                                    value: roleStats['total'].toString(),
-                                                  ),
-                                                  _StatCard(
-                                                    icon: Icons.admin_panel_settings,
-                                                    title: 'Admins',
-                                                    value: roleStats['admin'].toString(),
-                                                  ),
-                                                  _StatCard(
-                                                    icon: Icons.manage_accounts,
-                                                    title: 'Managers',
-                                                    value: roleStats['manager'].toString(),
-                                                  ),
-                                                  _StatCard(
-                                                    icon: Icons.work,
-                                                    title: 'Employees',
-                                                    value: roleStats['employee'].toString(),
-                                                  ),
-                                                ];
-
-                                                return isSmallScreen
-                                                    ? Column(
-                                                        children: stats
-                                                            .map((stat) => Padding(
-                                                                  padding: const EdgeInsets.only(bottom: 16),
-                                                                  child: stat,
-                                                                ))
-                                                            .toList(),
-                                                      )
-                                                    : Row(
-                                                        children: stats
-                                                            .map((stat) => Expanded(child: Padding(
-                                                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                                                  child: stat,
-                                                                )))
-                                                            .toList(),
-                                                      );
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            return SliverGrid(
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                mainAxisSpacing: 16,
+                                crossAxisSpacing: 16,
+                                mainAxisExtent: 220,
                               ),
-                            ),
-                            // Employee Grid
-                            SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                              sliver: SliverLayoutBuilder(
-                                builder: (context, constraints) {
-                                  final width = constraints.crossAxisExtent;
-                                  final crossAxisCount = width < 600
-                                      ? 1
-                                      : width < 900
-                                          ? 2
-                                          : width < 1200
-                                              ? 3
-                                              : 4;
-
-                                  if (filteredEmployees.isEmpty) {
-                                    return SliverToBoxAdapter(
-                                      child: Center(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(32),
-                                          child: Column(
-                                            children: [
-                                              const Icon(
-                                                Icons.search_off,
-                                                size: 48,
-                                                color: Colors.grey,
-                                              ),
-                                              const SizedBox(height: 16),
-                                              Text(
-                                                'No employees found matching your search',
-                                                style: Theme.of(context).textTheme.titleMedium,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ],
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final employee = filteredEmployees[index];
+                                  return EmployeeCard(
+                                    employee: employee,
+                                    onTap: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => EmployeeDetailsPage(
+                                            employee: employee,
                                           ),
                                         ),
-                                      ),
-                                    );
-                                  }
+                                      );
 
-                                  return SliverGrid(
-                                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: crossAxisCount,
-                                      mainAxisSpacing: 16,
-                                      crossAxisSpacing: 16,
-                                      mainAxisExtent: 220,
-                                    ),
-                                    delegate: SliverChildBuilderDelegate(
-                                      (context, index) {
-                                        final employee = filteredEmployees[index];
-                                        return EmployeeCard(
-                                          employee: employee,
-                                          onTap: () async {
-                                            final result = await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => EmployeeDetailsPage(
-                                                  employee: employee,
-                                                ),
-                                              ),
-                                            );
-
-                                            if (result == 'edit') {
-                                              _showEditEmployeeDialog(
-                                                context,
-                                                employee,
-                                                authState.employee,
-                                              );
-                                            } else if (result == 'delete') {
-                                              _showDeleteConfirmationDialog(
-                                                context,
-                                                employee,
-                                              );
-                                            }
-                                          },
-                                          onEdit: () => _showEditEmployeeDialog(
-                                            context,
-                                            employee,
-                                            authState.employee,
-                                          ),
-                                          onDelete: () => _showDeleteConfirmationDialog(
-                                            context,
-                                            employee,
-                                          ),
+                                      if (result == 'edit') {
+                                        _showEditEmployeeDialog(
+                                          context,
+                                          employee,
+                                          authState.employee,
                                         );
-                                      },
-                                      childCount: filteredEmployees.length,
+                                      } else if (result == 'delete') {
+                                        _showDeleteConfirmationDialog(
+                                          context,
+                                          employee,
+                                        );
+                                      }
+                                    },
+                                    onEdit: () => _showEditEmployeeDialog(
+                                      context,
+                                      employee,
+                                      authState.employee,
+                                    ),
+                                    onDelete: () => _showDeleteConfirmationDialog(
+                                      context,
+                                      employee,
                                     ),
                                   );
                                 },
+                                childCount: filteredEmployees.length,
                               ),
-                            ),
-                          ],
-                        );
-                      }
-
-                      return const SizedBox.shrink();
-                    },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ),
+                );
+              },
             ),
           );
-        }
+        },
       ),
     );
   }
