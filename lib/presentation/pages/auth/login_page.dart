@@ -47,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
         rememberMe: _rememberMe,
       );
-      
+
       context.read<AuthBloc>().add(
             SignInWithEmailRequested(
               email: _emailController.text.trim(),
@@ -67,7 +67,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: BlocListener<AuthBloc, AuthState>(
@@ -92,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
+                constraints: const BoxConstraints(maxWidth: 450),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -137,7 +137,7 @@ class _LoginPageState extends State<LoginPage> {
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 24),
-                              
+
                               // Email Field
                               TextFormField(
                                 controller: _emailController,
@@ -153,7 +153,8 @@ class _LoginPageState extends State<LoginPage> {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your email';
                                   }
-                                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                  if (!RegExp(
+                                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
                                       .hasMatch(value)) {
                                     return 'Please enter a valid email';
                                   }
@@ -181,7 +182,8 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                     onPressed: () {
                                       setState(() {
-                                        _isPasswordVisible = !_isPasswordVisible;
+                                        _isPasswordVisible =
+                                            !_isPasswordVisible;
                                       });
                                     },
                                   ),
@@ -226,7 +228,8 @@ class _LoginPageState extends State<LoginPage> {
                               BlocBuilder<AuthBloc, AuthState>(
                                 builder: (context, state) {
                                   return FilledButton(
-                                    onPressed: state is AuthLoading ? null : _onSubmit,
+                                    onPressed:
+                                        state is AuthLoading ? null : _onSubmit,
                                     child: state is AuthLoading
                                         ? const SizedBox(
                                             height: 20,
