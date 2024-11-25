@@ -26,10 +26,7 @@ class LeadsPage extends StatelessWidget {
       create: (context) => LeadsBloc(
         leadsRepository: LeadsRepository(),
       ),
-      child: const PageWrapper(
-        title: '',
-        child: LeadsView(),
-      ),
+      child: const LeadsView(),
     );
   }
 }
