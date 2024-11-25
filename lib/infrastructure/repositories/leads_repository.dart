@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:html' if (dart.library.html) 'dart:html' as html;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
@@ -173,8 +172,8 @@ class LeadsRepository {
         final url = html.Url.createObjectUrlFromBlob(blob);
         final link = html.AnchorElement()
           ..href = url
-          ..download = 'leads_${DateTime.now().toIso8601String()}.csv'
-          ..click();
+          ..download = 'leads_${DateTime.now().toIso8601String()}.csv';
+        link.click();
         html.Url.revokeObjectUrl(url);
       } else {
         // TODO: Implement native platform file saving

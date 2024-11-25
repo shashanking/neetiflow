@@ -103,7 +103,7 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     if (event.companyId == null) {
-      emit(LeadsError(message: 'Company ID is required for export'));
+      emit(const LeadsError(message: 'Company ID is required for export'));
       return;
     }
     
