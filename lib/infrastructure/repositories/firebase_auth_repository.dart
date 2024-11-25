@@ -217,6 +217,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
       );
 
       if (userCredential == null) {
+        _logger.e('Authentication failed - null user credential');
         throw FirebaseAuthException(
           code: 'auth/invalid-credential',
           message: 'Invalid login credentials',
@@ -224,24 +225,26 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
       }
 
       // Get user mapping
+      _logger.i('Getting user mapping for email: ${email.split('@')[0]}***');
       final userMapping = await _firestore
           .collection('user_mappings')
           .doc(email)
           .get();
 
       if (!userMapping.exists) {
-        _logger.e('User mapping not found');
+        _logger.e('User mapping not found for email: ${email.split('@')[0]}***');
         throw FirebaseAuthException(
           code: 'user-not-found',
           message: 'No user mapping found for this email. Please contact your administrator.',
         );
       }
 
-      final mappingData = userMapping.data()!;
-      final companyId = mappingData['companyId'] as String;
-      final employeeId = mappingData['employeeId'] as String;
+      final data = userMapping.data()!;
+      final companyId = data['companyId'] as String;
+      final employeeId = data['employeeId'] as String;
 
       // Get employee document
+      _logger.i('Fetching employee record: $employeeId');
       final employeeDoc = await _firestore
           .collection('organizations')
           .doc(companyId)
@@ -250,7 +253,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           .get();
 
       if (!employeeDoc.exists) {
-        _logger.e('Employee record not found');
+        _logger.e('Employee record not found for ID: $employeeId');
         throw FirebaseAuthException(
           code: 'employee-not-found',
           message: 'Employee record not found. Please contact your administrator.',
@@ -259,7 +262,16 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
 
       final employee = Employee.fromJson(employeeDoc.data()!);
 
-      _logger.i('Login successful for user: ${userCredential.uid}');
+      // Check if employee is active
+      if (!employee.isActive) {
+        _logger.e('Employee account is inactive: $employeeId');
+        throw FirebaseAuthException(
+          code: 'account-disabled',
+          message: 'Your account is currently inactive. Please contact your administrator.',
+        );
+      }
+
+      _logger.i('Login successful for employee: ${employee.name}');
       return {
         'user': userCredential,
         'employee': employee,
@@ -282,6 +294,9 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           break;
         case 'too-many-requests':
           message = 'Too many login attempts. Please try again later.';
+          break;
+        case 'account-disabled':
+          message = 'Your account is currently inactive. Please contact your administrator.';
           break;
         default:
           message = e.message ?? 'Authentication failed';
