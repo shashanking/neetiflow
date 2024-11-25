@@ -49,7 +49,12 @@ class ImportLeadsFromCSV extends LeadsEvent {
 }
 
 class ExportLeadsToCSV extends LeadsEvent {
-  const ExportLeadsToCSV();
+  final String companyId;
+
+  const ExportLeadsToCSV(this.companyId);
+
+  @override
+  List<Object?> get props => [companyId];
 }
 
 class CreateLead extends LeadsEvent {
@@ -92,13 +97,15 @@ class LeadsError extends LeadsState {
   List<Object?> get props => [message];
 }
 
-class LeadsExported extends LeadsState {
-  final Uint8List csvBytes;
+class LeadStatusUpdating extends LeadsState {}
 
-  const LeadsExported(this.csvBytes);
+class LeadStatusUpdateError extends LeadsState {
+  final String message;
+
+  const LeadStatusUpdateError(this.message);
 
   @override
-  List<Object?> get props => [csvBytes];
+  List<Object?> get props => [message];
 }
 
 // Bloc
@@ -131,6 +138,7 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
+      emit(LeadStatusUpdating());
       await _repository.updateLeadStatus(
         event.companyId,
         event.leadId,
@@ -142,7 +150,11 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
       _leads = await _repository.getLeads(event.companyId);
       emit(LeadsLoaded(_leads));
     } catch (e) {
-      emit(LeadsError(e.toString()));
+      emit(LeadStatusUpdateError(e.toString()));
+      // Restore previous state if available
+      if (_leads.isNotEmpty) {
+        emit(LeadsLoaded(_leads));
+      }
     }
   }
 
@@ -168,9 +180,11 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
-      final csvBytes = await _repository.exportLeadsToCSV(_leads);
-      emit(LeadsExported(csvBytes));
-      emit(LeadsLoaded(_leads)); // Restore leads state
+      await _repository.exportLeadsToCSV(event.companyId);
+      // Keep current state since export doesn't affect the leads list
+      if (_leads.isNotEmpty) {
+        emit(LeadsLoaded(_leads));
+      }
     } catch (e) {
       emit(LeadsError(e.toString()));
     }
@@ -181,6 +195,7 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
+      emit(LeadsLoading());
       await _repository.createLead(event.companyId, event.lead);
       
       // Reload leads to get updated data
