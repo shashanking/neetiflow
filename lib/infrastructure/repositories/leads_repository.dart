@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:html' if (dart.library.html) 'dart:html' as html;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:csv/csv.dart';
 
@@ -147,7 +147,7 @@ class LeadsRepository {
   }
 
   // Export leads to CSV
-  Future<Uint8List> exportLeadsToCSV(List<Lead> leads) async {
+  Future<Uint8List> exportLeadsToCSV(List<Lead> leads, {required String companyId}) async {
     try {
       print('Repository: Starting CSV export for ${leads.length} leads');
       final headers = [

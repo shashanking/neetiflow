@@ -63,9 +63,9 @@ class ImportLeadsFromCSV extends LeadsEvent {
 }
 
 class ExportLeadsToCSV extends LeadsEvent {
-  final String? companyId;
+  final String companyId;
 
-  const ExportLeadsToCSV({this.companyId});
+  const ExportLeadsToCSV({required this.companyId});
 
   @override
   List<Object?> get props => [companyId];

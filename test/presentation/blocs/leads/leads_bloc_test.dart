@@ -169,8 +169,10 @@ void main() {
     blocTest<LeadsBloc, LeadsState>(
       'exports leads to CSV',
       build: () {
-        when(mockLeadsRepository.exportLeadsToCSV(List<Lead>.from(testLeads)))
-            .thenAnswer((_) async => Uint8List(0));
+        when(mockLeadsRepository.exportLeadsToCSV(
+          List<Lead>.from(testLeads),
+          companyId: 'company1',
+        )).thenAnswer((_) async => Uint8List(0));
         return leadsBloc;
       },
       seed: () => LeadsLoaded(
@@ -183,6 +185,7 @@ void main() {
       expect: () => [
         isA<LeadsExporting>(),
         isA<LeadsExportSuccess>(),
+        isA<LeadsLoaded>(),
       ],
     );
   });

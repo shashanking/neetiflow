@@ -8,7 +8,6 @@ import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
 import 'package:neetiflow/presentation/pages/help/help_page.dart';
 import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/organization/organization_page.dart';
-import 'package:neetiflow/presentation/utils/page_routes.dart';
 import 'dart:math' as math;
 
 class AppShell extends StatefulWidget {
@@ -30,7 +29,6 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  final _navigatorKey = GlobalKey<NavigatorState>();
   late Widget _currentPage;
 
   @override

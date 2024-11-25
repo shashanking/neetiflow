@@ -176,20 +176,14 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     print('Starting CSV export process...');
-    if (event.companyId == null) {
-      print('Export failed: Company ID is null');
-      emit(const LeadsError(message: 'Company ID is required for export'));
-      return;
-    }
-
-    final currentState = state;
-    if (currentState is! LeadsLoaded) {
-      print('Export failed: Current state is not LeadsLoaded');
-      emit(const LeadsError(message: 'No leads loaded to export'));
-      return;
-    }
-
     try {
+      final currentState = state;
+      if (currentState is! LeadsLoaded) {
+        print('Export failed: Current state is not LeadsLoaded');
+        emit(const LeadsError(message: 'No leads loaded to export'));
+        return;
+      }
+
       // Store the current loaded state
       final loadedState = currentState;
 
@@ -219,7 +213,10 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
         print('  Status: ${firstLead.status}');
       }
 
-      final csvBytes = await _leadsRepository.exportLeadsToCSV(leadsToExport);
+      final csvBytes = await _leadsRepository.exportLeadsToCSV(
+        leadsToExport,
+        companyId: event.companyId,
+      );
       print('CSV export completed successfully');
       emit(LeadsExportSuccess(csvBytes: csvBytes));
       // Return to the previous loaded state after successful export
@@ -229,7 +226,9 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
       print('Stack trace: $stackTrace');
       emit(LeadsError(message: 'Error exporting leads: ${e.toString()}'));
       // If we have a loaded state, return to it after error
-      emit(currentState);
+      if (state is LeadsLoaded) {
+        emit(state);
+      }
     }
   }
 
