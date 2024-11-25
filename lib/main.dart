@@ -32,6 +32,7 @@ class MainApp extends StatelessWidget {
         ),
         child: MaterialApp(
           title: 'NeetiFlow',
+          debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: ColorScheme.fromSeed(
