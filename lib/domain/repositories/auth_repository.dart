@@ -20,4 +20,6 @@ abstract class AuthRepository {
     required Employee admin,
     required String password,
   });
+
+  Future<Employee> getEmployeeData(String uid);
 }
