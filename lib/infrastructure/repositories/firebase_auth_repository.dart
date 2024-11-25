@@ -59,7 +59,6 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
-  @override
   Future<Map<String, dynamic>> signInWithCompanyAndEmployeeId({
     required String companyId,
     required String employeeId,
