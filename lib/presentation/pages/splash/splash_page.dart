@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
-import 'package:neetiflow/presentation/pages/home/home_page.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -27,7 +27,7 @@ class _SplashPageState extends State<SplashPage> {
       listener: (context, state) {
         if (state is Authenticated) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomePage()),
+            MaterialPageRoute(builder: (_) => const PersistentShell()),
           );
         } else if (state is AuthInitial) {
           Navigator.of(context).pushReplacement(
@@ -48,7 +48,7 @@ class _SplashPageState extends State<SplashPage> {
                 color: theme.colorScheme.primary,
               ),
               const SizedBox(height: 16),
-              
+
               // App Name
               Text(
                 'NeetiFlow',
@@ -58,7 +58,7 @@ class _SplashPageState extends State<SplashPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              
+
               // Tagline
               Text(
                 'Business Management Solution',
@@ -67,7 +67,7 @@ class _SplashPageState extends State<SplashPage> {
                 ),
               ),
               const SizedBox(height: 48),
-              
+
               // Loading indicator
               const CircularProgressIndicator(),
             ],

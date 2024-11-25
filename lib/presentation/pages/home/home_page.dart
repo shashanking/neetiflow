@@ -13,78 +13,74 @@ class HomePage extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isLargeScreen = screenWidth >= 1200;
 
-    return PageWrapper(
-      title: 'Dashboard',
-      showBackButton: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            BlocBuilder<AuthBloc, AuthState>(
-              builder: (context, state) {
-                if (state is Authenticated) {
-                  return Text(
-                    '${state.employee.companyName} Dashboard',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  );
-                }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, state) {
+              if (state is Authenticated) {
                 return Text(
-                  'Dashboard',
+                  '${state.employee.companyName} Dashboard',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 );
-              },
-            ),
-            const SizedBox(height: 24),
-            GridView.count(
-              crossAxisCount: isLargeScreen ? 4 : 2,
-              shrinkWrap: true,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _DashboardCard(
-                  icon: Icons.people,
-                  title: 'Employees',
-                  subtitle: 'Manage your team',
-                  onTap: () {
-                    // TODO: Navigate to employees page
-                  },
+              }
+              return Text(
+                'Dashboard',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                _DashboardCard(
-                  icon: Icons.business,
-                  title: 'Organization',
-                  subtitle: 'Company details',
-                  onTap: () {
-                    // TODO: Navigate to organization page
-                  },
-                ),
-                _DashboardCard(
-                  icon: Icons.contacts,
-                  title: 'Leads',
-                  subtitle: 'Manage leads',
-                  onTap: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const LeadsPage()),
-                    );
-                  },
-                ),
-                _DashboardCard(
-                  icon: Icons.analytics,
-                  title: 'Analytics',
-                  subtitle: 'View insights',
-                  onTap: () {
-                    // TODO: Navigate to analytics page
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          GridView.count(
+            crossAxisCount: isLargeScreen ? 4 : 2,
+            shrinkWrap: true,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _DashboardCard(
+                icon: Icons.people,
+                title: 'Employees',
+                subtitle: 'Manage your team',
+                onTap: () {
+                  // TODO: Navigate to employees page
+                },
+              ),
+              _DashboardCard(
+                icon: Icons.business,
+                title: 'Organization',
+                subtitle: 'Company details',
+                onTap: () {
+                  // TODO: Navigate to organization page
+                },
+              ),
+              _DashboardCard(
+                icon: Icons.contacts,
+                title: 'Leads',
+                subtitle: 'Manage leads',
+                onTap: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const LeadsPage()),
+                  );
+                },
+              ),
+              _DashboardCard(
+                icon: Icons.analytics,
+                title: 'Analytics',
+                subtitle: 'View insights',
+                onTap: () {
+                  // TODO: Navigate to analytics page
+                },
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

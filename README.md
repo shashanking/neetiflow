@@ -14,6 +14,12 @@ A comprehensive CRM and business management system built with Flutter, following
   - Professional drawer layout
   - Employee information display
   - Material 3 design implementation
+- ✅ Leads Management System
+  - Modern, responsive table layout
+  - Real-time lead status updates
+  - Interactive status management
+  - Lead metrics dashboard
+  - CSV import/export functionality
 - ✅ Clean Architecture Implementation
   - Domain-driven design
   - BLoC pattern for state management
@@ -77,6 +83,8 @@ A comprehensive CRM and business management system built with Flutter, following
 - Material 3 Design
 - flutter_bloc for State Management
 - Google Fonts with Noto Sans
+- Interactive Data Tables
+- CSV Processing
 
 ### Backend Services
 - Firebase Authentication
