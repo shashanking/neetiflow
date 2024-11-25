@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/infrastructure/repositories/leads_repository.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_event.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_state.dart';

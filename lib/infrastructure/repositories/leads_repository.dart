@@ -168,16 +168,17 @@ class LeadsRepository {
       final bytes = utf8.encode(csvString);
 
       if (kIsWeb) {
+        // For web, create a download link
         final blob = html.Blob([bytes]);
         final url = html.Url.createObjectUrlFromBlob(blob);
-        final anchor = html.AnchorElement(href: url)
-          ..setAttribute('download', 'leads_export_${DateTime.now().toIso8601String()}.csv')
+        final link = html.AnchorElement()
+          ..href = url
+          ..download = 'leads_${DateTime.now().toIso8601String()}.csv'
           ..click();
         html.Url.revokeObjectUrl(url);
       } else {
-        // For mobile/desktop, save to downloads directory
-        // TODO: Implement platform-specific file saving
-        throw UnimplementedError('File saving not implemented for this platform');
+        // TODO: Implement native platform file saving
+        throw UnimplementedError('File saving not yet implemented for native platforms');
       }
     } catch (e) {
       throw Exception('Failed to export leads: ${e.toString()}');
