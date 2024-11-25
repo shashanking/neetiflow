@@ -1,10 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
-import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'firebase_options.dart';
 
@@ -37,7 +37,7 @@ class MainApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF2C3E50), // Professional dark blue
+              seedColor: const Color(0xFF2C3E50),
               primary: const Color(0xFF2C3E50),
               secondary: const Color(0xFF3498DB),
               surface: Colors.white,
@@ -47,57 +47,78 @@ class MainApp extends StatelessWidget {
             cardTheme: const CardTheme(
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(16)),
+                borderRadius: BorderRadius.all(Radius.circular(kIsWeb ? 16 : 12)),
               ),
             ),
             inputDecorationTheme: InputDecorationTheme(
               filled: true,
               fillColor: Colors.grey.shade50,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kIsWeb ? 12 : 8),
                 borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kIsWeb ? 12 : 8),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kIsWeb ? 12 : 8),
                 borderSide: const BorderSide(color: Color(0xFF2C3E50), width: 2),
               ),
               errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kIsWeb ? 12 : 8),
                 borderSide: const BorderSide(color: Colors.red, width: 1),
               ),
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
+                horizontal: kIsWeb ? 16 : 12,
+                vertical: kIsWeb ? 16 : 12,
               ),
             ),
             elevatedButtonTheme: ElevatedButtonThemeData(
               style: ElevatedButton.styleFrom(
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+                  horizontal: kIsWeb ? 32 : 24,
+                  vertical: kIsWeb ? 16 : 12,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kIsWeb ? 12 : 8),
                 ),
               ),
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+                  horizontal: kIsWeb ? 32 : 24,
+                  vertical: kIsWeb ? 16 : 12,
                 ),
               ),
             ),
+            visualDensity: VisualDensity.adaptivePlatformDensity,
+            platform: Theme.of(context).platform,
           ),
+          builder: (context, child) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                return MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(_getTextScaleFactor(constraints.maxWidth)),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+          },
           home: const SplashPage(),
         ),
       ),
     );
+  }
+
+  double _getTextScaleFactor(double width) {
+    if (width < 360) return 0.8; // Small mobile devices
+    if (width < 600) return 1.0; // Regular mobile devices
+    if (width < 1024) return 1.1; // Tablets
+    return 1.2; // Desktop and large screens
   }
 }
