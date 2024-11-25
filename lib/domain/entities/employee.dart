@@ -4,9 +4,11 @@ enum EmployeeRole { admin, manager, employee }
 
 class Employee {
   final String? id;
+  final String? uid;
   final String? companyId;
+  final String? companyName;
   final String name;
-  final String phone;
+  final String? phone;
   final String email;
   final String? address;
   final EmployeeRole role;
@@ -18,9 +20,11 @@ class Employee {
 
   Employee({
     this.id,
+    this.uid,
     this.companyId,
+    this.companyName,
     required this.name,
-    required this.phone,
+    this.phone,
     required this.email,
     this.address,
     required this.role,
@@ -34,7 +38,9 @@ class Employee {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'uid': uid,
       'companyId': companyId,
+      'companyName': companyName,
       'name': name,
       'phone': phone,
       'email': email,
@@ -51,7 +57,9 @@ class Employee {
   factory Employee.fromJson(Map<String, dynamic> json) {
     return Employee(
       id: json['id'] as String?,
+      uid: json['uid'] as String?,
       companyId: json['companyId'] as String?,
+      companyName: json['companyName'] as String?,
       name: json['name'] as String,
       phone: json['phone'] as String,
       email: json['email'] as String,
@@ -76,7 +84,9 @@ class Employee {
 
   Employee copyWith({
     String? id,
+    String? uid,
     String? companyId,
+    String? companyName,
     String? name,
     String? phone,
     String? email,
@@ -90,7 +100,9 @@ class Employee {
   }) {
     return Employee(
       id: id ?? this.id,
+      uid: uid ?? this.uid,
       companyId: companyId ?? this.companyId,
+      companyName: companyName ?? this.companyName,
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,

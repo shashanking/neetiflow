@@ -5,6 +5,7 @@ import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
+import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -94,7 +95,7 @@ class MainApp extends StatelessWidget {
               ),
             ),
           ),
-          home: const LoginPage(),
+          home: const SplashPage(),
         ),
       ),
     );

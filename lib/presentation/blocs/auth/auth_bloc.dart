@@ -44,6 +44,8 @@ class CreateOrganizationRequested extends AuthEvent {
 
 class SignOutRequested extends AuthEvent {}
 
+class CheckAuthenticationStatus extends AuthEvent {}
+
 // States
 abstract class AuthState extends Equatable {
   const AuthState();
@@ -96,6 +98,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SignInWithEmailRequested>(_onSignInWithEmailRequested);
     on<CreateOrganizationRequested>(_onCreateOrganizationRequested);
     on<SignOutRequested>(_onSignOutRequested);
+    on<CheckAuthenticationStatus>(_onCheckAuthenticationStatus);
   }
 
   Future<void> _onSignInWithEmailRequested(
@@ -160,6 +163,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthInitial());
     } catch (e) {
       _logger.e('Sign out failed', error: e);
+      emit(AuthError(e.toString()));
+    }
+  }
+
+  Future<void> _onCheckAuthenticationStatus(
+    CheckAuthenticationStatus event,
+    Emitter<AuthState> emit,
+  ) async {
+    _logger.i('Checking authentication status');
+    try {
+      emit(AuthLoading());
+      final user = await _authRepository.getCurrentUser();
+      
+      if (user != null) {
+        final employee = await _authRepository.getEmployeeData(user.uid);
+        _logger.i('User is authenticated');
+        emit(Authenticated(employee: employee));
+      } else {
+        _logger.i('User is not authenticated');
+        emit(AuthInitial());
+      }
+    } catch (e) {
+      _logger.e('Error checking authentication status', error: e);
       emit(AuthError(e.toString()));
     }
   }

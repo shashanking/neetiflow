@@ -4,6 +4,7 @@ import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
+import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
 import 'package:uuid/uuid.dart';
 
 class FirebaseAuthRepositoryImpl implements AuthRepository {
@@ -78,8 +79,9 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> signOut() async {
     try {
-      _logger.i('Attempting sign out');
+      _logger.i('Signing out user');
       await _firebaseAuth.signOut();
+      await SecureStorageService.clearCredentials();
       _logger.i('Sign out successful');
     } catch (e, stackTrace) {
       _logger.e('Error signing out', error: e, stackTrace: stackTrace);
@@ -89,6 +91,69 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
 
   @override
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
+
+  @override
+  Future<Employee> getEmployeeData(String uid) async {
+    try {
+      _logger.i('Getting employee data for uid: $uid');
+      
+      // Get the current user's email
+      final currentUser = await getCurrentUser();
+      if (currentUser == null || currentUser.email == null) {
+        throw Exception('User not authenticated or email not available');
+      }
+      
+      // Get company ID from user_mappings
+      final userMappingDoc = await _firestore
+          .collection('user_mappings')
+          .doc(currentUser.email)
+          .get();
+          
+      if (!userMappingDoc.exists) {
+        throw Exception('User mapping not found');
+      }
+      
+      final mappingData = userMappingDoc.data()!;
+      final companyId = mappingData['companyId'] as String;
+      final employeeId = mappingData['employeeId'] as String;
+      
+      // Get organization data
+      final organizationDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .get();
+          
+      if (!organizationDoc.exists) {
+        throw Exception('Organization not found');
+      }
+      
+      final organizationData = organizationDoc.data()!;
+      final companyName = organizationData['name'] as String;
+      
+      // Get employee data directly using company ID and employee ID
+      final employeeDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .get();
+
+      if (!employeeDoc.exists) {
+        throw Exception('Employee not found');
+      }
+
+      final data = employeeDoc.data()!;
+      data['id'] = employeeDoc.id;
+      data['companyId'] = companyId;
+      data['companyName'] = companyName;
+
+      _logger.i('Employee data retrieved successfully');
+      return Employee.fromJson(data);
+    } catch (e) {
+      _logger.e('Error getting employee data', error: e);
+      throw Exception('Failed to get employee data: $e');
+    }
+  }
 
   Future<Map<String, dynamic>> signInWithCompanyAndEmployeeId({
     required String companyId,
@@ -260,7 +325,24 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         );
       }
 
-      final employee = Employee.fromJson(employeeDoc.data()!);
+      // Get organization name
+      final organizationDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .get();
+
+      if (!organizationDoc.exists) {
+        _logger.e('Organization not found for ID: $companyId');
+        throw FirebaseAuthException(
+          code: 'organization-not-found',
+          message: 'Organization not found. Please contact your administrator.',
+        );
+      }
+
+      final employeeData = employeeDoc.data()!;
+      employeeData['companyName'] = organizationDoc.data()?['name'] as String?;
+      
+      final employee = Employee.fromJson(employeeData);
 
       // Check if employee is active
       if (!employee.isActive) {

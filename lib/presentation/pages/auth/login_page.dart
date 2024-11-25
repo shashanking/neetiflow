@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/pages/auth/register_organization_page.dart';
 import 'package:neetiflow/presentation/pages/home/home_page.dart';
+import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,16 +17,37 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _rememberMe = false;
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final rememberMe = await SecureStorageService.getRememberMe();
+    if (rememberMe) {
+      final email = await SecureStorageService.getSavedEmail();
+      final password = await SecureStorageService.getSavedPassword();
+      if (email != null && password != null) {
+        setState(() {
+          _emailController.text = email;
+          _passwordController.text = password;
+          _rememberMe = true;
+        });
+      }
+    }
   }
 
   void _onSubmit() {
     if (_formKey.currentState?.validate() ?? false) {
+      SecureStorageService.saveCredentials(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        rememberMe: _rememberMe,
+      );
+      
       context.read<AuthBloc>().add(
             SignInWithEmailRequested(
               email: _emailController.text.trim(),
@@ -33,6 +55,13 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -167,6 +196,30 @@ class _LoginPageState extends State<LoginPage> {
                                   return null;
                                 },
                               ),
+                              const SizedBox(height: 16),
+
+                              // Remember Me Checkbox
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _rememberMe = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                  const Text('Remember Me'),
+                                  const Spacer(),
+                                  TextButton(
+                                    onPressed: () {
+                                      // TODO: Implement forgot password
+                                    },
+                                    child: const Text('Forgot Password?'),
+                                  ),
+                                ],
+                              ),
+
                               const SizedBox(height: 24),
 
                               // Login Button
