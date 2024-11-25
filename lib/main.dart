@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
@@ -35,17 +34,19 @@ class MainApp extends StatelessWidget {
           title: 'NeetiFlow',
           theme: ThemeData(
             useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-            textTheme: GoogleFonts.notoSansTextTheme(
-              Theme.of(context).textTheme,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF2C3E50), // Professional dark blue
+              primary: const Color(0xFF2C3E50),
+              secondary: const Color(0xFF3498DB),
+              surface: Colors.white,
+              background: const Color(0xFFF5F6F9),
             ),
-            fontFamily: GoogleFonts.notoSans().fontFamily,
+            fontFamily: 'Noto Sans',
             cardTheme: const CardTheme(
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
-              color: Colors.white,
             ),
             inputDecorationTheme: InputDecorationTheme(
               filled: true,

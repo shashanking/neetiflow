@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
@@ -9,6 +10,15 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final _uuid = const Uuid();
+  final Logger _logger = Logger(
+    printer: PrettyPrinter(
+      methodCount: 0,
+      errorMethodCount: 5,
+      lineLength: 50,
+      colors: true,
+      printEmojis: true,
+    ),
+  );
 
   FirebaseAuthRepositoryImpl({
     FirebaseAuth? firebaseAuth,
@@ -18,18 +28,30 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<User?> getCurrentUser() async {
-    return _firebaseAuth.currentUser;
+    try {
+      _logger.i('Getting current user');
+      return _firebaseAuth.currentUser;
+    } catch (e, stackTrace) {
+      _logger.e('Error getting current user', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get current user: $e');
+    }
   }
 
   @override
   Future<User?> signInWithEmailAndPassword(String email, String password) async {
     try {
+      _logger.i('Attempting login with email: ${email.split('@')[0]}***');
       final userCredential = await _firebaseAuth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+      _logger.i('Login successful for user: ${userCredential.user?.uid}');
       return userCredential.user;
-    } catch (e) {
+    } on FirebaseAuthException catch (e, stackTrace) {
+      _logger.e('Firebase Auth Error: ${e.code}', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to sign in: ${e.message}');
+    } catch (e, stackTrace) {
+      _logger.e('Unexpected Error during login', error: e, stackTrace: stackTrace);
       throw Exception('Failed to sign in: $e');
     }
   }
@@ -37,12 +59,18 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   @override
   Future<User?> signUpWithEmailAndPassword(String email, String password) async {
     try {
+      _logger.i('Attempting sign up with email: ${email.split('@')[0]}***');
       final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+      _logger.i('Sign up successful for user: ${userCredential.user?.uid}');
       return userCredential.user;
-    } catch (e) {
+    } on FirebaseAuthException catch (e, stackTrace) {
+      _logger.e('Firebase Auth Error: ${e.code}', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to sign up: ${e.message}');
+    } catch (e, stackTrace) {
+      _logger.e('Unexpected Error during sign up', error: e, stackTrace: stackTrace);
       throw Exception('Failed to sign up: $e');
     }
   }
@@ -50,8 +78,11 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> signOut() async {
     try {
+      _logger.i('Attempting sign out');
       await _firebaseAuth.signOut();
-    } catch (e) {
+      _logger.i('Sign out successful');
+    } catch (e, stackTrace) {
+      _logger.e('Error signing out', error: e, stackTrace: stackTrace);
       throw Exception('Failed to sign out: $e');
     }
   }
@@ -65,6 +96,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     try {
+      _logger.i('Attempting login with company ID: $companyId and employee ID: $employeeId');
       // Get employee document
       final employeeDoc = await _firestore
           .collection('organizations')
@@ -74,6 +106,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           .get();
 
       if (!employeeDoc.exists) {
+        _logger.e('Employee not found');
         throw Exception('Employee not found');
       }
 
@@ -85,11 +118,17 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         password,
       );
 
+      if (userCredential == null) {
+        throw Exception('Authentication failed');
+      }
+
+      _logger.i('Login successful for user: ${userCredential.uid}');
       return {
         'user': userCredential,
         'employee': employee,
       };
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.e('Error signing in with company and employee ID', error: e, stackTrace: stackTrace);
       throw Exception('Failed to sign in: $e');
     }
   }
@@ -101,13 +140,17 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     try {
+      _logger.i('Attempting to register organization: ${organization.name}');
       // Create user with Firebase Auth
       final userCredential = await signUpWithEmailAndPassword(
         admin.email,
         password,
       );
 
-      // Generate IDs
+      if (userCredential == null) {
+        throw Exception('Failed to create user account');
+      }
+
       final companyId = _uuid.v4();
       final employeeId = _uuid.v4();
 
@@ -144,6 +187,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         'role': 'admin',
       });
 
+      _logger.i('Organization registered successfully');
       return {
         'user': userCredential,
         'organization': organization.copyWith(id: companyId),
@@ -152,7 +196,8 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           companyId: companyId,
         ),
       };
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.e('Error registering organization', error: e, stackTrace: stackTrace);
       throw Exception('Failed to register organization: $e');
     }
   }
@@ -163,11 +208,20 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     try {
+      _logger.i('Attempting login with email: ${email.split('@')[0]}***');
+      
       // Sign in with Firebase Auth first
       final userCredential = await signInWithEmailAndPassword(
         email,
         password,
       );
+
+      if (userCredential == null) {
+        throw FirebaseAuthException(
+          code: 'auth/invalid-credential',
+          message: 'Invalid login credentials',
+        );
+      }
 
       // Get user mapping
       final userMapping = await _firestore
@@ -176,6 +230,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           .get();
 
       if (!userMapping.exists) {
+        _logger.e('User mapping not found');
         throw FirebaseAuthException(
           code: 'user-not-found',
           message: 'No user mapping found for this email. Please contact your administrator.',
@@ -195,6 +250,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           .get();
 
       if (!employeeDoc.exists) {
+        _logger.e('Employee record not found');
         throw FirebaseAuthException(
           code: 'employee-not-found',
           message: 'Employee record not found. Please contact your administrator.',
@@ -203,39 +259,39 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
 
       final employee = Employee.fromJson(employeeDoc.data()!);
 
+      _logger.i('Login successful for user: ${userCredential.uid}');
       return {
         'user': userCredential,
         'employee': employee,
       };
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException catch (e, stackTrace) {
+      _logger.e('Firebase Auth Error: ${e.code}', error: e, stackTrace: stackTrace);
       String message;
       switch (e.code) {
         case 'user-not-found':
           message = 'No user found with this email address.';
           break;
         case 'wrong-password':
-          message = 'Invalid password. Please try again.';
+          message = 'Invalid password.';
           break;
         case 'invalid-email':
           message = 'Invalid email format.';
           break;
         case 'user-disabled':
-          message = 'This account has been disabled. Please contact support.';
+          message = 'This account has been disabled.';
           break;
         case 'too-many-requests':
           message = 'Too many login attempts. Please try again later.';
           break;
-        case 'employee-not-found':
-          message = e.message ?? 'Employee record not found.';
-          break;
         default:
-          message = e.message ?? 'An error occurred during sign in.';
+          message = e.message ?? 'Authentication failed';
       }
       throw FirebaseAuthException(
         code: e.code,
         message: message,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.e('Unexpected Error during login', error: e, stackTrace: stackTrace);
       throw FirebaseAuthException(
         code: 'unknown',
         message: 'An unexpected error occurred: ${e.toString()}',

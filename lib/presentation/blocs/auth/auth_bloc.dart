@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
@@ -79,6 +80,15 @@ class AuthError extends AuthState {
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
+  final Logger _logger = Logger(
+    printer: PrettyPrinter(
+      methodCount: 0,
+      errorMethodCount: 5,
+      lineLength: 50,
+      colors: true,
+      printEmojis: true,
+    ),
+  );
 
   AuthBloc({required AuthRepository authRepository})
       : _authRepository = authRepository,
@@ -92,19 +102,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     SignInWithEmailRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    _logger.i('Processing sign in request');
     try {
+      emit(AuthLoading());
       final result = await _authRepository.signInWithEmail(
         email: event.email,
         password: event.password,
       );
       
+      _logger.i('Sign in successful');
       emit(Authenticated(
         employee: result['employee'] as Employee,
       ));
     } on FirebaseAuthException catch (e) {
+      _logger.e('Sign in failed', error: e);
       emit(AuthError(e.message ?? 'Authentication failed. Please try again.'));
     } catch (e) {
+      _logger.e('Sign in failed', error: e);
       emit(const AuthError('An unexpected error occurred. Please try again.'));
     }
   }
@@ -113,19 +127,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     CreateOrganizationRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    _logger.i('Processing create organization request');
     try {
+      emit(AuthLoading());
       final result = await _authRepository.registerOrganization(
         organization: event.organization,
         admin: event.admin,
         password: event.password,
       );
 
+      _logger.i('Create organization successful');
       emit(Authenticated(
         employee: result['employee'] as Employee,
         organization: result['organization'] as Organization,
       ));
     } catch (e) {
+      _logger.e('Create organization failed', error: e);
       emit(AuthError(e.toString()));
     }
   }
@@ -134,11 +151,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     SignOutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    _logger.i('Processing sign out request');
     try {
+      emit(AuthLoading());
       await _authRepository.signOut();
+      
+      _logger.i('Sign out successful');
       emit(AuthInitial());
     } catch (e) {
+      _logger.e('Sign out failed', error: e);
       emit(AuthError(e.toString()));
     }
   }

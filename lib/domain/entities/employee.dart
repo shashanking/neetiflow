@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum EmployeeRole { admin, manager, employee }
 
 class Employee {
@@ -38,9 +40,9 @@ class Employee {
       'email': email,
       'address': address,
       'role': role.toString().split('.').last,
-      'joiningDate': joiningDate?.toIso8601String(),
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      'joiningDate': joiningDate != null ? Timestamp.fromDate(joiningDate!) : null,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
       'isActive': isActive,
     };
@@ -59,13 +61,13 @@ class Employee {
         orElse: () => EmployeeRole.employee,
       ),
       joiningDate: json['joiningDate'] != null
-          ? DateTime.parse(json['joiningDate'] as String)
+          ? (json['joiningDate'] as Timestamp).toDate()
           : null,
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
+          ? (json['createdAt'] as Timestamp).toDate()
           : null,
       updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
+          ? (json['updatedAt'] as Timestamp).toDate()
           : null,
       photoUrl: json['photoUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
