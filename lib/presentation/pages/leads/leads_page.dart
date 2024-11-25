@@ -2,12 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:neetiflow/application/leads/leads_bloc.dart';
+import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
+import 'package:neetiflow/presentation/blocs/leads/leads_event.dart';
+import 'package:neetiflow/presentation/blocs/leads/leads_state.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/infrastructure/repositories/leads_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
-import 'package:universal_html/html.dart' as html;
+import 'package:neetiflow/presentation/utils/responsive_utils.dart';
+import 'package:neetiflow/presentation/widgets/page_wrapper.dart';
 
 class LeadsPage extends StatelessWidget {
   const LeadsPage({super.key});
@@ -16,7 +19,7 @@ class LeadsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => LeadsBloc(
-        repository: LeadsRepository(),
+        leadsRepository: LeadsRepository(),
       ),
       child: const LeadsView(),
     );
@@ -40,7 +43,9 @@ class _LeadsViewState extends State<LeadsView> {
   void _loadLeads() {
     final authState = context.read<AuthBloc>().state;
     if (authState is Authenticated) {
-      context.read<LeadsBloc>().add(LoadLeads(authState.employee.companyId!));
+      context.read<LeadsBloc>().add(
+            LoadLeads(companyId: authState.employee.companyId!),
+          );
     }
   }
 
@@ -49,7 +54,6 @@ class _LeadsViewState extends State<LeadsView> {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
-        withData: true,
       );
 
       if (result != null) {
@@ -60,7 +64,10 @@ class _LeadsViewState extends State<LeadsView> {
               : result.files.first.bytes!;
 
           context.read<LeadsBloc>().add(
-                ImportLeadsFromCSV(authState.employee.companyId!, bytes),
+                ImportLeadsFromCSV(
+                  companyId: authState.employee.companyId!,
+                  fileBytes: bytes,
+                ),
               );
         }
       }
@@ -72,7 +79,12 @@ class _LeadsViewState extends State<LeadsView> {
   }
 
   Future<void> _exportLeads() async {
-    context.read<LeadsBloc>().add(const ExportLeadsToCSV());
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated) {
+      context.read<LeadsBloc>().add(
+            ExportLeadsToCSV(companyId: authState.employee.companyId!),
+          );
+    }
   }
 
   Future<void> _addNewLead() async {
@@ -124,7 +136,8 @@ class _LeadsViewState extends State<LeadsView> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  Expanded(
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
                     child: SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,7 +328,7 @@ class _LeadsViewState extends State<LeadsView> {
                           }
 
                           final lead = Lead(
-                            id: '',  // Will be set by Firestore
+                            id: '', // Will be set by Firestore
                             uid: 'manual-${DateTime.now().millisecondsSinceEpoch}',
                             firstName: firstNameController.text,
                             lastName: lastNameController.text,
@@ -330,7 +343,12 @@ class _LeadsViewState extends State<LeadsView> {
                             segments: ['manual-leads', ''],
                           );
 
-                          builderContext.read<LeadsBloc>().add(CreateLead(authState.employee.companyId!, lead));
+                          builderContext.read<LeadsBloc>().add(
+                                CreateLead(
+                                  companyId: authState.employee.companyId!,
+                                  lead: lead,
+                                ),
+                              );
                           Navigator.pop(dialogContext);
                         },
                         icon: const Icon(Icons.add),
@@ -347,213 +365,6 @@ class _LeadsViewState extends State<LeadsView> {
     );
   }
 
-  void _downloadCsv(Uint8List bytes) {
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'leads_export.csv')
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isLargeScreen = screenWidth >= 1200;
-
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Section
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Leads Management',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Track and manage your leads efficiently',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.textTheme.bodySmall?.color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Action Buttons
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _importLeads,
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Import'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: _exportLeads,
-                        icon: const Icon(Icons.download),
-                        label: const Text('Export'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        onPressed: _addNewLead,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Lead'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              // Stats Cards
-              BlocBuilder<LeadsBloc, LeadsState>(
-                builder: (context, state) {
-                  if (state is LeadsLoaded) {
-                    final totalLeads = state.leads.length;
-                    final hotLeads = state.leads.where((lead) => lead.status == LeadStatus.hot).length;
-                    final warmLeads = state.leads.where((lead) => lead.status == LeadStatus.warm).length;
-                    final coldLeads = state.leads.where((lead) => lead.status == LeadStatus.cold).length;
-
-                    return GridView.count(
-                      crossAxisCount: isLargeScreen ? 4 : 2,
-                      shrinkWrap: true,
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: isLargeScreen ? 1.5 : 1.2,
-                      children: [
-                        _buildStatCard(
-                          context,
-                          'Total Leads',
-                          totalLeads.toString(),
-                          Icons.people_outline,
-                          theme.colorScheme.primary,
-                        ),
-                        _buildStatCard(
-                          context,
-                          'Hot Leads',
-                          hotLeads.toString(),
-                          Icons.local_fire_department_outlined,
-                          Colors.red,
-                        ),
-                        _buildStatCard(
-                          context,
-                          'Warm Leads',
-                          warmLeads.toString(),
-                          Icons.trending_up_outlined,
-                          Colors.orange,
-                        ),
-                        _buildStatCard(
-                          context,
-                          'Cold Leads',
-                          coldLeads.toString(),
-                          Icons.ac_unit_outlined,
-                          Colors.blue,
-                        ),
-                      ],
-                    );
-                  }
-                  
-                  // Show placeholder cards while loading
-                  return GridView.count(
-                    crossAxisCount: isLargeScreen ? 4 : 2,
-                    shrinkWrap: true,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: isLargeScreen ? 1.5 : 1.2,
-                    children: List.generate(4, (index) {
-                      return Card(
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: theme.dividerColor.withOpacity(0.2),
-                          ),
-                        ),
-                        child: const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                    }),
-                  );
-                },
-              ),
-              const SizedBox(height: 32),
-              // Leads Table
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: theme.dividerColor.withOpacity(0.2),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: BlocBuilder<LeadsBloc, LeadsState>(
-                    builder: (context, state) {
-                      if (state is LeadsLoading) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-                      if (state is LeadsLoaded) {
-                        return LeadsTable(leads: state.leads);
-                      }
-                      if (state is LeadsError) {
-                        return Center(
-                          child: Text(
-                            'Error: ${state.message}',
-                            style: TextStyle(color: theme.colorScheme.error),
-                          ),
-                        );
-                      }
-                      return const Center(
-                        child: Text('No leads found'),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildStatCard(
     BuildContext context,
     String title,
@@ -561,35 +372,45 @@ class _LeadsViewState extends State<LeadsView> {
     IconData icon,
     Color color,
   ) {
-    final theme = Theme.of(context);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: theme.dividerColor.withOpacity(0.2),
+          color: Theme.of(context).dividerColor.withOpacity(0.1),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+      child: Container(
+        padding: const EdgeInsets.all(8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.textTheme.bodyLarge?.color,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(icon, color: color, size: 16),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
               title,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodySmall?.color,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).textTheme.bodySmall?.color,
               ),
             ),
           ],
@@ -597,195 +418,266 @@ class _LeadsViewState extends State<LeadsView> {
       ),
     );
   }
-}
 
-class LeadsTable extends StatelessWidget {
-  final List<Lead> leads;
-
-  const LeadsTable({super.key, required this.leads});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (leads.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 64,
-              color: theme.colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No leads yet',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Start by adding your first lead or import from CSV',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
+  Widget _buildStatsGrid(BuildContext context, LeadsState state) {
+    if (state is! LeadsLoaded) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Table Header
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
-          child: Row(
+    return Container(
+      width: double.infinity,
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatCard(
+              context,
+              'Total Leads',
+              state.leads.length.toString(),
+              Icons.people_outline,
+              Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildStatCard(
+              context,
+              'Hot Leads',
+              state.leads.where((lead) => lead.status == LeadStatus.hot).length.toString(),
+              Icons.local_fire_department_outlined,
+              Colors.red,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildStatCard(
+              context,
+              'Warm Leads',
+              state.leads.where((lead) => lead.status == LeadStatus.warm).length.toString(),
+              Icons.trending_up_outlined,
+              Colors.orange,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildStatCard(
+              context,
+              'Cold Leads',
+              state.leads.where((lead) => lead.status == LeadStatus.cold).length.toString(),
+              Icons.ac_unit_outlined,
+              Colors.blue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final isSmallScreen = ResponsiveUtils.isSmallScreen(context);
+
+    return isSmallScreen
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeaderCell(theme, 'Name', flex: 2),
-              _buildHeaderCell(theme, 'Contact', flex: 2),
-              _buildHeaderCell(theme, 'Subject'),
-              _buildHeaderCell(theme, 'Status'),
-              _buildHeaderCell(theme, 'Process'),
-              _buildHeaderCell(theme, 'Actions', textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-        // Table Body
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: leads.length,
-          separatorBuilder: (context, index) => Divider(
-            color: theme.dividerColor.withOpacity(0.1),
-          ),
-          itemBuilder: (context, index) {
-            final lead = leads[index];
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                          child: Text(
-                            lead.firstName[0].toUpperCase(),
-                            style: TextStyle(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${lead.firstName} ${lead.lastName}',
-                                style: theme.textTheme.titleSmall,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                'Added ${_formatDate(lead.createdAt)}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          lead.email,
-                          style: theme.textTheme.bodyMedium,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          lead.phone,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      lead.subject,
-                      style: theme.textTheme.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildStatusChip(context, lead, lead.status),
-                  ),
-                  Expanded(
-                    child: _buildProcessChip(context, lead, lead.processStatus),
-                  ),
-                  Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () {
-                            // TODO: Implement edit
-                          },
-                          tooltip: 'Edit Lead',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () {
-                            // TODO: Implement delete
-                          },
-                          tooltip: 'Delete Lead',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              Text(
+                'Leads Management',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            );
-          },
+              const SizedBox(height: 16),
+              _buildActionButtons(context),
+            ],
+          )
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Leads Management',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              _buildActionButtons(context),
+            ],
+          );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    final isSmallScreen = ResponsiveUtils.isSmallScreen(context);
+    final spacing = isSmallScreen ? 8.0 : 12.0;
+
+    return Wrap(
+      spacing: spacing,
+      runSpacing: spacing,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _importLeads,
+          icon: const Icon(Icons.upload_file),
+          label: const Text('Import'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _exportLeads,
+          icon: const Icon(Icons.download),
+          label: const Text('Export'),
+        ),
+        FilledButton.icon(
+          onPressed: _addNewLead,
+          icon: const Icon(Icons.add),
+          label: const Text('Add Lead'),
         ),
       ],
     );
   }
 
-  Widget _buildHeaderCell(ThemeData theme, String text, {
-    int flex = 1,
-    TextAlign textAlign = TextAlign.start,
-  }) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        text,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.outline,
-          fontWeight: FontWeight.w500,
+  Widget _buildLeadsTable(BuildContext context, LeadsState state) {
+    if (state is! LeadsLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final isSmallScreen = ResponsiveUtils.isSmallScreen(context);
+    final padding = ResponsiveUtils.getPadding(context);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: MediaQuery.of(context).size.width - (padding * 2),
         ),
-        textAlign: textAlign,
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+            child: DataTable(
+              columnSpacing: isSmallScreen ? 16.0 : 24.0,
+              horizontalMargin: isSmallScreen ? 12.0 : 16.0,
+              columns: [
+                DataColumn(
+                  label: Text(
+                    'Name',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (!isSmallScreen) DataColumn(
+                  label: Text(
+                    'Email',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (!isSmallScreen) DataColumn(
+                  label: Text(
+                    'Phone',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Subject',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Status',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Process',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (!isSmallScreen) DataColumn(
+                  label: Text(
+                    'Created',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Actions',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+              rows: state.leads.map((lead) => _buildDataRow(context, lead)).toList(),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildStatusChip(BuildContext context, Lead lead, LeadStatus status) {
+  DataRow _buildDataRow(BuildContext context, Lead lead) {
+    final isSmallScreen = ResponsiveUtils.isSmallScreen(context);
+    final authState = context.read<AuthBloc>().state;
+    // ignore: prefer_const_constructors
+    if (authState is! Authenticated) return DataRow(cells: []);
+
+    return DataRow(
+      cells: [
+        DataCell(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('${lead.firstName} ${lead.lastName}'),
+              if (isSmallScreen) Text(
+                lead.email,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        if (!isSmallScreen) DataCell(
+          SelectableText(lead.email),
+        ),
+        if (!isSmallScreen) DataCell(
+          SelectableText(lead.phone),
+        ),
+        DataCell(
+          Tooltip(
+            message: lead.message,
+            child: Text(
+              lead.subject,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        DataCell(_buildStatusChip(context, lead, lead.status, authState.employee.companyId!)),
+        DataCell(_buildProcessChip(context, lead, lead.processStatus, authState.employee.companyId!)),
+        if (!isSmallScreen) DataCell(Text(_formatDate(lead.createdAt))),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                onPressed: () {
+                  // TODO: Implement edit functionality
+                },
+                tooltip: 'Edit Lead',
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                onPressed: () {
+                  // TODO: Implement delete functionality
+                },
+                tooltip: 'Delete Lead',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(BuildContext context, Lead lead, LeadStatus status, String companyId) {
     final theme = Theme.of(context);
     final color = LeadStatusColors.getLeadStatusColor(status);
 
     return PopupMenuButton<LeadStatus>(
+      tooltip: 'Change lead status',
       offset: const Offset(0, 30),
       position: PopupMenuPosition.under,
       child: Container(
@@ -798,78 +690,51 @@ class LeadsTable extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.circle, size: 8, color: color),
+            const SizedBox(width: 8),
             Text(
               status.toString().split('.').last,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 16,
-              color: color,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
             ),
           ],
         ),
       ),
       itemBuilder: (context) => LeadStatus.values
           .map(
-            (s) => PopupMenuItem<LeadStatus>(
-              value: s,
+            (status) => PopupMenuItem(
+              value: status,
               child: Row(
                 children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: LeadStatusColors.getLeadStatusColor(s),
-                      shape: BoxShape.circle,
-                    ),
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: LeadStatusColors.getLeadStatusColor(status),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    s.toString().split('.').last,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: s == status
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                      fontWeight: s == status ? FontWeight.bold : null,
-                    ),
-                  ),
+                  Text(status.toString().split('.').last),
                 ],
               ),
             ),
           )
           .toList(),
       onSelected: (newStatus) {
-        final authState = context.read<AuthBloc>().state;
-        if (authState is Authenticated) {
-          context.read<LeadsBloc>().add(
-                UpdateLeadStatus(
-                  authState.employee.companyId!,
-                  lead.id,
-                  status: newStatus,
-                ),
-              );
-        }
+        context.read<LeadsBloc>().add(
+              UpdateLeadStatus(
+                companyId: companyId,
+                leadId: lead.id,
+                status: newStatus,
+              ),
+            );
       },
     );
   }
 
-  Widget _buildProcessChip(BuildContext context, Lead lead, ProcessStatus status) {
+  Widget _buildProcessChip(BuildContext context, Lead lead, ProcessStatus status, String companyId) {
     final theme = Theme.of(context);
-    final colors = {
-      ProcessStatus.fresh: Colors.green,
-      ProcessStatus.inProgress: Colors.orange,
-      ProcessStatus.completed: Colors.blue,
-      ProcessStatus.rejected: Colors.red,
-    };
-    
-    final color = colors[status] ?? theme.colorScheme.primary;
-    
+    final color = LeadStatusColors.getProcessStatusColor(status);
+
     return PopupMenuButton<ProcessStatus>(
+      tooltip: 'Change process status',
       offset: const Offset(0, 30),
       position: PopupMenuPosition.under,
       child: Container(
@@ -882,62 +747,41 @@ class LeadsTable extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.circle, size: 8, color: color),
+            const SizedBox(width: 8),
             Text(
               status.toString().split('.').last,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 16,
-              color: color,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
             ),
           ],
         ),
       ),
       itemBuilder: (context) => ProcessStatus.values
           .map(
-            (s) => PopupMenuItem<ProcessStatus>(
-              value: s,
+            (status) => PopupMenuItem(
+              value: status,
               child: Row(
                 children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: colors[s] ?? theme.colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: LeadStatusColors.getProcessStatusColor(status),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    s.toString().split('.').last,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: s == status
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                      fontWeight: s == status ? FontWeight.bold : null,
-                    ),
-                  ),
+                  Text(status.toString().split('.').last),
                 ],
               ),
             ),
           )
           .toList(),
       onSelected: (newStatus) {
-        final authState = context.read<AuthBloc>().state;
-        if (authState is Authenticated) {
-          context.read<LeadsBloc>().add(
-                UpdateLeadStatus(
-                  authState.employee.companyId!,
-                  lead.id,
-                  processStatus: newStatus,
-                ),
-              );
-        }
+        context.read<LeadsBloc>().add(
+              UpdateLeadProcessStatus(
+                companyId: companyId,
+                leadId: lead.id,
+                processStatus: newStatus,
+              ),
+            );
       },
     );
   }
@@ -945,5 +789,31 @@ class LeadsTable extends StatelessWidget {
   String _formatDate(DateTime? date) {
     if (date == null) return 'N/A';
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = ResponsiveUtils.getPadding(context);
+
+    return PageWrapper(
+      title: 'Leads',
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(padding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            SizedBox(height: padding),
+            BlocBuilder<LeadsBloc, LeadsState>(
+              builder: (context, state) => _buildStatsGrid(context, state),
+            ),
+            SizedBox(height: padding),
+            BlocBuilder<LeadsBloc, LeadsState>(
+              builder: (context, state) => _buildLeadsTable(context, state),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
