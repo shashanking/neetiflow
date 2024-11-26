@@ -12,6 +12,7 @@ import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employee_status/employee_status_bloc.dart';
+import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'firebase_options.dart';
 
@@ -65,6 +66,9 @@ class MainApp extends StatelessWidget {
             create: (context) => EmployeeStatusBloc(
               employeesRepository: context.read<EmployeesRepository>() as FirebaseEmployeesRepository,
             ),
+          ),
+          BlocProvider(
+            create: (context) => PasswordResetBloc(),
           ),
         ],
         child: MaterialApp(

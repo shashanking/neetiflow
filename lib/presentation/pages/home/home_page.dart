@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/leads/leads_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -48,7 +49,9 @@ class HomePage extends StatelessWidget {
                 title: 'Employees',
                 subtitle: 'Manage your team',
                 onTap: () {
-                  // TODO: Navigate to employees page
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const EmployeesPage()),
+                  );
                 },
               ),
               _DashboardCard(

@@ -1,147 +1,133 @@
-# NeetiFlow - Modern Business Management System
+# Neetiflow
 
-A comprehensive CRM and business management system built with Flutter, following clean architecture principles and modern development practices.
+A modern employee management system built with Flutter and Firebase.
 
-## 🚀 Project Status
+## Features
 
-### Completed Features
-- ✅ Navigation System
-  - Modern, animated navigation panel
-  - Dashboard as home screen
-  - Persistent shell architecture
-  - Smooth page transitions
-  - Responsive layout adaptation
-  - Custom page management
-  - Organized sections with preferences
-  - Enhanced profile section with status management
-  - Real-time employee status updates
-  - Secure logout functionality
-- ✅ Email-based Authentication System
-  - Modern, user-friendly login interface
-  - Comprehensive error handling
-  - Secure password management
-  - Company and employee auto-mapping
-- ✅ Business Management Modules
-  - Leads Management
-  - Client Management
-  - Operations Management
-  - Financial Management
-  - Employee Management
-  - Organization Management
-- ✅ Leads Management System
-  - Modern, responsive table layout
-  - Real-time lead status updates
-  - Interactive status management
-  - Lead metrics dashboard
-  - CSV import/export functionality
-- ✅ Employees Management System
-  - Responsive grid layout
-  - Role-based filtering
-  - Search functionality
-  - Employee statistics dashboard
-  - Employee details view
-  - CRUD operations
-  - Department management
-  - Role management
-  - Function management
-- ✅ Clean Architecture Implementation
-  - Domain-driven design
-  - BLoC pattern for state management
-  - Repository pattern for data access
-  - Custom state management solutions
-- ✅ Firebase Integration
-  - Authentication
-  - Firestore database
-  - Secure data structure
-- ✅ UI/UX Enhancements
-  - Material 3 design system
-  - Custom animated components
-  - Responsive layouts
-  - Modern gradient effects
-  - Intuitive navigation
-  - Cross-platform compatibility
+### Employee Management
+- Real-time employee status tracking
+- Employee profile management
+- Role-based access control
+- Active/Inactive status management
 
-### 🏗️ Current Development
-- Client Management Features
-- Operations Management System
-- Financial Management Tools
-- Advanced Employee Management
-- Organization Structure Management
+### Authentication
+- Secure login system
+- Password reset functionality
+- Account activation/deactivation
+- Session management
 
-### 📅 Roadmap
+### Real-time Updates
+- Live status synchronization
+- Instant notifications
+- Stream-based data updates
+- Automatic UI refresh
 
-#### Phase 1: Core Features (In Progress)
-- [x] Lead Management System
-- [x] Employee Management System
-- [x] Navigation System
-- [x] Client Management Foundation
-- [x] Operations Management Foundation
-- [x] Financial Management Foundation
-- [ ] Password Reset Flow
-- [ ] User Profile Management
-- [ ] Role-based Authorization
-- [ ] Multi-organization Support
+### User Interface
+- Modern, responsive design
+- Intuitive navigation
+- Dark/Light theme support
+- Cross-platform compatibility
 
-#### Phase 2: Business Operations
-- [ ] Client Relationship Management
-  - Client profiles
-  - Interaction history
-  - Communication tools
-- [ ] Operations Management
-  - Project tracking
-  - Resource allocation
-  - Timeline management
-- [ ] Financial Management
-  - Invoice generation
-  - Payment tracking
-  - Financial reporting
-
-#### Phase 3: Advanced Features
-- [ ] Dashboard Analytics
-- [ ] Custom Report Builder
-- [ ] Task Management System
-- [ ] Calendar Integration
-- [ ] Document Management
-- [ ] Team Collaboration Tools
-- [ ] Notification System
-- [ ] Mobile Responsiveness
-- [ ] Offline Support
-- [ ] API Integration System
-
-## 🛠️ Technical Stack
+## Tech Stack
 
 ### Frontend
 - Flutter SDK
-- Material 3 Design
-- flutter_bloc for State Management
-- Custom Navigation Shell
-- Animated UI Components
-- Google Fonts with Noto Sans
-- Interactive Data Tables
-- CSV Processing
+- BLoC Pattern
+- Stream Subscriptions
+- Custom Widgets
 
 ### Backend
 - Firebase Authentication
 - Cloud Firestore
-- Firebase Cloud Functions (planned)
+- Firebase Functions
+- Real-time Database
 
-### Development Tools
-- Git for Version Control
-- VS Code with Flutter/Dart plugins
-- Firebase CLI tools
+### State Management
+- flutter_bloc
+- StreamSubscription
+- Repository Pattern
+- Clean Architecture
 
-## 🔄 Recent Updates
-- Implemented modern navigation system with persistent shell
-- Added new business management modules
-- Enhanced UI with animations and modern styling
-- Improved state management with custom solutions
-- Added placeholder pages for new modules
-- Restructured navigation for better user experience
+## Getting Started
 
-## 📝 License
+### Prerequisites
+- Flutter SDK (latest version)
+- Firebase project setup
+- IDE (VS Code or Android Studio)
+- Git
 
-This project is proprietary and confidential. All rights reserved.
+### Installation
 
-## 🤝 Contributing
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/neetiflow.git
+```
 
-This is a private project. Contributions are not open to the public.
+2. Install dependencies
+```bash
+flutter pub get
+```
+
+3. Configure Firebase
+- Add your `google-services.json` for Android
+- Add your `GoogleService-Info.plist` for iOS
+- Configure web setup if needed
+
+4. Run the app
+```bash
+flutter run
+```
+
+## Project Structure
+
+```
+lib/
+├── application/      # Business logic and state management
+├── domain/          # Business objects and interfaces
+├── infrastructure/  # Implementation of repositories
+└── presentation/   # UI components and pages
+```
+
+## Development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development documentation, including:
+- Current implementation status
+- Future development goals
+- Contributing guidelines
+- Known issues and limitations
+
+## Security
+
+- Secure authentication flow
+- Role-based access control
+- Data encryption
+- Regular security audits
+
+## Testing
+
+- Unit tests
+- Widget tests
+- Integration tests
+- Performance testing
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contact
+
+For support or queries, please contact [your-email@domain.com]
+
+## Acknowledgments
+
+- Flutter team
+- Firebase team
+- All contributors

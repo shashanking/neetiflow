@@ -80,6 +80,34 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   Future<void> signOut() async {
     try {
       _logger.i('Signing out user');
+      
+      // Get current user's email before signing out
+      final currentUser = await getCurrentUser();
+      if (currentUser?.email != null) {
+        // Get user mapping to find company and employee IDs
+        final userMapping = await _firestore
+            .collection('user_mappings')
+            .doc(currentUser!.email)
+            .get();
+
+        if (userMapping.exists) {
+          final data = userMapping.data()!;
+          final companyId = data['companyId'] as String;
+          final employeeId = data['employeeId'] as String;
+
+          // Update employee active status to false
+          await _firestore
+              .collection('organizations')
+              .doc(companyId)
+              .collection('employees')
+              .doc(employeeId)
+              .update({
+            'isActive': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
       await _firebaseAuth.signOut();
       await SecureStorageService.clearCredentials();
       _logger.i('Sign out successful');
@@ -378,10 +406,24 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         );
       }
 
-      _logger.i('Login successful for employee: ${employee.name}');
+      // Update employee active status to true
+      await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .update({
+        'isActive': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Get the updated employee data with active status
+      final updatedEmployee = employee.copyWith(isActive: true);
+
+      _logger.i('Login successful for employee: ${updatedEmployee.name}');
       return {
         'user': userCredential,
-        'employee': employee,
+        'employee': updatedEmployee,
       };
     } on FirebaseAuthException catch (e, stackTrace) {
       _logger.e('Firebase Auth Error: ${e.code}', error: e, stackTrace: stackTrace);

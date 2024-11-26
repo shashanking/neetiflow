@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
+import 'package:neetiflow/presentation/pages/auth/password_reset_page.dart';
 import 'package:neetiflow/presentation/pages/auth/register_organization_page.dart';
 import 'package:neetiflow/presentation/pages/home/home_page.dart';
 import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
@@ -182,8 +184,7 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                     onPressed: () {
                                       setState(() {
-                                        _isPasswordVisible =
-                                            !_isPasswordVisible;
+                                        _isPasswordVisible = !_isPasswordVisible;
                                       });
                                     },
                                   ),
@@ -198,7 +199,30 @@ class _LoginPageState extends State<LoginPage> {
                                   return null;
                                 },
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 8),
+
+                              // Forgot Password Link
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => BlocProvider(
+                                          create: (context) => PasswordResetBloc(),
+                                          child: const PasswordResetPage(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'Forgot Password?',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
 
                               // Remember Me Checkbox
                               Row(
@@ -213,12 +237,6 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   const Text('Remember Me'),
                                   const Spacer(),
-                                  TextButton(
-                                    onPressed: () {
-                                      // TODO: Implement forgot password
-                                    },
-                                    child: const Text('Forgot Password?'),
-                                  ),
                                 ],
                               ),
 

@@ -57,6 +57,14 @@ class CheckEmailAvailability extends EmployeesEvent {
 
 class ResetEmployeesState extends EmployeesEvent {}
 
+class UpdateEmployeesList extends EmployeesEvent {
+  final List<Employee> employees;
+  const UpdateEmployeesList(this.employees);
+
+  @override
+  List<Object?> get props => [employees];
+}
+
 // States
 abstract class EmployeesState extends Equatable {
   const EmployeesState();
@@ -135,6 +143,7 @@ class EmployeesEmailError extends EmployeesState {
 // Bloc
 class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
   final EmployeesRepository _employeesRepository;
+  StreamSubscription<List<Employee>>? _employeesSubscription;
 
   EmployeesBloc({
     required EmployeesRepository employeesRepository,
@@ -146,6 +155,13 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     on<DeleteEmployee>(_onDeleteEmployee);
     on<CheckEmailAvailability>(_onCheckEmailAvailability);
     on<ResetEmployeesState>(_onResetState);
+    on<UpdateEmployeesList>(_onUpdateEmployeesList);
+  }
+
+  @override
+  Future<void> close() {
+    _employeesSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onLoadEmployees(
@@ -158,14 +174,28 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     emit(EmployeesLoading(employees: currentEmployees));
     
     try {
-      final employees = await _employeesRepository.getEmployees(event.companyId);
-      emit(EmployeesLoaded(employees));
+      // Cancel any existing subscription
+      await _employeesSubscription?.cancel();
+      
+      // Subscribe to real-time updates
+      _employeesSubscription = _employeesRepository
+          .employeesStream(event.companyId)
+          .listen(
+            (employees) => add(UpdateEmployeesList(employees)),
+          );
     } catch (e) {
       emit(EmployeesError(
         'Failed to load employees: ${e.toString()}',
         currentEmployees,
       ));
     }
+  }
+
+  Future<void> _onUpdateEmployeesList(
+    UpdateEmployeesList event,
+    Emitter<EmployeesState> emit,
+  ) async {
+    emit(EmployeesLoaded(event.employees));
   }
 
   Future<void> _onAddEmployee(

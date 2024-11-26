@@ -45,6 +45,40 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
   }
 
   @override
+  Stream<List<Employee>> employeesStream(String companyId) {
+    return _firestore
+        .collection('organizations')
+        .doc(companyId)
+        .collection('employees')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return Employee.fromJson(data);
+      }).toList();
+    });
+  }
+
+  @override
+  Stream<Employee> employeeStream(String companyId, String employeeId) {
+    return _firestore
+        .collection('organizations')
+        .doc(companyId)
+        .collection('employees')
+        .doc(employeeId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) {
+        throw Exception('Employee not found');
+      }
+      final data = doc.data()!;
+      data['id'] = doc.id;
+      return Employee.fromJson(data);
+    });
+  }
+
+  @override
   Future<Employee> addEmployee(Employee employee, String password) async {
     try {
       if (employee.companyId == null) {
@@ -74,6 +108,7 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
           .set({
         ...employee.toJson(),
         'id': employeeId,
+        'authUid': employeeId,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -137,15 +172,20 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     }
   }
 
+  @override
   Future<void> updateEmployeeStatus(String employeeId, String companyId, bool isActive) async {
     try {
+      // Update Firestore status
       await _firestore
           .collection('organizations')
           .doc(companyId)
           .collection('employees')
           .doc(employeeId)
           .update({'isActive': isActive});
+
+      _logger.i('Employee status updated in Firestore successfully');
     } catch (e) {
+      _logger.e('Failed to update employee status', error: e);
       throw Exception('Failed to update employee status: $e');
     }
   }

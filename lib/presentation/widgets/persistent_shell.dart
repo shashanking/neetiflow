@@ -1,8 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employee_status/employee_status_bloc.dart';
-import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/presentation/pages/home/home_page.dart';
 import 'package:neetiflow/presentation/pages/leads/leads_page.dart';
 import 'package:neetiflow/presentation/pages/clients/clients_page.dart';
@@ -12,6 +13,9 @@ import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/organization/organization_page.dart';
 import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
 import 'package:neetiflow/presentation/pages/help/help_page.dart';
+
+import '../../domain/entities/employee.dart';
+import '../../domain/repositories/employees_repository.dart';
 
 class PersistentShell extends StatefulWidget {
   const PersistentShell({super.key});
@@ -27,7 +31,8 @@ class PersistentShell extends StatefulWidget {
 class PersistentShellState extends State<PersistentShell> {
   int _selectedIndex = 0;
   Widget? _customPage;
-  bool _isActive = true;
+  StreamSubscription<Employee>? _employeeSubscription;
+  Employee? _currentEmployee;
 
   void setCustomPage(Widget page) {
     setState(() {
@@ -117,6 +122,24 @@ class PersistentShellState extends State<PersistentShell> {
   }
 
   @override
+  void dispose() {
+    _employeeSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToEmployeeUpdates(String companyId, String employeeId) {
+    final employeesRepository = context.read<EmployeesRepository>();
+    _employeeSubscription?.cancel();
+    _employeeSubscription = employeesRepository
+        .employeeStream(companyId, employeeId)
+        .listen((employee) {
+          if (mounted) {
+            setState(() => _currentEmployee = employee);
+          }
+        });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
@@ -124,7 +147,37 @@ class PersistentShellState extends State<PersistentShell> {
 
     final drawerContent = Column(
       children: [
-        // Navigation Items
+        // Logo and app name
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.business,
+                  color: theme.colorScheme.primary,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'NeetiFlow',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        
+        // Main navigation area
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -153,36 +206,8 @@ class PersistentShellState extends State<PersistentShell> {
               },
               children: [
                 const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.business,
-                          color: theme.colorScheme.primary,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'NeetiFlow',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
                 ...buildNavigationItems(theme),
-                const Spacer(),
+                const SizedBox(height: 16),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(28, 16, 28, 10),
                   child: Divider(),
@@ -191,9 +216,10 @@ class PersistentShellState extends State<PersistentShell> {
                   padding: const EdgeInsets.fromLTRB(28, 0, 16, 10),
                   child: Text(
                     'Preferences',
-                    style: theme.textTheme.labelSmall?.copyWith(
+                    style: TextStyle(
                       color: theme.colorScheme.primary.withOpacity(0.5),
                       letterSpacing: 1.2,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -212,211 +238,189 @@ class PersistentShellState extends State<PersistentShell> {
                   theme: theme,
                 ),
                 const SizedBox(height: 16),
-                const Spacer(),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 28),
-                  child: Divider(),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                    ),
-                    child: BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, state) {
-                        if (state is Authenticated) {
-                          return Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Row(
-                              children: [
-                                Hero(
-                                  tag: 'profile_avatar',
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          theme.colorScheme.primary,
-                                          theme.colorScheme.primary.withOpacity(0.8),
-                                        ],
-                                      ),
-                                    ),
-                                    child: CircleAvatar(
-                                      radius: 20,
-                                      backgroundColor: theme.colorScheme.surface,
-                                      child: Text(
-                                        state.employee.name.isNotEmpty == true
-                                            ? state.employee.name[0].toUpperCase()
-                                            : 'U',
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          color: theme.colorScheme.primary,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Name and Status
-                                Expanded(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        state.employee.name,
-                                        style: theme.textTheme.titleSmall?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          color: theme.colorScheme.onSurface,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      BlocBuilder<EmployeeStatusBloc, EmployeeStatusState>(
-                                        builder: (context, statusState) {
-                                          return Row(
-                                            children: [
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin: Alignment.centerLeft,
-                                                    end: Alignment.centerRight,
-                                                    colors: [
-                                                      state.employee.isActive 
-                                                          ? Colors.green.withOpacity(0.15) 
-                                                          : Colors.grey.withOpacity(0.15),
-                                                      state.employee.isActive 
-                                                          ? Colors.green.withOpacity(0.05) 
-                                                          : Colors.grey.withOpacity(0.05),
-                                                    ],
-                                                  ),
-                                                  borderRadius: BorderRadius.circular(16),
-                                                  border: Border.all(
-                                                    color: state.employee.isActive 
-                                                        ? Colors.green.withOpacity(0.2) 
-                                                        : Colors.grey.withOpacity(0.2),
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      state.employee.isActive 
-                                                          ? Icons.circle 
-                                                          : Icons.circle_outlined,
-                                                      size: 8,
-                                                      color: state.employee.isActive 
-                                                          ? Colors.green 
-                                                          : Colors.grey,
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      state.employee.isActive ? 'Active' : 'Offline',
-                                                      style: theme.textTheme.bodySmall?.copyWith(
-                                                        color: state.employee.isActive 
-                                                            ? Colors.green 
-                                                            : Colors.grey,
-                                                        fontWeight: FontWeight.w500,
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              Transform.scale(
-                                                scale: 0.6,
-                                                child: Switch(
-                                                  value: state.employee.isActive,
-                                                  onChanged: (value) {
-                                                    if (statusState is! EmployeeStatusUpdating) {
-                                                      context.read<EmployeeStatusBloc>().add(
-                                                            UpdateEmployeeStatus(
-                                                              employeeId: state.employee.id!,
-                                                              companyId: state.employee.companyId!,
-                                                              isActive: value,
-                                                            ),
-                                                          );
-                                                    }
-                                                  },
-                                                  activeColor: Colors.green,
-                                                  inactiveThumbColor: Colors.grey,
-                                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Logout Button
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.logout_rounded,
-                                    color: theme.colorScheme.error,
-                                    size: 20,
-                                  ),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  tooltip: 'Logout',
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: Text(
-                                          'Logout',
-                                          style: TextStyle(
-                                            color: theme.colorScheme.error,
-                                          ),
-                                        ),
-                                        content: const Text('Are you sure you want to logout?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          FilledButton(
-                                            onPressed: () {
-                                              context.read<AuthBloc>().add(SignOutRequested());
-                                              Navigator.of(context).pushAndRemoveUntil(
-                                                MaterialPageRoute(
-                                                  builder: (_) => const LoginPage(),
-                                                ),
-                                                (route) => false,
-                                              );
-                                            },
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: theme.colorScheme.error,
-                                            ),
-                                            child: const Text('Logout'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                ),
               ],
+            ),
+          ),
+        ),
+        
+        // User profile section at bottom
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+            ),
+            child: BlocBuilder<AuthBloc, AuthState>(
+              builder: (context, state) {
+                if (state is Authenticated) {
+                  // Subscribe to employee updates when authenticated
+                  if (state.employee.id != null && state.employee.companyId != null) {
+                    _subscribeToEmployeeUpdates(
+                      state.employee.companyId!,
+                      state.employee.id!,
+                    );
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        Hero(
+                          tag: 'profile_avatar',
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  theme.colorScheme.primary,
+                                  theme.colorScheme.primary.withOpacity(0.8),
+                                ],
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 20,
+                              backgroundColor: theme.colorScheme.surface,
+                              child: Text(
+                                state.employee.name.isNotEmpty == true
+                                    ? state.employee.name[0].toUpperCase()
+                                    : 'U',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                state.employee.name,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                          colors: [
+                                            _currentEmployee?.isActive ?? false
+                                                ? Colors.green.withOpacity(0.15)
+                                                : Colors.grey.withOpacity(0.15),
+                                            _currentEmployee?.isActive ?? false
+                                                ? Colors.green.withOpacity(0.05)
+                                                : Colors.grey.withOpacity(0.05),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: _currentEmployee?.isActive ?? false
+                                              ? Colors.green.withOpacity(0.2)
+                                              : Colors.grey.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            _currentEmployee?.isActive ?? false
+                                                ? Icons.circle
+                                                : Icons.circle_outlined,
+                                            size: 8,
+                                            color: _currentEmployee?.isActive ?? false
+                                                ? Colors.green
+                                                : Colors.grey,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              _currentEmployee?.isActive ?? false
+                                                  ? 'Active'
+                                                  : 'Offline',
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                color: _currentEmployee?.isActive ?? false
+                                                    ? Colors.green
+                                                    : Colors.grey,
+                                                fontWeight: FontWeight.w500,
+                                                fontSize: 11,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  BlocBuilder<EmployeeStatusBloc, EmployeeStatusState>(
+                                    builder: (context, statusState) {
+                                      return SizedBox(
+                                        height: 24,
+                                        child: Transform.scale(
+                                          scale: 0.6,
+                                          child: Switch(
+                                            value: _currentEmployee?.isActive ?? false,
+                                            onChanged: (value) {
+                                              if (statusState is! EmployeeStatusUpdating &&
+                                                  state.employee.id != null &&
+                                                  state.employee.companyId != null) {
+                                                context.read<EmployeeStatusBloc>().add(
+                                                  UpdateEmployeeStatus(
+                                                    employeeId: state.employee.id!,
+                                                    companyId: state.employee.companyId!,
+                                                    isActive: value,
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                            activeColor: Colors.green,
+                                            inactiveThumbColor: Colors.grey,
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.logout),
+                          onPressed: () {
+                            context.read<AuthBloc>().add(SignOutRequested());
+                          },
+                          tooltip: 'Sign Out',
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
           ),
         ),
@@ -563,6 +567,7 @@ class _AnimatedListTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _AnimatedIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
