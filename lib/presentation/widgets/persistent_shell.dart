@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/pages/clients/clients_page.dart';
+import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
+import 'package:neetiflow/presentation/pages/finances/finances_page.dart';
+import 'package:neetiflow/presentation/pages/help/help_page.dart';
 import 'package:neetiflow/presentation/pages/home/home_page.dart';
 import 'package:neetiflow/presentation/pages/leads/leads_page.dart';
-import 'package:neetiflow/presentation/pages/clients/clients_page.dart';
 import 'package:neetiflow/presentation/pages/operations/operations_page.dart';
-import 'package:neetiflow/presentation/pages/finances/finances_page.dart';
-import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/organization/organization_page.dart';
 import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
-import 'package:neetiflow/presentation/pages/help/help_page.dart';
 
 import '../../domain/entities/employee.dart';
 import '../../domain/repositories/employees_repository.dart';
@@ -57,7 +57,9 @@ class PersistentShellState extends State<PersistentShell> {
         label: Text(
           'Dashboard',
           style: TextStyle(
-            color: _selectedIndex == 0 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 0
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
@@ -67,17 +69,22 @@ class PersistentShellState extends State<PersistentShell> {
         label: Text(
           'Leads',
           style: TextStyle(
-            color: _selectedIndex == 1 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 1
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
       NavigationDrawerDestination(
         icon: const Icon(Icons.business_center_outlined),
-        selectedIcon: Icon(Icons.business_center, color: theme.colorScheme.primary),
+        selectedIcon:
+            Icon(Icons.business_center, color: theme.colorScheme.primary),
         label: Text(
           'Clients',
           style: TextStyle(
-            color: _selectedIndex == 2 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 2
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
@@ -87,17 +94,22 @@ class PersistentShellState extends State<PersistentShell> {
         label: Text(
           'Operations',
           style: TextStyle(
-            color: _selectedIndex == 3 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 3
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
       NavigationDrawerDestination(
         icon: const Icon(Icons.account_balance_wallet_outlined),
-        selectedIcon: Icon(Icons.account_balance_wallet, color: theme.colorScheme.primary),
+        selectedIcon: Icon(Icons.account_balance_wallet,
+            color: theme.colorScheme.primary),
         label: Text(
           'Finances',
           style: TextStyle(
-            color: _selectedIndex == 4 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 4
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
@@ -107,7 +119,9 @@ class PersistentShellState extends State<PersistentShell> {
         label: Text(
           'Employees',
           style: TextStyle(
-            color: _selectedIndex == 5 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 5
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
@@ -117,7 +131,9 @@ class PersistentShellState extends State<PersistentShell> {
         label: Text(
           'Organization',
           style: TextStyle(
-            color: _selectedIndex == 6 ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            color: _selectedIndex == 6
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),
@@ -142,9 +158,8 @@ class PersistentShellState extends State<PersistentShell> {
     _employeeSubscription = employeesRepository
         .employeeStream(companyId, employeeId)
         .listen((employee) {
-          if (mounted) {
-          }
-        });
+      if (mounted) {}
+    });
   }
 
   @override
@@ -184,7 +199,7 @@ class PersistentShellState extends State<PersistentShell> {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Main navigation area
         Expanded(
           child: Container(
@@ -250,7 +265,7 @@ class PersistentShellState extends State<PersistentShell> {
             ),
           ),
         ),
-        
+
         // User profile section at bottom
         Padding(
           padding: const EdgeInsets.all(16.0),
@@ -271,10 +286,11 @@ class PersistentShellState extends State<PersistentShell> {
                   });
                   return const SizedBox.shrink();
                 }
-                
+
                 if (state is Authenticated) {
                   // Subscribe to employee updates when authenticated
-                  if (state.employee.id != null && state.employee.companyId != null) {
+                  if (state.employee.id != null &&
+                      state.employee.companyId != null) {
                     _subscribeToEmployeeUpdates(
                       state.employee.companyId!,
                       state.employee.id!,
@@ -327,7 +343,9 @@ class PersistentShellState extends State<PersistentShell> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    state.employee.isOnline ? 'Online' : 'Offline',
+                                    state.employee.isOnline
+                                        ? 'Online'
+                                        : 'Offline',
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.onSurfaceVariant,
                                     ),
@@ -349,11 +367,11 @@ class PersistentShellState extends State<PersistentShell> {
                           ),
                           onPressed: () {
                             context.read<AuthBloc>().add(
-                              UpdateEmployeeOnlineStatus(
-                                employee: state.employee,
-                                isOnline: !state.employee.isOnline,
-                              ),
-                            );
+                                  UpdateEmployeeOnlineStatus(
+                                    employee: state.employee,
+                                    isOnline: !state.employee.isOnline,
+                                  ),
+                                );
                           },
                         ),
                         IconButton(
@@ -426,11 +444,13 @@ class PersistentShellState extends State<PersistentShell> {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
-      drawer: isLargeScreen ? null : Container(
-        width: 280,
-        color: theme.colorScheme.primary.withOpacity(0.05),
-        child: drawerContent,
-      ),
+      drawer: isLargeScreen
+          ? null
+          : Container(
+              width: 280,
+              color: theme.colorScheme.primary.withOpacity(0.05),
+              child: drawerContent,
+            ),
       body: isLargeScreen
           ? Row(
               children: [
@@ -485,7 +505,9 @@ class _AnimatedListTile extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              color: isSelected ? theme.colorScheme.primary.withOpacity(0.1) : Colors.transparent,
+              color: isSelected
+                  ? theme.colorScheme.primary.withOpacity(0.1)
+                  : Colors.transparent,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -493,14 +515,18 @@ class _AnimatedListTile extends StatelessWidget {
                 children: [
                   Icon(
                     leading,
-                    color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       title,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                        color: isSelected
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface,
                         fontWeight: isSelected ? FontWeight.w500 : null,
                       ),
                     ),
