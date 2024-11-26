@@ -5,38 +5,48 @@ A modern employee management system built with Flutter and Firebase.
 ## Features
 
 ### Employee Management
-- Real-time employee status tracking
-- Employee profile management
-- Role-based access control
+- Real-time employee status tracking (Online/Offline)
+- Comprehensive employee profile management
+- Role-based access control (Admin/Manager/Employee)
 - Active/Inactive status management
+- Cross-organization employee lookup
+- Department role management
+- Detailed employee information display
 
 ### Navigation
-- Persistent shell implementation
+- Persistent shell implementation with customizable initial routes
 - Responsive drawer navigation
 - Dynamic page routing
 - Seamless page transitions
 - User profile integration
+- Quick access to key features
 
 ### Authentication
-- Secure login system
+- Secure login system with error handling
 - Password reset functionality
 - Remember me functionality
 - Persistent session management
 - Automatic navigation flow
 - Account activation/deactivation
-- Session management
+- Online/Offline status tracking
+- Cross-organization authentication
 
 ### Real-time Updates
 - Live status synchronization
 - Instant notifications
 - Stream-based data updates
 - Automatic UI refresh
+- Robust error handling
+- Efficient state management
 
 ### User Interface
 - Modern, responsive design
 - Intuitive navigation
 - Dark/Light theme support
 - Cross-platform compatibility
+- Null-safe implementations
+- Beautiful status indicators
+- Improved layout handling
 
 ## Tech Stack
 

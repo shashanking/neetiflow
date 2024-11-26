@@ -195,7 +195,9 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     UpdateEmployeesList event,
     Emitter<EmployeesState> emit,
   ) async {
-    emit(EmployeesLoaded(event.employees));
+    final sortedEmployees = List<Employee>.from(event.employees)
+      ..sort((a, b) => '${a.firstName} ${a.lastName}'.compareTo('${b.firstName} ${b.lastName}'));
+    emit(EmployeesLoaded(sortedEmployees));
   }
 
   Future<void> _onAddEmployee(
@@ -212,9 +214,11 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
         event.password,
       );
 
-      emit(EmployeeOperationSuccess('Employee ${employee.name} added successfully'));
+      emit(EmployeeOperationSuccess('Employee ${employee.firstName} ${employee.lastName} added successfully'));
       final employees = await _employeesRepository.getEmployees(event.employee.companyId!);
-      emit(EmployeesLoaded(employees));
+      final sortedEmployees = List<Employee>.from(employees)
+        ..sort((a, b) => '${a.firstName} ${a.lastName}'.compareTo('${b.firstName} ${b.lastName}'));
+      emit(EmployeesLoaded(sortedEmployees));
     } catch (e) {
       String errorMessage = 'Failed to add employee';
       if (e is FirebaseAuthException) {
@@ -246,9 +250,11 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
       }
 
       await _employeesRepository.updateEmployee(event.employee);
-      emit(EmployeeOperationSuccess('Employee ${event.employee.name} updated successfully'));
+      emit(EmployeeOperationSuccess('Employee ${event.employee.firstName} ${event.employee.lastName} updated successfully'));
       final employees = await _employeesRepository.getEmployees(event.employee.companyId!);
-      emit(EmployeesLoaded(employees));
+      final sortedEmployees = List<Employee>.from(employees)
+        ..sort((a, b) => '${a.firstName} ${a.lastName}'.compareTo('${b.firstName} ${b.lastName}'));
+      emit(EmployeesLoaded(sortedEmployees));
     } catch (e) {
       emit(EmployeesError('Failed to update employee: ${e.toString()}', const []));
     }

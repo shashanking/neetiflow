@@ -21,7 +21,8 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
   final _organizationWebsiteController = TextEditingController();
   final _organizationPanController = TextEditingController();
   final _organizationGstinController = TextEditingController();
-  final _adminNameController = TextEditingController();
+  final _adminFirstNameController = TextEditingController();
+  final _adminLastNameController = TextEditingController();
   final _adminPhoneController = TextEditingController();
   final _adminEmailController = TextEditingController();
   final _adminAddressController = TextEditingController();
@@ -37,7 +38,8 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
     _organizationWebsiteController.dispose();
     _organizationPanController.dispose();
     _organizationGstinController.dispose();
-    _adminNameController.dispose();
+    _adminFirstNameController.dispose();
+    _adminLastNameController.dispose();
     _adminPhoneController.dispose();
     _adminEmailController.dispose();
     _adminAddressController.dispose();
@@ -58,7 +60,8 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
       );
 
       final admin = Employee(
-        name: _adminNameController.text.trim(),
+        firstName: _adminFirstNameController.text.trim(),
+        lastName: _adminLastNameController.text.trim(),
         phone: _adminPhoneController.text.trim(),
         email: _adminEmailController.text.trim(),
         address: _adminAddressController.text.trim(),
@@ -238,14 +241,28 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
                         ),
                         const SizedBox(height: 24),
                         TextFormField(
-                          controller: _adminNameController,
+                          controller: _adminFirstNameController,
                           decoration: const InputDecoration(
-                            labelText: 'Name',
-                            prefixIcon: Icon(Icons.person),
+                            labelText: 'First Name',
+                            hintText: 'Enter your first name',
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter name';
+                              return 'Please enter your first name';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _adminLastNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Last Name',
+                            hintText: 'Enter your last name',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your last name';
                             }
                             return null;
                           },
