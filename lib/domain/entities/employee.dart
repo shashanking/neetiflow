@@ -9,7 +9,8 @@ class Employee extends Equatable {
   final String? uid;
   final String? companyId;
   final String? companyName;
-  final String name;
+  final String firstName;
+  final String lastName;
   final String? phone;
   final String email;
   final String? address;
@@ -19,6 +20,7 @@ class Employee extends Equatable {
   final DateTime? updatedAt;
   final String? photoUrl;
   final bool isActive;
+  final bool isOnline;
   final String? departmentId;  
   final DepartmentRole? departmentRole;  
 
@@ -27,7 +29,8 @@ class Employee extends Equatable {
     this.uid,
     this.companyId,
     this.companyName,
-    required this.name,
+    required this.firstName,
+    required this.lastName,
     this.phone,
     required this.email,
     this.address,
@@ -37,6 +40,7 @@ class Employee extends Equatable {
     this.updatedAt,
     this.photoUrl,
     this.isActive = true,
+    this.isOnline = false,
     this.departmentId,  
     this.departmentRole,  
   });
@@ -47,7 +51,8 @@ class Employee extends Equatable {
         uid,
         companyId,
         companyName,
-        name,
+        firstName,
+        lastName,
         phone,
         email,
         address,
@@ -57,6 +62,7 @@ class Employee extends Equatable {
         updatedAt,
         photoUrl,
         isActive,
+        isOnline,
         departmentId,  
         departmentRole,  
       ];
@@ -67,7 +73,8 @@ class Employee extends Equatable {
       'uid': uid,
       'companyId': companyId,
       'companyName': companyName,
-      'name': name,
+      'firstName': firstName,
+      'lastName': lastName,
       'phone': phone,
       'email': email,
       'address': address,
@@ -77,6 +84,7 @@ class Employee extends Equatable {
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
       'isActive': isActive,
+      'isOnline': isOnline,
       'departmentId': departmentId,  
       'departmentRole': departmentRole?.toString().split('.').last,  
     };
@@ -88,7 +96,8 @@ class Employee extends Equatable {
       uid: json['uid'] as String?,
       companyId: json['companyId'] as String?,
       companyName: json['companyName'] as String?,
-      name: json['name'] as String,
+      firstName: json['firstName'] as String? ?? '',
+      lastName: json['lastName'] as String? ?? '',
       phone: json['phone'] as String?,
       email: json['email'] as String,
       address: json['address'] as String?,
@@ -107,6 +116,7 @@ class Employee extends Equatable {
           : null,
       photoUrl: json['photoUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
+      isOnline: json['isOnline'] as bool? ?? false,
       departmentId: json['departmentId'] as String?,  
       departmentRole: json['departmentRole'] != null  
           ? DepartmentRole.values.firstWhere(
@@ -121,7 +131,8 @@ class Employee extends Equatable {
     String? uid,
     String? companyId,
     String? companyName,
-    String? name,
+    String? firstName,
+    String? lastName,
     String? phone,
     String? email,
     String? address,
@@ -131,6 +142,7 @@ class Employee extends Equatable {
     DateTime? updatedAt,
     String? photoUrl,
     bool? isActive,
+    bool? isOnline,
     String? departmentId,  
     DepartmentRole? departmentRole,  
   }) {
@@ -139,7 +151,8 @@ class Employee extends Equatable {
       uid: uid ?? this.uid,
       companyId: companyId ?? this.companyId,
       companyName: companyName ?? this.companyName,
-      name: name ?? this.name,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       address: address ?? this.address,
@@ -149,6 +162,7 @@ class Employee extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       photoUrl: photoUrl ?? this.photoUrl,
       isActive: isActive ?? this.isActive,
+      isOnline: isOnline ?? this.isOnline,
       departmentId: departmentId ?? this.departmentId,  
       departmentRole: departmentRole ?? this.departmentRole,  
     );

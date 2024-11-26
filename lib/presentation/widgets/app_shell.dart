@@ -140,8 +140,8 @@ class _AppShellState extends State<AppShell> {
                         radius: 20,
                         backgroundColor: theme.colorScheme.primary,
                         child: Text(
-                          state.employee.name.isNotEmpty
-                              ? state.employee.name[0].toUpperCase()
+                          state.employee.firstName.isNotEmpty
+                              ? state.employee.firstName[0].toUpperCase()
                               : 'U',
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.onPrimary,
@@ -155,7 +155,7 @@ class _AppShellState extends State<AppShell> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              state.employee.name,
+                              '${state.employee.firstName} ${state.employee.lastName}',
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w500,
                               ),

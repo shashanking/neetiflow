@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
-import 'package:neetiflow/domain/entities/department.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employee_status/employee_status_bloc.dart';
 
+import '../../../domain/entities/department.dart';
 import '../../../domain/repositories/employees_repository.dart';
 
 class EmployeeDetailsPage extends StatefulWidget {
@@ -32,6 +32,15 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
   void initState() {
     super.initState();
     _subscribeToEmployeeUpdates();
+    
+    // Load departments once in initState
+    if (widget.employee.companyId != null) {
+      Future.microtask(() {
+        if (mounted) {
+          context.read<DepartmentsBloc>().add(LoadDepartments(widget.employee.companyId!));
+        }
+      });
+    }
   }
 
   @override
@@ -43,10 +52,18 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
   void _subscribeToEmployeeUpdates() {
     if (widget.employee.id != null && widget.employee.companyId != null) {
       final employeesRepository = context.read<EmployeesRepository>();
+      _employeeSubscription?.cancel(); // Cancel any existing subscription
       _employeeSubscription = employeesRepository
           .employeeStream(widget.employee.companyId!, widget.employee.id!)
           .listen(
-            (employee) => setState(() => _currentEmployee = employee),
+            (employee) {
+              if (mounted) {
+                setState(() => _currentEmployee = employee);
+              }
+            },
+            onError: (error) {
+              debugPrint('Error in employee stream: $error');
+            },
           );
     }
   }
@@ -55,14 +72,9 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
   Widget build(BuildContext context) {
     final employee = _currentEmployee ?? widget.employee;
 
-    // Load departments when page opens
-    if (employee.companyId != null) {
-      context.read<DepartmentsBloc>().add(LoadDepartments(employee.companyId!));
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(employee.name),
+        title: Text('${employee.firstName ?? ''} ${employee.lastName ?? ''}'),
         actions: [
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, authState) {
@@ -164,235 +176,301 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
 
   Widget _buildDetails(BuildContext context) {
     final theme = Theme.of(context);
-    final employee = _currentEmployee ?? widget.employee;
+    final employee = widget.employee;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            employee.role == EmployeeRole.admin
-                                ? Icons.admin_panel_settings
-                                : employee.role == EmployeeRole.manager
-                                    ? Icons.manage_accounts
-                                    : Icons.person,
-                            size: 16,
-                            color: theme.colorScheme.primary,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            employee.role.toString().split('.').last.toUpperCase(),
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                employee.role == EmployeeRole.admin
+                                    ? Icons.admin_panel_settings
+                                    : employee.role == EmployeeRole.manager
+                                        ? Icons.manage_accounts
+                                        : Icons.person,
+                                size: 16,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                employee.role.toString().split('.').last.toUpperCase(),
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (employee.departmentId != null) ...[
+                          const SizedBox(width: 12),
+                          BlocBuilder<DepartmentsBloc, DepartmentsState>(
+                            builder: (context, state) {
+                              if (state is DepartmentsLoaded) {
+                                final department = state.departments.firstWhere(
+                                  (d) => d.id == employee.departmentId,
+                                  orElse: () => Department(
+                                    id: '',
+                                    name: 'Unknown Department',
+                                    description: '',
+                                    organizationId: '',
+                                    employeeRoles: const {},
+                                    createdAt: DateTime.now(),
+                                    updatedAt: DateTime.now(),
+                                  ),
+                                );
+                                
+                                final role = department.employeeRoles[employee.id] ?? DepartmentRole.member;
+                                
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.tertiaryContainer,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        role == DepartmentRole.head
+                                            ? Icons.supervised_user_circle
+                                            : role == DepartmentRole.manager
+                                                ? Icons.manage_accounts
+                                                : Icons.group,
+                                        size: 16,
+                                        color: theme.colorScheme.tertiary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${department.name} (${role.toString().split('.').last})',
+                                        style: theme.textTheme.labelLarge?.copyWith(
+                                          color: theme.colorScheme.tertiary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
                           ),
                         ],
-                      ),
-                    ),
-                    if (employee.departmentId != null) ...[
-                      const SizedBox(width: 12),
-                      BlocBuilder<DepartmentsBloc, DepartmentsState>(
-                        builder: (context, state) {
-                          if (state is DepartmentsLoaded) {
-                            final department = state.departments.firstWhere(
-                              (d) => d.id == employee.departmentId,
-                              orElse: () => Department(
-                                id: '',
-                                name: 'Unknown Department',
-                                description: '',
-                                organizationId: '',
-                                employeeRoles: const {},
-                                createdAt: DateTime.now(),
-                                updatedAt: DateTime.now(),
-                              ),
-                            );
-                            
-                            final role = department.employeeRoles[employee.id] ?? DepartmentRole.member;
-                            
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.tertiaryContainer,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    role == DepartmentRole.head
-                                        ? Icons.supervised_user_circle
-                                        : role == DepartmentRole.manager
-                                            ? Icons.manage_accounts
-                                            : Icons.group,
-                                    size: 16,
-                                    color: theme.colorScheme.tertiary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${department.name} (${role.toString().split('.').last})',
-                                    style: theme.textTheme.labelLarge?.copyWith(
-                                      color: theme.colorScheme.tertiary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ],
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: employee.isActive
-                            ? theme.colorScheme.secondaryContainer
-                            : theme.colorScheme.errorContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            employee.isActive
-                                ? Icons.check_circle_outline
-                                : Icons.cancel_outlined,
-                            size: 16,
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
                             color: employee.isActive
-                                ? theme.colorScheme.secondary
-                                : theme.colorScheme.error,
+                                ? theme.colorScheme.secondaryContainer
+                                : theme.colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            employee.isActive ? 'ACTIVE' : 'INACTIVE',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: employee.isActive
-                                  ? theme.colorScheme.secondary
-                                  : theme.colorScheme.error,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                employee.isActive
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                size: 16,
+                                color: employee.isActive
+                                    ? theme.colorScheme.secondary
+                                    : theme.colorScheme.error,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                employee.isActive ? 'ACTIVE' : 'INACTIVE',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: employee.isActive
+                                      ? theme.colorScheme.secondary
+                                      : theme.colorScheme.error,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: employee.isOnline
+                                ? theme.colorScheme.primaryContainer
+                                : theme.colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                employee.isOnline
+                                    ? Icons.circle
+                                    : Icons.circle_outlined,
+                                size: 16,
+                                color: employee.isOnline
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                employee.isOnline ? 'ONLINE' : 'OFFLINE',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: employee.isOnline
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Contact Information',
-                  style: theme.textTheme.titleLarge,
-                ),
+            Card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'Contact Information',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _DetailItem(
+                    icon: Icons.email_outlined,
+                    title: 'Email',
+                    value: employee.email,
+                    onTap: () {
+                      // Handle email tap
+                    },
+                  ),
+                  if (employee.phone != null && employee.phone!.isNotEmpty)
+                    _DetailItem(
+                      icon: Icons.phone_outlined,
+                      title: 'Phone',
+                      value: employee.phone!,
+                      onTap: () {
+                        // Handle phone tap
+                      },
+                    ),
+                  if (employee.address != null && employee.address!.isNotEmpty)
+                    _DetailItem(
+                      icon: Icons.location_on_outlined,
+                      title: 'Address',
+                      value: employee.address!,
+                      onTap: () {
+                        // Handle address tap
+                      },
+                    ),
+                ],
               ),
-              const Divider(height: 1),
-              _DetailItem(
-                icon: Icons.email_outlined,
-                title: 'Email',
-                value: employee.email,
-                onTap: () {
-                  // Handle email tap
-                },
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'Employment Information',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  if (employee.companyName != null && employee.companyName!.isNotEmpty)
+                    _DetailItem(
+                      icon: Icons.business_outlined,
+                      title: 'Company',
+                      value: employee.companyName!,
+                    )
+                  else
+                    const _DetailItem(
+                      icon: Icons.business_outlined,
+                      title: 'Company',
+                      value: 'Not Assigned',
+                    ),
+                  if (employee.joiningDate != null)
+                    _DetailItem(
+                      icon: Icons.calendar_today_outlined,
+                      title: 'Joining Date',
+                      value: DateFormat('MMMM d, y').format(employee.joiningDate!),
+                    ),
+                  if (employee.updatedAt != null)
+                    _DetailItem(
+                      icon: Icons.update_outlined,
+                      title: 'Last Updated',
+                      value: DateFormat('MMMM d, y').format(employee.updatedAt!),
+                    ),
+                ],
               ),
-              if (employee.phone != null && employee.phone!.isNotEmpty)
-                _DetailItem(
-                  icon: Icons.phone_outlined,
-                  title: 'Phone',
-                  value: employee.phone!,
-                  onTap: () {
-                    // Handle phone tap
-                  },
-                ),
-              if (employee.address != null && employee.address!.isNotEmpty)
-                _DetailItem(
-                  icon: Icons.location_on_outlined,
-                  title: 'Address',
-                  value: employee.address!,
-                  onTap: () {
-                    // Handle address tap
-                  },
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Employment Information',
-                  style: theme.textTheme.titleLarge,
-                ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 48,
+                    backgroundColor: theme.colorScheme.primary,
+                    child: Text(
+                      employee.firstName[0].toUpperCase(),
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '${employee.firstName} ${employee.lastName}',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              const Divider(height: 1),
-              if (employee.companyName != null && employee.companyName!.isNotEmpty)
-                _DetailItem(
-                  icon: Icons.business_outlined,
-                  title: 'Company',
-                  value: employee.companyName!,
-                )
-              else
-                const _DetailItem(
-                  icon: Icons.business_outlined,
-                  title: 'Company',
-                  value: 'Not Assigned',
-                ),
-              if (employee.joiningDate != null)
-                _DetailItem(
-                  icon: Icons.calendar_today_outlined,
-                  title: 'Joining Date',
-                  value: DateFormat('MMMM d, y').format(employee.joiningDate!),
-                ),
-              if (employee.updatedAt != null)
-                _DetailItem(
-                  icon: Icons.update_outlined,
-                  title: 'Last Updated',
-                  value: DateFormat('MMMM d, y').format(employee.updatedAt!),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -413,7 +491,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              widget.employee.name,
+              '${widget.employee.firstName} ${widget.employee.lastName}',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -485,7 +563,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              widget.employee.name,
+              '${widget.employee.firstName} ${widget.employee.lastName}',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

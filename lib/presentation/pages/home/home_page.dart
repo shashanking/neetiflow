@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
-import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
-import 'package:neetiflow/presentation/pages/leads/leads_page.dart';
+
+import '../../widgets/persistent_shell.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -50,7 +50,11 @@ class HomePage extends StatelessWidget {
                 subtitle: 'Manage your team',
                 onTap: () {
                   Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const EmployeesPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const PersistentShell(
+                        initialIndex: 5,
+                      ),
+                    ),
                   );
                 },
               ),
@@ -68,7 +72,11 @@ class HomePage extends StatelessWidget {
                 subtitle: 'Manage leads',
                 onTap: () {
                   Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const LeadsPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const PersistentShell(
+                        initialIndex: 1,
+                      ),
+                    ),
                   );
                 },
               ),

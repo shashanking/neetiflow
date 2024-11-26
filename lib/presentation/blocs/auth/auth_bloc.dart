@@ -5,6 +5,7 @@ import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Events
 abstract class AuthEvent extends Equatable {
@@ -45,6 +46,19 @@ class CreateOrganizationRequested extends AuthEvent {
 class SignOutRequested extends AuthEvent {}
 
 class CheckAuthenticationStatus extends AuthEvent {}
+
+class UpdateEmployeeOnlineStatus extends AuthEvent {
+  final Employee employee;
+  final bool isOnline;
+
+  const UpdateEmployeeOnlineStatus({
+    required this.employee,
+    required this.isOnline,
+  });
+
+  @override
+  List<Object?> get props => [employee, isOnline];
+}
 
 // States
 abstract class AuthState extends Equatable {
@@ -99,6 +113,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<CreateOrganizationRequested>(_onCreateOrganizationRequested);
     on<SignOutRequested>(_onSignOutRequested);
     on<CheckAuthenticationStatus>(_onCheckAuthenticationStatus);
+    on<UpdateEmployeeOnlineStatus>(_onUpdateEmployeeOnlineStatus);
   }
 
   Future<void> _onSignInWithEmailRequested(
@@ -201,6 +216,41 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       _logger.e('Error checking authentication status', error: e);
       emit(AuthError(e.toString()));
+    }
+  }
+
+  Future<void> _onUpdateEmployeeOnlineStatus(
+    UpdateEmployeeOnlineStatus event,
+    Emitter<AuthState> emit,
+  ) async {
+    try {
+      if (state is Authenticated) {
+        final currentState = state as Authenticated;
+        final firestore = FirebaseFirestore.instance;
+        
+        // Update online status in Firestore
+        await firestore
+            .collection('organizations')
+            .doc(event.employee.companyId)
+            .collection('employees')
+            .doc(event.employee.id)
+            .update({
+          'isOnline': event.isOnline,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Update local state
+        final updatedEmployee = event.employee.copyWith(isOnline: event.isOnline);
+        emit(Authenticated(
+          employee: updatedEmployee,
+          organization: currentState.organization,
+        ));
+      } else {
+        emit(const AuthError('User is not authenticated'));
+      }
+    } catch (e, stackTrace) {
+      _logger.e('Error updating online status', error: e, stackTrace: stackTrace);
+      emit(const AuthError('Failed to update online status'));
     }
   }
 }

@@ -36,7 +36,8 @@ class _EmployeesPageState extends State<EmployeesPage> {
   List<Employee> _filterEmployees(List<Employee> employees) {
     return employees.where((employee) {
       final matchesSearch = _searchQuery.isEmpty ||
-          employee.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          employee.firstName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          employee.lastName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           employee.email.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           (employee.phone?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
 
@@ -405,7 +406,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.warning_amber_rounded, size: 48),
         title: const Text('Delete Employee'),
-        content: Text('Are you sure you want to delete ${employee.name}?'),
+        content: Text('Are you sure you want to delete ${employee.firstName} ${employee.lastName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -464,7 +465,9 @@ class EmployeeCard extends StatelessWidget {
                           radius: 24,
                           backgroundColor: Theme.of(context).colorScheme.primary,
                           child: Text(
-                            employee.name[0].toUpperCase(),
+                            (employee.firstName?.isNotEmpty ?? false)
+                                ? employee.firstName![0].toUpperCase()
+                                : '?',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onPrimary,
                               fontSize: 20,
@@ -480,7 +483,7 @@ class EmployeeCard extends StatelessWidget {
                             Hero(
                               tag: 'employee_name_${employee.id}',
                               child: Text(
-                                employee.name,
+                                '${employee.firstName} ${employee.lastName}',
                                 style: Theme.of(context).textTheme.titleLarge,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -677,7 +680,8 @@ class EmployeeFormDialog extends StatefulWidget {
 
 class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -692,7 +696,8 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
   void initState() {
     super.initState();
     if (widget.employee != null) {
-      _nameController.text = widget.employee!.name;
+      _firstNameController.text = widget.employee!.firstName;
+      _lastNameController.text = widget.employee!.lastName;
       _emailController.text = widget.employee!.email;
       _phoneController.text = widget.employee!.phone ?? '';
       _addressController.text = widget.employee!.address ?? '';
@@ -706,7 +711,8 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -823,22 +829,48 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: InputDecoration(
-                              labelText: 'Full Name',
-                              hintText: 'Enter employee name',
-                              prefixIcon: const Icon(Icons.person_outline),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _firstNameController,
+                                  decoration: InputDecoration(
+                                    labelText: 'First Name',
+                                    hintText: 'Enter first name',
+                                    prefixIcon: const Icon(Icons.person_outline),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter first name';
+                                    }
+                                    return null;
+                                  },
+                                ),
                               ),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter employee name';
-                              }
-                              return null;
-                            },
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _lastNameController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Last Name',
+                                    hintText: 'Enter last name',
+                                    prefixIcon: const Icon(Icons.person_outline),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter last name';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 16),
                           BlocBuilder<EmployeesBloc, EmployeesState>(
@@ -1127,7 +1159,8 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
         id: widget.employee?.id,
         companyId: widget.companyId,
         companyName: widget.companyName,
-        name: _nameController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _addressController.text.trim(),
