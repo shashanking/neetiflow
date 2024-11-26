@@ -74,7 +74,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${employee.firstName ?? ''} ${employee.lastName ?? ''}'),
+        title: Text('${employee.firstName} ${employee.lastName}'),
         actions: [
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, authState) {

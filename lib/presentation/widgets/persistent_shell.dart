@@ -261,6 +261,17 @@ class PersistentShellState extends State<PersistentShell> {
             ),
             child: BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
+                if (state is AuthInitial) {
+                  // Navigate to login page when signed out
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/login',
+                      (route) => false,
+                    );
+                  });
+                  return const SizedBox.shrink();
+                }
+                
                 if (state is Authenticated) {
                   // Subscribe to employee updates when authenticated
                   if (state.employee.id != null && state.employee.companyId != null) {

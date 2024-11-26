@@ -465,8 +465,8 @@ class EmployeeCard extends StatelessWidget {
                           radius: 24,
                           backgroundColor: Theme.of(context).colorScheme.primary,
                           child: Text(
-                            (employee.firstName?.isNotEmpty ?? false)
-                                ? employee.firstName![0].toUpperCase()
+                            (employee.firstName.isNotEmpty)
+                                ? employee.firstName[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onPrimary,
