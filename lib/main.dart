@@ -11,6 +11,7 @@ import 'package:neetiflow/infrastructure/repositories/firebase_departments_repos
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
+import 'package:neetiflow/presentation/blocs/employee_status/employee_status_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'firebase_options.dart';
 
@@ -58,6 +59,11 @@ class MainApp extends StatelessWidget {
           BlocProvider(
             create: (context) => EmployeesBloc(
               employeesRepository: context.read<EmployeesRepository>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => EmployeeStatusBloc(
+              employeesRepository: context.read<EmployeesRepository>() as FirebaseEmployeesRepository,
             ),
           ),
         ],

@@ -19,8 +19,8 @@ class Employee extends Equatable {
   final DateTime? updatedAt;
   final String? photoUrl;
   final bool isActive;
-  final String? departmentId;  // New field
-  final DepartmentRole? departmentRole;  // New field
+  final String? departmentId;  
+  final DepartmentRole? departmentRole;  
 
   const Employee({
     this.id,
@@ -37,8 +37,8 @@ class Employee extends Equatable {
     this.updatedAt,
     this.photoUrl,
     this.isActive = true,
-    this.departmentId,  // New field
-    this.departmentRole,  // New field
+    this.departmentId,  
+    this.departmentRole,  
   });
 
   @override
@@ -57,8 +57,8 @@ class Employee extends Equatable {
         updatedAt,
         photoUrl,
         isActive,
-        departmentId,  // New field
-        departmentRole,  // New field
+        departmentId,  
+        departmentRole,  
       ];
 
   Map<String, dynamic> toJson() {
@@ -77,8 +77,8 @@ class Employee extends Equatable {
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
       'isActive': isActive,
-      'departmentId': departmentId,  // New field
-      'departmentRole': departmentRole?.toString().split('.').last,  // New field
+      'departmentId': departmentId,  
+      'departmentRole': departmentRole?.toString().split('.').last,  
     };
   }
 
@@ -107,8 +107,8 @@ class Employee extends Equatable {
           : null,
       photoUrl: json['photoUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
-      departmentId: json['departmentId'] as String?,  // New field
-      departmentRole: json['departmentRole'] != null  // New field
+      departmentId: json['departmentId'] as String?,  
+      departmentRole: json['departmentRole'] != null  
           ? DepartmentRole.values.firstWhere(
               (role) => role.toString().split('.').last == json['departmentRole'],
             )
@@ -131,8 +131,8 @@ class Employee extends Equatable {
     DateTime? updatedAt,
     String? photoUrl,
     bool? isActive,
-    String? departmentId,  // New field
-    DepartmentRole? departmentRole,  // New field
+    String? departmentId,  
+    DepartmentRole? departmentRole,  
   }) {
     return Employee(
       id: id ?? this.id,
@@ -149,8 +149,8 @@ class Employee extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       photoUrl: photoUrl ?? this.photoUrl,
       isActive: isActive ?? this.isActive,
-      departmentId: departmentId ?? this.departmentId,  // New field
-      departmentRole: departmentRole ?? this.departmentRole,  // New field
+      departmentId: departmentId ?? this.departmentId,  
+      departmentRole: departmentRole ?? this.departmentRole,  
     );
   }
 

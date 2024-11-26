@@ -137,6 +137,19 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     }
   }
 
+  Future<void> updateEmployeeStatus(String employeeId, String companyId, bool isActive) async {
+    try {
+      await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .update({'isActive': isActive});
+    } catch (e) {
+      throw Exception('Failed to update employee status: $e');
+    }
+  }
+
   @override
   Future<void> deleteEmployee(String companyId, String employeeId) async {
     try {
