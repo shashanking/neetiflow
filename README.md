@@ -10,9 +10,19 @@ A modern employee management system built with Flutter and Firebase.
 - Role-based access control
 - Active/Inactive status management
 
+### Navigation
+- Persistent shell implementation
+- Responsive drawer navigation
+- Dynamic page routing
+- Seamless page transitions
+- User profile integration
+
 ### Authentication
 - Secure login system
 - Password reset functionality
+- Remember me functionality
+- Persistent session management
+- Automatic navigation flow
 - Account activation/deactivation
 - Session management
 

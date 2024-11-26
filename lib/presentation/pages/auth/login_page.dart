@@ -4,7 +4,7 @@ import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/pages/auth/password_reset_page.dart';
 import 'package:neetiflow/presentation/pages/auth/register_organization_page.dart';
-import 'package:neetiflow/presentation/pages/home/home_page.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -84,7 +84,7 @@ class _LoginPageState extends State<LoginPage> {
           } else if (state is Authenticated) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (_) => const HomePage(),
+                builder: (_) => const PersistentShell(),
               ),
             );
           }
