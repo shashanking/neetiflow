@@ -3,12 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
+import 'package:neetiflow/domain/entities/department.dart';
+import 'package:neetiflow/domain/repositories/employees_repository.dart';
+import 'package:neetiflow/domain/repositories/departments_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
-import 'package:neetiflow/presentation/widgets/page_wrapper.dart';
+import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/presentation/pages/employees/employee_details_page.dart';
-import 'package:neetiflow/infrastructure/repositories/firebase_employees_repository.dart';
+import 'package:neetiflow/presentation/pages/employee_management/employee_management_page.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class EmployeesPage extends StatefulWidget {
   const EmployeesPage({super.key});
@@ -20,6 +24,7 @@ class EmployeesPage extends StatefulWidget {
 class _EmployeesPageState extends State<EmployeesPage> {
   final _searchController = TextEditingController();
   EmployeeRole? _selectedRole;
+  String? _selectedDepartmentId;
   String _searchQuery = '';
 
   @override
@@ -36,467 +41,319 @@ class _EmployeesPageState extends State<EmployeesPage> {
           (employee.phone?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
 
       final matchesRole = _selectedRole == null || employee.role == _selectedRole;
+      
+      final matchesDepartment = _selectedDepartmentId == null || 
+          employee.departmentId == _selectedDepartmentId;
 
-      return matchesSearch && matchesRole;
+      return matchesSearch && matchesRole && matchesDepartment;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
-    if (authState is! Authenticated) {
-      return const Center(child: Text('Not authenticated'));
+    
+    if (authState is! Authenticated || (authState).organization?.id == null) {
+      return const Center(child: Text('Not authenticated or missing organization'));
     }
 
-    return BlocProvider(
-      create: (context) => EmployeesBloc(
-        employeesRepository: FirebaseEmployeesRepository(),
-      )..add(LoadEmployees(authState.employee.companyId!)),
-      child: BlocBuilder<EmployeesBloc, EmployeesState>(
-        builder: (context, state) {
-          List<Employee> employeesList = state is EmployeesLoaded 
-              ? state.employees 
-              : state is EmployeesLoading 
-                  ? state.employees
-                  : state is EmailAvailabilityChecked
-                      ? state.employees
-                      : state is EmployeesEmailError
-                          ? state.employees
-                          : state is EmployeesEmailAvailable
-                              ? state.employees
-                              : [];
+    final String orgId = (authState).organization!.id!;
 
-          return BlocListener<EmployeesBloc, EmployeesState>(
-            listener: (context, state) {
-              if (state is EmployeeOperationSuccess) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: Colors.green,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              } else if (state is EmployeesError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: Colors.red,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              }
-            },
-            child: Builder(
-              builder: (context) {
-                if (state is EmployeesLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => EmployeesBloc(
+            employeesRepository: context.read<EmployeesRepository>(),
+          )..add(LoadEmployees(orgId)),
+        ),
+        BlocProvider(
+          create: (context) => DepartmentsBloc(
+            departmentsRepository: context.read<DepartmentsRepository>(),
+          )..add(LoadDepartments(orgId)),
+        ),
+      ],
+      child: Scaffold(
+        body: BlocBuilder<EmployeesBloc, EmployeesState>(
+          builder: (context, state) {
+            if (state is EmployeesInitial) {
+              context.read<EmployeesBloc>().add(
+                LoadEmployees(
+                  (context.read<AuthBloc>().state is Authenticated)
+                      ? (context.read<AuthBloc>().state as Authenticated).organization?.id ?? ''
+                      : '',
+                ),
+              );
+            }
 
-                if (state is EmployeesError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+            return CustomScrollView(
+              slivers: [
+                SliverAppBar.large(
+                  title: const Text('Employees'),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.settings),
+                      onPressed: () {
+                        final state = PersistentShell.of(context);
+                        if (state != null) {
+                          state.setCustomPage(
+                            MultiBlocProvider(
+                              providers: [
+                                BlocProvider(
+                                  create: (context) => DepartmentsBloc(
+                                    departmentsRepository: context.read<DepartmentsRepository>(),
+                                  ),
+                                ),
+                              ],
+                              child: const EmployeeManagementPage(),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: FilledButton.icon(
+                        onPressed: () => _showAddEmployeeDialog(
+                          context,
+                          authState.employee,
+                        ),
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Add Employee'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
                       children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search employees...',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                _searchQuery = value;
+                              });
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error: ${state.message}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: () {
-                            context.read<EmployeesBloc>().add(
-                              LoadEmployees(authState.employee.companyId!),
-                            );
+                        const SizedBox(width: 16),
+                        DropdownButton<EmployeeRole>(
+                          value: _selectedRole,
+                          hint: const Text('Role'),
+                          items: [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('All Roles'),
+                            ),
+                            ...EmployeeRole.values.map((role) {
+                              return DropdownMenuItem(
+                                value: role,
+                                child: Text(role.toString().split('.').last),
+                              );
+                            }),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedRole = value;
+                            });
                           },
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry'),
                         ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (employeesList.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No employees found',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Add your first employee to get started',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton.icon(
-                          onPressed: () => _showAddEmployeeDialog(
-                            context,
-                            authState.employee,
-                          ),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Employee'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final filteredEmployees = _filterEmployees(employeesList);
-                final roleStats = _getRoleStats(employeesList);
-
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Employees'),
-                    actions: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 16),
-                        child: FilledButton.icon(
-                          onPressed: () => _showAddEmployeeDialog(context, authState.employee),
-                          icon: const Icon(Icons.person_add),
-                          label: const Text('Add Employee'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  body: CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              // Search and Filter
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: TextField(
-                                              controller: _searchController,
-                                              decoration: InputDecoration(
-                                                hintText: 'Search employees...',
-                                                prefixIcon: const Icon(Icons.search),
-                                                border: OutlineInputBorder(
-                                                  borderRadius: BorderRadius.circular(12),
-                                                ),
-                                              ),
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  _searchQuery = value;
-                                                });
-                                              },
-                                            ),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          PopupMenuButton<EmployeeRole?>(
-                                            tooltip: 'Filter by role',
-                                            icon: Icon(
-                                              Icons.filter_list,
-                                              color: _selectedRole != null
-                                                  ? Theme.of(context).colorScheme.primary
-                                                  : null,
-                                            ),
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(
-                                                value: null,
-                                                child: Text('All Roles'),
-                                              ),
-                                              ...EmployeeRole.values.map((role) {
-                                                return PopupMenuItem(
-                                                  value: role,
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        role == EmployeeRole.admin
-                                                            ? Icons.admin_panel_settings
-                                                            : role == EmployeeRole.manager
-                                                                ? Icons.manage_accounts
-                                                                : Icons.person,
-                                                        size: 20,
-                                                        color: _selectedRole == role
-                                                            ? Theme.of(context).colorScheme.primary
-                                                            : null,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        role.toString().split('.').last,
-                                                        style: TextStyle(
-                                                          color: _selectedRole == role
-                                                              ? Theme.of(context).colorScheme.primary
-                                                              : null,
-                                                          fontWeight: _selectedRole == role
-                                                              ? FontWeight.bold
-                                                              : null,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              }),
-                                            ],
-                                            onSelected: (role) {
-                                              setState(() {
-                                                _selectedRole = role;
-                                              });
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                      if (_searchQuery.isNotEmpty || _selectedRole != null) ...[
-                                        const SizedBox(height: 16),
-                                        Wrap(
-                                          spacing: 8,
-                                          children: [
-                                            if (_searchQuery.isNotEmpty)
-                                              Chip(
-                                                label: Text('Search: $_searchQuery'),
-                                                onDeleted: () {
-                                                  setState(() {
-                                                    _searchQuery = '';
-                                                    _searchController.clear();
-                                                  });
-                                                },
-                                              ),
-                                            if (_selectedRole != null)
-                                              Chip(
-                                                label: Text('Role: ${_selectedRole.toString().split('.').last}'),
-                                                onDeleted: () {
-                                                  setState(() {
-                                                    _selectedRole = null;
-                                                  });
-                                                },
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
+                        const SizedBox(width: 16),
+                        BlocBuilder<DepartmentsBloc, DepartmentsState>(
+                          builder: (context, state) {
+                            if (state is DepartmentsLoaded) {
+                              return DropdownButton<String>(
+                                value: _selectedDepartmentId,
+                                hint: const Text('Department'),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: null,
+                                    child: Text('All Departments'),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Stats Cards
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Employee Statistics',
-                                        style: Theme.of(context).textTheme.titleLarge,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final isSmallScreen = constraints.maxWidth < 600;
-                                          final stats = [
-                                            _StatCard(
-                                              icon: Icons.people,
-                                              title: 'Total',
-                                              value: roleStats['total'].toString(),
-                                            ),
-                                            _StatCard(
-                                              icon: Icons.admin_panel_settings,
-                                              title: 'Admins',
-                                              value: roleStats['admin'].toString(),
-                                            ),
-                                            _StatCard(
-                                              icon: Icons.manage_accounts,
-                                              title: 'Managers',
-                                              value: roleStats['manager'].toString(),
-                                            ),
-                                            _StatCard(
-                                              icon: Icons.work,
-                                              title: 'Employees',
-                                              value: roleStats['employee'].toString(),
-                                            ),
-                                          ];
-
-                                          return isSmallScreen
-                                              ? Column(
-                                                  children: stats
-                                                      .map((stat) => Padding(
-                                                            padding: const EdgeInsets.only(bottom: 16),
-                                                            child: stat,
-                                                          ))
-                                                      .toList(),
-                                                )
-                                              : Row(
-                                                  children: stats
-                                                      .map((stat) => Expanded(child: Padding(
-                                                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                                                            child: stat,
-                                                          )))
-                                                      .toList(),
-                                                );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Employee Grid
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        sliver: SliverLayoutBuilder(
-                          builder: (context, constraints) {
-                            final width = constraints.crossAxisExtent;
-                            final crossAxisCount = width < 600
-                                ? 1
-                                : width < 900
-                                    ? 2
-                                    : width < 1200
-                                        ? 3
-                                        : 4;
-
-                            if (filteredEmployees.isEmpty) {
-                              return SliverToBoxAdapter(
-                                child: Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(32),
-                                    child: Column(
-                                      children: [
-                                        const Icon(
-                                          Icons.search_off,
-                                          size: 48,
-                                          color: Colors.grey,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'No employees found matching your search',
-                                          style: Theme.of(context).textTheme.titleMedium,
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                                  ...state.departments.map((department) {
+                                    return DropdownMenuItem(
+                                      value: department.id,
+                                      child: Text(department.name),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedDepartmentId = value;
+                                  });
+                                },
                               );
                             }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverFillRemaining(
+                  child: BlocBuilder<EmployeesBloc, EmployeesState>(
+                    builder: (context, state) {
+                      List<Employee> employeesList = state is EmployeesLoaded 
+                          ? state.employees 
+                          : state is EmployeesLoading 
+                              ? state.employees
+                              : state is EmailAvailabilityChecked
+                                  ? state.employees
+                                  : state is EmployeesEmailError
+                                      ? state.employees
+                                      : state is EmployeesEmailAvailable
+                                          ? state.employees
+                                          : [];
 
-                            return SliverGrid(
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                mainAxisSpacing: 16,
-                                crossAxisSpacing: 16,
-                                mainAxisExtent: 220,
+                      final filteredEmployees = _filterEmployees(employeesList);
+
+                      if (state is EmployeesLoading) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+
+                      if (state is EmployeesError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: Colors.red,
                               ),
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final employee = filteredEmployees[index];
-                                  return EmployeeCard(
-                                    employee: employee,
-                                    onTap: () async {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => EmployeeDetailsPage(
-                                            employee: employee,
-                                          ),
-                                        ),
-                                      );
-
-                                      if (result == 'edit') {
-                                        _showEditEmployeeDialog(
-                                          context,
-                                          employee,
-                                          authState.employee,
-                                        );
-                                      } else if (result == 'delete') {
-                                        _showDeleteConfirmationDialog(
-                                          context,
-                                          employee,
-                                        );
-                                      }
-                                    },
-                                    onEdit: () => _showEditEmployeeDialog(
-                                      context,
-                                      employee,
-                                      authState.employee,
-                                    ),
-                                    onDelete: () => _showDeleteConfirmationDialog(
-                                      context,
-                                      employee,
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error: ${state.message}',
+                                style: Theme.of(context).textTheme.titleMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: () {
+                                  context.read<EmployeesBloc>().add(
+                                    LoadEmployees(
+                                      (context.read<AuthBloc>().state is Authenticated)
+                                          ? (context.read<AuthBloc>().state as Authenticated).organization?.id ?? ''
+                                          : '',
                                     ),
                                   );
                                 },
-                                childCount: filteredEmployees.length,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry'),
                               ),
-                            );
-                          },
+                            ],
+                          ),
+                        );
+                      }
+
+                      if (filteredEmployees.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.people_outline,
+                                size: 64,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No employees found',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Add your first employee to get started',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 24),
+                              FilledButton.icon(
+                                onPressed: () => _showAddEmployeeDialog(
+                                  context,
+                                  authState.employee,
+                                ),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add Employee'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          mainAxisExtent: 220,
                         ),
-                      ),
-                    ],
+                        itemCount: filteredEmployees.length,
+                        itemBuilder: (context, index) {
+                          final employee = filteredEmployees[index];
+                          return EmployeeCard(
+                            employee: employee,
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => EmployeeDetailsPage(
+                                    employee: employee,
+                                  ),
+                                ),
+                              );
+
+                              if (result == 'edit') {
+                                _showEditEmployeeDialog(
+                                  context,
+                                  employee,
+                                  authState.employee,
+                                );
+                              } else if (result == 'delete') {
+                                _showDeleteConfirmationDialog(
+                                  context,
+                                  employee,
+                                );
+                              }
+                            },
+                            onEdit: () => _showEditEmployeeDialog(
+                              context,
+                              employee,
+                              authState.employee,
+                            ),
+                            onDelete: () => _showDeleteConfirmationDialog(
+                              context,
+                              employee,
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          );
-        },
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
-  }
-
-  Map<String, int> _getRoleStats(List<Employee> employees) {
-    final stats = {
-      'total': employees.length,
-      'admin': 0,
-      'manager': 0,
-      'employee': 0,
-    };
-
-    for (final employee in employees) {
-      switch (employee.role) {
-        case EmployeeRole.admin:
-          stats['admin'] = (stats['admin'] ?? 0) + 1;
-          break;
-        case EmployeeRole.manager:
-          stats['manager'] = (stats['manager'] ?? 0) + 1;
-          break;
-        case EmployeeRole.employee:
-          stats['employee'] = (stats['employee'] ?? 0) + 1;
-          break;
-      }
-    }
-
-    return stats;
   }
 
   void _showAddEmployeeDialog(BuildContext context, Employee currentEmployee) {
@@ -572,55 +429,6 @@ class _EmployeesPageState extends State<EmployeesPage> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const _StatCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primaryContainer,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            icon,
-            size: 32,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class EmployeeCard extends StatelessWidget {
   final Employee employee;
   final VoidCallback? onTap;
@@ -679,26 +487,76 @@ class EmployeeCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                employee.role.toString().split('.').last.toUpperCase(),
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    employee.role.toString().split('.').last.toUpperCase(),
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                if (employee.departmentId != null) ...[
+                                  const SizedBox(width: 8),
+                                  BlocBuilder<DepartmentsBloc, DepartmentsState>(
+                                    builder: (context, state) {
+                                      if (state is DepartmentsLoaded) {
+                                        final department = state.departments.firstWhere(
+                                          (d) => d.id == employee.departmentId,
+                                          orElse: () => Department(
+                                            id: '',
+                                            name: 'Unknown Department',
+                                            description: '',
+                                            organizationId: '',
+                                            employeeRoles: const {},
+                                            createdAt: DateTime.now(),
+                                            updatedAt: DateTime.now(),
+                                          ),
+                                        );
+                                        
+                                        final role = department.employeeRoles[employee.id] ?? DepartmentRole.member;
+                                        
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .tertiary
+                                                .withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            '${department.name} (${role.toString().split('.').last})',
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.tertiary,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    },
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -861,10 +719,8 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
     if (_emailDebounce?.isActive ?? false) _emailDebounce!.cancel();
     
     final email = _emailController.text.trim();
-    print('Email changed to: $email'); // Debug log
     
     if (email.isEmpty) {
-      print('Email is empty, clearing validation state'); // Debug log
       if (mounted) {
         setState(() {});
       }
@@ -874,16 +730,13 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
     _emailDebounce = Timer(const Duration(milliseconds: 500), () {
       if (!mounted) return;
       if (email.contains('@')) {
-        print('Debounce complete, checking email: $email'); // Debug log
         context.read<EmployeesBloc>().add(CheckEmailAvailability(email));
       } else {
-        print('Invalid email format: $email'); // Debug log
       }
     });
   }
 
   String? _getEmailErrorText(String email, EmployeesState state) {
-    print('Getting error text for email: $email, state: $state');
     if (state is EmployeesEmailError) {
       return state.message;
     } else if (state is EmailAvailabilityChecked) {

@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:equatable/equatable.dart';
+import 'package:neetiflow/domain/entities/department.dart';
 
 enum EmployeeRole { admin, manager, employee }
 
-class Employee {
+class Employee extends Equatable {
   final String? id;
   final String? uid;
   final String? companyId;
@@ -17,8 +19,10 @@ class Employee {
   final DateTime? updatedAt;
   final String? photoUrl;
   final bool isActive;
+  final String? departmentId;  // New field
+  final DepartmentRole? departmentRole;  // New field
 
-  Employee({
+  const Employee({
     this.id,
     this.uid,
     this.companyId,
@@ -33,7 +37,29 @@ class Employee {
     this.updatedAt,
     this.photoUrl,
     this.isActive = true,
+    this.departmentId,  // New field
+    this.departmentRole,  // New field
   });
+
+  @override
+  List<Object?> get props => [
+        id,
+        uid,
+        companyId,
+        companyName,
+        name,
+        phone,
+        email,
+        address,
+        role,
+        joiningDate,
+        createdAt,
+        updatedAt,
+        photoUrl,
+        isActive,
+        departmentId,  // New field
+        departmentRole,  // New field
+      ];
 
   Map<String, dynamic> toJson() {
     return {
@@ -51,6 +77,8 @@ class Employee {
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
       'isActive': isActive,
+      'departmentId': departmentId,  // New field
+      'departmentRole': departmentRole?.toString().split('.').last,  // New field
     };
   }
 
@@ -61,7 +89,7 @@ class Employee {
       companyId: json['companyId'] as String?,
       companyName: json['companyName'] as String?,
       name: json['name'] as String,
-      phone: json['phone'] as String,
+      phone: json['phone'] as String?,
       email: json['email'] as String,
       address: json['address'] as String?,
       role: EmployeeRole.values.firstWhere(
@@ -79,6 +107,12 @@ class Employee {
           : null,
       photoUrl: json['photoUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
+      departmentId: json['departmentId'] as String?,  // New field
+      departmentRole: json['departmentRole'] != null  // New field
+          ? DepartmentRole.values.firstWhere(
+              (role) => role.toString().split('.').last == json['departmentRole'],
+            )
+          : null,
     );
   }
 
@@ -97,6 +131,8 @@ class Employee {
     DateTime? updatedAt,
     String? photoUrl,
     bool? isActive,
+    String? departmentId,  // New field
+    DepartmentRole? departmentRole,  // New field
   }) {
     return Employee(
       id: id ?? this.id,
@@ -113,6 +149,8 @@ class Employee {
       updatedAt: updatedAt ?? this.updatedAt,
       photoUrl: photoUrl ?? this.photoUrl,
       isActive: isActive ?? this.isActive,
+      departmentId: departmentId ?? this.departmentId,  // New field
+      departmentRole: departmentRole ?? this.departmentRole,  // New field
     );
   }
 

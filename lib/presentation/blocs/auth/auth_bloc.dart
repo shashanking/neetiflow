@@ -114,8 +114,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       
       _logger.i('Sign in successful');
+      final employee = result['employee'] as Employee;
+      Organization? organization;
+      if (employee.companyId != null) {
+        organization = await _authRepository.getOrganization(employee.companyId!);
+      }
+      
       emit(Authenticated(
-        employee: result['employee'] as Employee,
+        employee: employee,
+        organization: organization,
       ));
     } on FirebaseAuthException catch (e) {
       _logger.e('Sign in failed', error: e);
@@ -178,8 +185,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       
       if (user != null) {
         final employee = await _authRepository.getEmployeeData(user.uid);
+        Organization? organization;
+        if (employee.companyId != null) {
+          organization = await _authRepository.getOrganization(employee.companyId!);
+        }
         _logger.i('User is authenticated');
-        emit(Authenticated(employee: employee));
+        emit(Authenticated(
+          employee: employee,
+          organization: organization,
+        ));
       } else {
         _logger.i('User is not authenticated');
         emit(AuthInitial());

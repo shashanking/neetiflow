@@ -199,6 +199,31 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Organization?> getOrganization(String organizationId) async {
+    try {
+      _logger.i('Getting organization data for ID: $organizationId');
+      final organizationDoc = await _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .get();
+
+      if (!organizationDoc.exists) {
+        _logger.w('Organization not found');
+        return null;
+      }
+
+      final data = organizationDoc.data()!;
+      data['id'] = organizationDoc.id;
+
+      _logger.i('Organization data retrieved successfully');
+      return Organization.fromJson(data);
+    } catch (e, stackTrace) {
+      _logger.e('Error getting organization data', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get organization data: $e');
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> registerOrganization({
     required Organization organization,
     required Employee admin,

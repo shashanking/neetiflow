@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:html' if (dart.library.html) 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:neetiflow/domain/entities/lead.dart';

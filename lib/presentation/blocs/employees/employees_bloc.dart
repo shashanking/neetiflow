@@ -2,10 +2,8 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-import '../../../domain/repositories/employees_repository.dart';
 
 // Events
 abstract class EmployeesEvent extends Equatable {
@@ -96,10 +94,12 @@ class EmployeeOperationSuccess extends EmployeesState {
 
 class EmployeesError extends EmployeesState {
   final String message;
-  const EmployeesError(this.message);
+  final List<Employee> employees;
+
+  const EmployeesError(this.message, this.employees);
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, employees];
 }
 
 class EmailAvailabilityChecked extends EmployeesState {
@@ -135,17 +135,10 @@ class EmployeesEmailError extends EmployeesState {
 // Bloc
 class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
   final EmployeesRepository _employeesRepository;
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
-  StreamSubscription<QuerySnapshot>? _employeesSubscription;
 
   EmployeesBloc({
     required EmployeesRepository employeesRepository,
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
   })  : _employeesRepository = employeesRepository,
-        _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
         super(EmployeesInitial()) {
     on<LoadEmployees>(_onLoadEmployees);
     on<AddEmployee>(_onAddEmployee);
@@ -163,54 +156,15 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
         ? (state as EmployeesLoaded).employees 
         : const <Employee>[];
     emit(EmployeesLoading(employees: currentEmployees));
+    
     try {
-      await _employeesSubscription?.cancel();
-      
-      // Get initial data
-      final snapshot = await _firestore
-          .collection('organizations')
-          .doc(event.companyId)
-          .collection('employees')
-          .get();
-      
-      final employees = snapshot.docs
-          .map((doc) => Employee.fromJson({
-                ...doc.data(),
-                'id': doc.id,
-                'companyId': event.companyId,
-              }))
-          .toList();
+      final employees = await _employeesRepository.getEmployees(event.companyId);
       emit(EmployeesLoaded(employees));
-
-      // Setup stream for updates
-      _employeesSubscription = _firestore
-          .collection('organizations')
-          .doc(event.companyId)
-          .collection('employees')
-          .snapshots()
-          .listen(
-        (snapshot) {
-          if (!emit.isDone) {
-            final employees = snapshot.docs
-                .map((doc) => Employee.fromJson({
-                      ...doc.data(),
-                      'id': doc.id,
-                      'companyId': event.companyId,
-                    }))
-                .toList();
-            emit(EmployeesLoaded(employees));
-          }
-        },
-        onError: (error) {
-          if (!emit.isDone) {
-            emit(EmployeesError(error.toString()));
-          }
-        },
-      );
     } catch (e) {
-      if (!emit.isDone) {
-        emit(EmployeesError(e.toString()));
-      }
+      emit(EmployeesError(
+        'Failed to load employees: ${e.toString()}',
+        currentEmployees,
+      ));
     }
   }
 
@@ -219,74 +173,36 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     Emitter<EmployeesState> emit,
   ) async {
     try {
-      // Create Firebase Auth user
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: event.employee.email,
-        password: event.password,
-      );
-
-      final employee = event.employee.copyWith(
-        uid: userCredential.user?.uid,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      // Create employee document in organizations/companyId/employees collection
-      final employeeRef = await _firestore
-          .collection('organizations')
-          .doc(employee.companyId)
-          .collection('employees')
-          .add(employee.toJson());
-
-      // Create user mapping for authentication
-      await _firestore
-          .collection('user_mappings')
-          .doc(employee.email)
-          .set({
-        'companyId': employee.companyId,
-        'employeeId': employeeRef.id,
-        'email': employee.email,
-        'role': employee.role.toString(),
-      });
+      if (event.employee.companyId == null) {
+        throw Exception('Company ID is required');
+      }
       
-      // Emit success state
+      final employee = await _employeesRepository.addEmployee(
+        event.employee,
+        event.password,
+      );
+
       emit(EmployeeOperationSuccess('Employee ${employee.name} added successfully'));
-      
-      // Reload employees list
-      final snapshot = await _firestore
-          .collection('organizations')
-          .doc(employee.companyId)
-          .collection('employees')
-          .get();
-      
-      final employees = snapshot.docs
-          .map((doc) => Employee.fromJson({
-                ...doc.data(),
-                'id': doc.id,
-                'companyId': employee.companyId,
-                'companyName': employee.companyName,
-              }))
-          .toList();
-      
+      final employees = await _employeesRepository.getEmployees(event.employee.companyId!);
       emit(EmployeesLoaded(employees));
     } catch (e) {
       String errorMessage = 'Failed to add employee';
       if (e is FirebaseAuthException) {
         switch (e.code) {
           case 'email-already-in-use':
-            errorMessage = 'An account already exists with this email';
+            errorMessage = 'Email is already registered';
             break;
           case 'invalid-email':
-            errorMessage = 'Invalid email address';
+            errorMessage = 'Invalid email format';
             break;
           case 'weak-password':
             errorMessage = 'Password is too weak';
             break;
           default:
-            errorMessage = e.message ?? 'Authentication failed';
+            errorMessage = 'Authentication error: ${e.message}';
         }
       }
-      emit(EmployeesError(errorMessage));
+      emit(EmployeesError(errorMessage, const []));
     }
   }
 
@@ -295,34 +211,16 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     Emitter<EmployeesState> emit,
   ) async {
     try {
-      await _firestore
-          .collection('organizations')
-          .doc(event.employee.companyId)
-          .collection('employees')
-          .doc(event.employee.id)
-          .update(event.employee.toJson());
-      
+      if (event.employee.companyId == null) {
+        throw Exception('Company ID is required');
+      }
+
+      await _employeesRepository.updateEmployee(event.employee);
       emit(EmployeeOperationSuccess('Employee ${event.employee.name} updated successfully'));
-      
-      // Reload employees list
-      final snapshot = await _firestore
-          .collection('organizations')
-          .doc(event.employee.companyId)
-          .collection('employees')
-          .get();
-      
-      final employees = snapshot.docs
-          .map((doc) => Employee.fromJson({
-                ...doc.data(),
-                'id': doc.id,
-                'companyId': event.employee.companyId,
-                'companyName': event.employee.companyName,
-              }))
-          .toList();
-      
+      final employees = await _employeesRepository.getEmployees(event.employee.companyId!);
       emit(EmployeesLoaded(employees));
     } catch (e) {
-      emit(EmployeesError('Failed to update employee: ${e.toString()}'));
+      emit(EmployeesError('Failed to update employee: ${e.toString()}', const []));
     }
   }
 
@@ -331,29 +229,13 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     Emitter<EmployeesState> emit,
   ) async {
     try {
-      // Get employee data first
-      final employeeDoc = await _firestore
-          .collection('employees')
-          .doc(event.employeeId)
-          .get();
-
-      if (employeeDoc.exists) {
-        final employeeData = employeeDoc.data();
-        if (employeeData != null) {
-          // Delete user mapping
-          await _firestore
-              .collection('user_mappings')
-              .doc(employeeData['email'] as String)
-              .delete();
-
-          // Delete employee document
-          await employeeDoc.reference.delete();
-        }
-      }
-
+      await _employeesRepository.deleteEmployee(event.companyId, event.employeeId);
       emit(const EmployeeOperationSuccess('Employee deleted successfully'));
     } catch (e) {
-      emit(EmployeesError('Failed to delete employee: ${e.toString()}'));
+      emit(EmployeesError(
+        'Failed to delete employee: ${e.toString()}',
+        const [],
+      ));
     }
   }
 
@@ -398,11 +280,5 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
       final currentEmployees = (state as EmployeesLoaded).employees;
       emit(EmployeesLoaded(currentEmployees));
     }
-  }
-
-  @override
-  Future<void> close() {
-    _employeesSubscription?.cancel();
-    return super.close();
   }
 }

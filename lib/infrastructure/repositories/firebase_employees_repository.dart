@@ -47,6 +47,10 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
   @override
   Future<Employee> addEmployee(Employee employee, String password) async {
     try {
+      if (employee.companyId == null) {
+        throw Exception('Company ID is required');
+      }
+
       _logger.i('Creating new employee account');
       // Create Firebase Auth user
       final userCredential = await _auth.createUserWithEmailAndPassword(
@@ -80,6 +84,9 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
         'employeeId': employeeId,
         'role': employee.role.toString().split('.').last,
       });
+
+      // Update organization employee count
+      await _updateOrganizationEmployeeCount(employee.companyId!, 1);
 
       _logger.i('Employee created successfully');
       return employee.copyWith(id: employeeId);
@@ -160,6 +167,9 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
       // Delete user mapping
       await _firestore.collection('user_mappings').doc(email).delete();
 
+      // Update organization employee count
+      await _updateOrganizationEmployeeCount(companyId, -1);
+
       // Delete Firebase Auth user
       final methods = await _auth.fetchSignInMethodsForEmail(email);
       if (methods.isNotEmpty) {
@@ -183,6 +193,33 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     } catch (e, stackTrace) {
       _logger.e('Error deleting employee', error: e, stackTrace: stackTrace);
       throw Exception('Failed to delete employee: $e');
+    }
+  }
+
+  Future<void> _updateOrganizationEmployeeCount(String organizationId, int change) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final orgDoc = await transaction.get(
+          _firestore.collection('organizations').doc(organizationId)
+        );
+        
+        if (!orgDoc.exists) {
+          throw Exception('Organization not found');
+        }
+
+        final currentCount = orgDoc.data()?['employeeCount'] as int? ?? 0;
+        final newCount = currentCount + change;
+        
+        transaction.update(
+          _firestore.collection('organizations').doc(organizationId),
+          {'employeeCount': newCount}
+        );
+      });
+      
+      _logger.i('Updated organization employee count');
+    } catch (e, stackTrace) {
+      _logger.e('Error updating organization employee count', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to update organization employee count: $e');
     }
   }
 

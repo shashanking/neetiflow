@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Organization {
   final String? id;
   final String name;
@@ -42,8 +44,8 @@ class Organization {
       'gstin': gstin,
       'bankDetails': bankDetails?.toJson(),
       'employeeCount': employeeCount,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
   }
 
@@ -63,10 +65,10 @@ class Organization {
           : null,
       employeeCount: json['employeeCount'] as int? ?? 0,
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
+          ? (json['createdAt'] as Timestamp).toDate()
           : null,
       updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
+          ? (json['updatedAt'] as Timestamp).toDate()
           : null,
     );
   }

@@ -3,8 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
+import 'package:neetiflow/domain/repositories/employees_repository.dart';
+import 'package:neetiflow/domain/repositories/departments_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_employees_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_departments_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
+import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'firebase_options.dart';
 
@@ -25,12 +31,36 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RepositoryProvider<AuthRepository>(
-      create: (context) => FirebaseAuthRepositoryImpl(),
-      child: BlocProvider(
-        create: (context) => AuthBloc(
-          authRepository: context.read<AuthRepository>(),
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<AuthRepository>(
+          create: (context) => FirebaseAuthRepositoryImpl(),
         ),
+        RepositoryProvider<EmployeesRepository>(
+          create: (context) => FirebaseEmployeesRepository(),
+        ),
+        RepositoryProvider<DepartmentsRepository>(
+          create: (context) => FirebaseDepartmentsRepository(),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (context) => AuthBloc(
+              authRepository: context.read<AuthRepository>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => DepartmentsBloc(
+              departmentsRepository: context.read<DepartmentsRepository>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => EmployeesBloc(
+              employeesRepository: context.read<EmployeesRepository>(),
+            ),
+          ),
+        ],
         child: MaterialApp(
           title: 'NeetiFlow',
           debugShowCheckedModeBanner: false,
