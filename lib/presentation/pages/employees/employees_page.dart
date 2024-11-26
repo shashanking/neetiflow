@@ -483,7 +483,7 @@ class EmployeeCard extends StatelessWidget {
                             Hero(
                               tag: 'employee_name_${employee.id}',
                               child: Text(
-                                '${employee.firstName} ${employee.lastName}',
+                                '${employee.firstName}',
                                 style: Theme.of(context).textTheme.titleLarge,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
