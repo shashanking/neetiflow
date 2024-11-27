@@ -100,6 +100,57 @@ Neetiflow is a comprehensive employee management system built with Flutter and F
 4. Documentation updates
 5. Caching strategy implementation
 
+## Development Timeline
+
+#### January 2024
+
+##### January 17, 2024
+- **Employee Details Page Enhancement**
+  - Added back navigation button
+  - Fixed freezing issues when navigating to employee details
+  - Improved error handling with user feedback
+  - Enhanced dependency injection for EmployeesRepository
+  - Resolved Timestamp conversion issues in Department entity
+
+##### January 16, 2024
+- **Department Management**
+  - Implemented Department entity with Firestore integration
+  - Added real-time department updates
+  - Enhanced error handling for department operations
+  - Improved data synchronization
+
+##### January 15, 2024
+- **Employee Management**
+  - Enhanced employee details display
+  - Implemented persistent shell navigation
+  - Added edit and delete functionality
+  - Improved state management with BLoC pattern
+
+### Current Focus Areas
+1. **Performance Optimization**
+   - Stream subscription lifecycle management
+   - Efficient state updates
+   - Memory leak prevention
+
+2. **User Experience**
+   - Smooth navigation transitions
+   - Intuitive error messages
+   - Real-time feedback
+   - Responsive layout improvements
+
+3. **Code Quality**
+   - Unit test implementation
+   - Error handling refinement
+   - Documentation updates
+   - Code organization
+
+### Next Milestones
+1. Department template system
+2. Advanced role management
+3. Activity logging
+4. Performance monitoring
+5. Comprehensive testing suite
+
 ## Future Development Goals
 
 ### Short-term Goals
