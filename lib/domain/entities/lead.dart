@@ -131,5 +131,37 @@ class Lead {
     }
   }
 
+  Lead copyWith({
+    String? id,
+    String? uid,
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? email,
+    String? subject,
+    String? message,
+    LeadStatus? status,
+    ProcessStatus? processStatus,
+    DateTime? createdAt,
+    Map<String, dynamic>? metadata,
+    List<String>? segments,
+  }) {
+    return Lead(
+      id: id ?? this.id,
+      uid: uid ?? this.uid,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      subject: subject ?? this.subject,
+      message: message ?? this.message,
+      status: status ?? this.status,
+      processStatus: processStatus ?? this.processStatus,
+      createdAt: createdAt ?? this.createdAt,
+      metadata: metadata ?? this.metadata,
+      segments: segments ?? this.segments,
+    );
+  }
+
   String get fullName => '$firstName $lastName';
 }

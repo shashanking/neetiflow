@@ -138,6 +138,38 @@
   - [ ] Implement authentication
   - [ ] Create documentation
 
+## 11. Code Architecture and Optimization
+- [x] Create centralized enum utility
+  - [x] Develop `EnumUtils` for consistent enum handling
+  - [x] Implement enum conversion methods
+  - [x] Add null-safe enum parsing
+- [x] Refactor lead conversion logic
+  - [x] Create `LeadConverter` utility
+  - [x] Standardize entity-model conversions
+  - [x] Remove duplicate conversion methods
+- [x] Implement base repository and BLoC classes
+  - [x] Create `BaseRepository` with common functionality
+  - [x] Develop `BaseBLoC` for standardized state management
+  - [x] Add centralized error handling
+- [ ] Improve dependency management
+  - [ ] Review and optimize package imports
+  - [ ] Create centralized dependency injection
+  - [ ] Implement service locator pattern
+- [ ] Enhance type safety
+  - [ ] Add comprehensive type validation
+  - [ ] Implement stricter null checks
+  - [ ] Create custom type converters
+
+## 12. Performance Optimization
+- [ ] Profile and optimize lead loading
+  - [ ] Implement lazy loading for leads
+  - [ ] Add pagination support
+  - [ ] Optimize database queries
+- [ ] Reduce memory footprint
+  - [ ] Optimize object creation
+  - [ ] Implement efficient caching
+  - [ ] Minimize unnecessary state updates
+
 ## Priority Order for Implementation:
 1. Advanced Lead Filtering and Search
 2. Enhanced Lead Details

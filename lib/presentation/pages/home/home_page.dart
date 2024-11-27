@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
-
-import '../../widgets/persistent_shell.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -71,13 +70,7 @@ class HomePage extends StatelessWidget {
                 title: 'Leads',
                 subtitle: 'Manage leads',
                 onTap: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => const PersistentShell(
-                        initialIndex: 1,
-                      ),
-                    ),
-                  );
+                  // TODO: Update navigation once navigation service is implemented
                 },
               ),
               _DashboardCard(

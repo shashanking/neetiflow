@@ -400,7 +400,18 @@ class PersistentShellState extends State<PersistentShell> {
 
       switch (_selectedIndex) {
         case 0:
-          return const HomePage();
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppBar(
+                  title: const Text('Dashboard'),
+                  automaticallyImplyLeading: !isLargeScreen,
+                ),
+                const Expanded(child: HomePage()),
+              ],
+            ),
+          );
         case 1:
           return const LeadsPage();
         case 2:
@@ -418,7 +429,18 @@ class PersistentShellState extends State<PersistentShell> {
         case 8:
           return const HelpPage();
         default:
-          return const HomePage();
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppBar(
+                  title: const Text('Dashboard'),
+                  automaticallyImplyLeading: !isLargeScreen,
+                ),
+                const Expanded(child: HomePage()),
+              ],
+            ),
+          );
       }
     }
 

@@ -1,104 +1,90 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
-import 'package:neetiflow/domain/entities/lead_filter.dart';
-import 'package:neetiflow/infrastructure/repositories/leads_repository.dart';
-import 'package:neetiflow/presentation/blocs/leads/leads_event.dart';
-import 'package:neetiflow/presentation/blocs/leads/leads_state.dart';
+import 'package:neetiflow/domain/models/lead_filter.dart';
+import 'package:neetiflow/domain/models/lead_model.dart' as models;
+import 'package:neetiflow/domain/entities/lead.dart' as entities;
+
+part 'leads_event.dart';
+part 'leads_state.dart';
 
 class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   final LeadsRepository _leadsRepository;
+  final String _companyId;
+  StreamSubscription<List<models.LeadModel>>? _leadsSubscription;
 
-  LeadsBloc({required LeadsRepository leadsRepository})
-      : _leadsRepository = leadsRepository,
-        super(LeadsInitial()) {
+  LeadsBloc({
+    required LeadsRepository leadsRepository,
+    required String companyId,
+  })  : _leadsRepository = leadsRepository,
+        _companyId = companyId,
+        super(const LeadsState()) {
     on<LoadLeads>(_onLoadLeads);
     on<UpdateLeadStatus>(_onUpdateLeadStatus);
     on<UpdateLeadProcessStatus>(_onUpdateLeadProcessStatus);
+    on<DeleteLead>(_onDeleteLead);
+    on<BulkDeleteLeads>(_onBulkDeleteLeads);
+    on<BulkUpdateLeadsStatus>(_onBulkUpdateLeadsStatus);
+    on<BulkUpdateLeadsProcessStatus>(_onBulkUpdateLeadsProcessStatus);
     on<ImportLeadsFromCSV>(_onImportLeadsFromCSV);
     on<ExportLeadsToCSV>(_onExportLeadsToCSV);
-    on<CreateLead>(_onCreateLead);
-    on<ApplyLeadFilter>(_onApplyLeadFilter);
-    on<DeleteLead>(_onDeleteLead);
+    on<FilterLeads>(_onFilterLeads);
+    on<SelectLead>(_onSelectLead);
+    on<DeselectLead>(_onDeselectLead);
+    on<SelectAllLeads>(_onSelectAllLeads);
+    on<DeselectAllLeads>(_onDeselectAllLeads);
+    on<SortLeads>(_onSortLeads);
+    on<AddLead>(_onAddLead);
     on<UpdateLead>(_onUpdateLead);
-  }
-
-  List<Lead> _applyFilter(List<Lead> leads, LeadFilter filter) {
-    return leads.where((lead) => filter.matches(lead)).toList();
+    on<LoadSegments>(_onLoadSegments);
   }
 
   Future<void> _onLoadLeads(LoadLeads event, Emitter<LeadsState> emit) async {
-    emit(LeadsLoading());
-    try {
-      final leads = await _leadsRepository.getLeads(event.companyId);
-      final currentState = state;
-      final activeFilter =
-          currentState is LeadsLoaded ? currentState.activeFilter : null;
-
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(leads, activeFilter);
-        emit(LeadsLoaded(
-          leads: leads,
+    emit(state.copyWith(status: LeadsStatus.loading));
+    await _leadsSubscription?.cancel();
+    _leadsSubscription = _leadsRepository.getLeads(_companyId).listen(
+      (leads) {
+        final filteredLeads = _applyFilter(
+            leads.map((lead) => _convertToEntity(lead)).toList(), state.filter);
+        emit(state.copyWith(
+          status: LeadsStatus.success,
+          allLeads: leads.map((lead) => _convertToEntity(lead)).toList(),
           filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
         ));
-      } else {
-        emit(LeadsLoaded(leads: leads, filteredLeads: leads));
-      }
-    } catch (e) {
-      emit(LeadsError(message: e.toString()));
-    }
-  }
-
-  Future<void> _onApplyLeadFilter(
-    ApplyLeadFilter event,
-    Emitter<LeadsState> emit,
-  ) async {
-    final currentState = state;
-    if (currentState is! LeadsLoaded) return;
-
-    final filteredLeads = _applyFilter(currentState.leads, event.filter);
-    emit(LeadsLoaded(
-      leads: currentState.leads,
-      filteredLeads: filteredLeads,
-      activeFilter: event.filter,
-    ));
+      },
+      onError: (error) {
+        emit(state.copyWith(
+          status: LeadsStatus.failure,
+          errorMessage: error.toString(),
+        ));
+      },
+    );
   }
 
   Future<void> _onUpdateLeadStatus(
     UpdateLeadStatus event,
     Emitter<LeadsState> emit,
   ) async {
-    final currentState = state;
-    if (currentState is! LeadsLoaded) return;
-
-    emit(LeadStatusUpdating());
     try {
-      await _leadsRepository.updateLeadStatus(
-        companyId: event.companyId,
-        leadId: event.leadId,
-        status: event.status,
+      final model = _convertToModel(event.lead);
+      final updatedModel = model.copyWith(
+        status: models.LeadStatus.values.firstWhere(
+          (s) =>
+              s.toString().split('.').last.toLowerCase() ==
+              event.status.toLowerCase(),
+          orElse: () => models.LeadStatus.cold,
+        ),
       );
-
-      // Reload leads to get updated data
-      final leads = await _leadsRepository.getLeads(event.companyId);
-      final activeFilter = currentState.activeFilter;
-
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(leads, activeFilter);
-        emit(LeadsLoaded(
-          leads: leads,
-          filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
-        ));
-      } else {
-        emit(LeadsLoaded(leads: leads, filteredLeads: leads));
-      }
-    } catch (e) {
-      emit(LeadStatusUpdateError(message: e.toString()));
-      // Revert to previous state
-      emit(currentState);
+      await _leadsRepository.updateLead(_companyId, updatedModel);
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
     }
   }
 
@@ -106,35 +92,90 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     UpdateLeadProcessStatus event,
     Emitter<LeadsState> emit,
   ) async {
-    final currentState = state;
-    if (currentState is! LeadsLoaded) return;
-
-    emit(LeadStatusUpdating());
     try {
-      await _leadsRepository.updateLeadStatus(
-        companyId: event.companyId,
-        leadId: event.leadId,
-        processStatus: event.processStatus,
+      final model = _convertToModel(event.lead);
+      final updatedModel = model.copyWith(
+        processStatus: models.ProcessStatus.values.firstWhere(
+          (s) =>
+              s.toString().split('.').last ==
+              event.status.toString().split('.').last,
+          orElse: () => models.ProcessStatus.fresh,
+        ),
       );
+      await _leadsRepository.updateLead(_companyId, updatedModel);
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
+    }
+  }
 
-      // Reload leads to get updated data
-      final leads = await _leadsRepository.getLeads(event.companyId);
-      final activeFilter = currentState.activeFilter;
+  Future<void> _onDeleteLead(
+    DeleteLead event,
+    Emitter<LeadsState> emit,
+  ) async {
+    try {
+      await _leadsRepository.deleteLead(_companyId, event.leadId);
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
+    }
+  }
 
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(leads, activeFilter);
-        emit(LeadsLoaded(
-          leads: leads,
-          filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
-        ));
-      } else {
-        emit(LeadsLoaded(leads: leads, filteredLeads: leads));
-      }
-    } catch (e) {
-      emit(LeadStatusUpdateError(message: e.toString()));
-      // Revert to previous state
-      emit(currentState);
+  Future<void> _onBulkDeleteLeads(
+    BulkDeleteLeads event,
+    Emitter<LeadsState> emit,
+  ) async {
+    try {
+      await _leadsRepository.bulkDeleteLeads(
+        companyId: _companyId,
+        leadIds: event.leadIds.toSet(),
+      );
+      emit(state.copyWith(selectedLeadIds: const {}));
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
+    }
+  }
+
+  Future<void> _onBulkUpdateLeadsStatus(
+    BulkUpdateLeadsStatus event,
+    Emitter<LeadsState> emit,
+  ) async {
+    try {
+      await _leadsRepository.bulkUpdateLeadsStatus(
+        companyId: _companyId,
+        leadIds: event.leadIds.toSet(),
+        status: event.status,
+      );
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
+    }
+  }
+
+  Future<void> _onBulkUpdateLeadsProcessStatus(
+    BulkUpdateLeadsProcessStatus event,
+    Emitter<LeadsState> emit,
+  ) async {
+    try {
+      await _leadsRepository.bulkUpdateLeadsProcessStatus(
+        companyId: _companyId,
+        leadIds: event.leadIds.toSet(),
+        status: event.status,
+      );
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
     }
   }
 
@@ -142,32 +183,21 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     ImportLeadsFromCSV event,
     Emitter<LeadsState> emit,
   ) async {
-    emit(LeadsLoading());
     try {
-      // Parse CSV and convert to leads
-      final leads = await _leadsRepository.importLeadsFromCSV(event.fileBytes);
-
-      // Save the imported leads
-      await _leadsRepository.saveImportedLeads(event.companyId, leads);
-
-      // Reload leads to get updated data
-      final updatedLeads = await _leadsRepository.getLeads(event.companyId);
-      final currentState = state;
-      final activeFilter =
-          currentState is LeadsLoaded ? currentState.activeFilter : null;
-
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(updatedLeads, activeFilter);
-        emit(LeadsLoaded(
-          leads: updatedLeads,
-          filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
-        ));
-      } else {
-        emit(LeadsLoaded(leads: updatedLeads, filteredLeads: updatedLeads));
-      }
-    } catch (e) {
-      emit(LeadsError(message: 'Error importing leads: ${e.toString()}'));
+      emit(state.copyWith(status: LeadsStatus.loading));
+      final leads = await _leadsRepository
+          .importLeadsFromCSV(Uint8List.fromList(event.bytes));
+      final convertedLeads = leads.map(_convertToEntity).toList();
+      emit(state.copyWith(
+        status: LeadsStatus.success,
+        allLeads: convertedLeads,
+        filteredLeads: convertedLeads,
+      ));
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
     }
   }
 
@@ -175,139 +205,263 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     ExportLeadsToCSV event,
     Emitter<LeadsState> emit,
   ) async {
-    print('Starting CSV export process...');
     try {
-      final currentState = state;
-      if (currentState is! LeadsLoaded) {
-        print('Export failed: Current state is not LeadsLoaded');
-        emit(const LeadsError(message: 'No leads loaded to export'));
-        return;
-      }
-
-      // Store the current loaded state
-      final loadedState = currentState;
-
-      emit(LeadsExporting());
-      // Use filteredLeads if there's an active filter, otherwise use all leads
-      final leadsToExport = currentState.activeFilter != null
-          ? currentState.filteredLeads
-          : currentState.leads;
-
-      print('Preparing to export ${leadsToExport.length} leads');
-      print('Filter active: ${currentState.activeFilter != null}');
-
-      if (leadsToExport.isEmpty) {
-        print('Export failed: No leads to export');
-        emit(const LeadsError(message: 'No leads available to export'));
-        emit(loadedState); // Return to loaded state
-        return;
-      }
-
-      // Debug print first lead data
-      if (leadsToExport.isNotEmpty) {
-        final firstLead = leadsToExport.first;
-        print('Sample lead data:');
-        print('  ID: ${firstLead.id}');
-        print('  Name: ${firstLead.firstName} ${firstLead.lastName}');
-        print('  Email: ${firstLead.email}');
-        print('  Status: ${firstLead.status}');
-      }
-
-      final csvBytes = await _leadsRepository.exportLeadsToCSV(
-        leadsToExport,
-        companyId: event.companyId,
-      );
-      print('CSV export completed successfully');
-      emit(LeadsExportSuccess(csvBytes: csvBytes));
-      // Return to the previous loaded state after successful export
-      emit(loadedState);
-    } catch (e, stackTrace) {
-      print('Export failed with error: $e');
-      print('Stack trace: $stackTrace');
-      emit(LeadsError(message: 'Error exporting leads: ${e.toString()}'));
-      // If we have a loaded state, return to it after error
-      if (state is LeadsLoaded) {
-        emit(state);
-      }
+      emit(state.copyWith(status: LeadsStatus.loading));
+      final leads = state.filteredLeads.map(_convertToModel).toList();
+      final bytes = await _leadsRepository.exportLeadsToCSV(leads);
+      emit(state.copyWith(
+        status: LeadsStatus.success,
+        csvExportBytes: bytes,
+      ));
+    } catch (error) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: error.toString(),
+      ));
     }
   }
 
-  Future<void> _onCreateLead(
-    CreateLead event,
+  void _onFilterLeads(FilterLeads event, Emitter<LeadsState> emit) {
+    final filter = event.filter;
+    final leads = _applyFilter(state.allLeads, filter);
+    emit(state.copyWith(
+      filteredLeads: leads,
+      filter: filter,
+    ));
+  }
+
+  void _onSelectLead(SelectLead event, Emitter<LeadsState> emit) {
+    final selectedLeadIds = Set<String>.from(state.selectedLeadIds)
+      ..add(event.leadId);
+    emit(state.copyWith(selectedLeadIds: selectedLeadIds));
+  }
+
+  void _onDeselectLead(DeselectLead event, Emitter<LeadsState> emit) {
+    final selectedLeadIds = Set<String>.from(state.selectedLeadIds)
+      ..remove(event.leadId);
+    emit(state.copyWith(selectedLeadIds: selectedLeadIds));
+  }
+
+  void _onSelectAllLeads(SelectAllLeads event, Emitter<LeadsState> emit) {
+    final selectedLeadIds = state.filteredLeads
+        .where((lead) => lead.id != null)
+        .map((lead) => lead.id)
+        .toSet();
+    emit(state.copyWith(selectedLeadIds: selectedLeadIds));
+  }
+
+  void _onDeselectAllLeads(DeselectAllLeads event, Emitter<LeadsState> emit) {
+    emit(state.copyWith(selectedLeadIds: const {}));
+  }
+
+  void _onSortLeads(
+    SortLeads event,
     Emitter<LeadsState> emit,
-  ) async {
-    emit(LeadsLoading());
-    try {
-      await _leadsRepository.createLead(event.companyId, event.lead);
-      final leads = await _leadsRepository.getLeads(event.companyId);
-      final currentState = state;
-      final activeFilter =
-          currentState is LeadsLoaded ? currentState.activeFilter : null;
-
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(leads, activeFilter);
-        emit(LeadsLoaded(
-          leads: leads,
-          filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
-        ));
-      } else {
-        emit(LeadsLoaded(leads: leads, filteredLeads: leads));
-      }
-    } catch (e) {
-      emit(LeadsError(message: 'Error creating lead: ${e.toString()}'));
-    }
+  ) {
+    final sortedLeads = _applySort(event.leads, event.column, event.ascending);
+    emit(state.copyWith(
+      filteredLeads: sortedLeads,
+    ));
   }
 
-  Future<void> _onDeleteLead(DeleteLead event, Emitter<LeadsState> emit) async {
-    final currentState = state;
-    if (currentState is! LeadsLoaded) return;
-
-    emit(LeadsLoading());
+  Future<void> _onAddLead(AddLead event, Emitter<LeadsState> emit) async {
     try {
-      await _leadsRepository.deleteLead(event.companyId, event.leadId);
-      final leads = await _leadsRepository.getLeads(event.companyId);
-      final activeFilter = currentState.activeFilter;
+      // Convert Lead entity to LeadModel
+      final leadModel = models.LeadModel(
+        id: event.lead.id,
+        name: _getLeadName(event.lead),
+        email: event.lead.email,
+        phone: event.lead.phone,
+        company: event.lead.metadata?['company'],
+        status: models.LeadStatus.values.firstWhere(
+          (s) => s.toString().split('.').last == event.lead.status.toString().split('.').last,
+          orElse: () => models.LeadStatus.cold,
+        ),
+        processStatus: models.ProcessStatus.values.firstWhere(
+          (s) => s.toString().split('.').last == event.lead.processStatus.toString().split('.').last,
+          orElse: () => models.ProcessStatus.fresh,
+        ),
+        createdAt: event.lead.createdAt,
+      );
 
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(leads, activeFilter);
-        emit(LeadsLoaded(
-          leads: leads,
-          filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
-        ));
-      } else {
-        emit(LeadsLoaded(leads: leads, filteredLeads: leads));
-      }
+      await _leadsRepository.createLead(_companyId, leadModel);
+      
+      // Reload leads to reflect the new addition
+      add(const LoadLeads());
     } catch (e) {
-      emit(LeadsError(message: 'Error deleting lead: ${e.toString()}'));
-      emit(currentState);
+      emit(state.copyWith(status: LeadsStatus.failure));
     }
   }
 
   Future<void> _onUpdateLead(UpdateLead event, Emitter<LeadsState> emit) async {
-    final currentState = state;
-    if (currentState is! LeadsLoaded) return;
-
-    emit(LeadsLoading());
     try {
-      await _leadsRepository.updateLead(event.companyId, event.lead);
-      final leads = await _leadsRepository.getLeads(event.companyId);
-      final activeFilter = currentState.activeFilter;
+      // Convert Lead entity to LeadModel
+      final leadModel = models.LeadModel(
+        id: event.lead.id,
+        name: _getLeadName(event.lead),
+        email: event.lead.email,
+        phone: event.lead.phone,
+        company: event.lead.metadata?['company'],
+        status: models.LeadStatus.values.firstWhere(
+          (s) => s.toString().split('.').last == event.lead.status.toString().split('.').last,
+          orElse: () => models.LeadStatus.cold,
+        ),
+        processStatus: models.ProcessStatus.values.firstWhere(
+          (s) => s.toString().split('.').last == event.lead.processStatus.toString().split('.').last,
+          orElse: () => models.ProcessStatus.fresh,
+        ),
+        createdAt: event.lead.createdAt,
+      );
 
-      if (activeFilter != null) {
-        final filteredLeads = _applyFilter(leads, activeFilter);
-        emit(LeadsLoaded(
-          leads: leads,
-          filteredLeads: filteredLeads,
-          activeFilter: activeFilter,
-        ));
-      } else {
-        emit(LeadsLoaded(leads: leads, filteredLeads: leads));
-      }
+      await _leadsRepository.updateLead(_companyId, leadModel);
+      
+      // Reload leads to reflect the update
+      add(const LoadLeads());
     } catch (e) {
-      emit(LeadsError(message: 'Error updating lead: ${e.toString()}'));
-      emit(currentState);
+      emit(state.copyWith(status: LeadsStatus.failure));
     }
+  }
+
+  List<entities.Lead> _applySort(List<entities.Lead> leads, String column, bool ascending) {
+    final sortedLeads = List<entities.Lead>.from(leads);
+    sortedLeads.sort((a, b) {
+      var compareResult = 0;
+      switch (column) {
+        case 'name':
+          compareResult = _getLeadName(a).compareTo(_getLeadName(b));
+          break;
+        case 'email':
+          compareResult = (a.email).compareTo(b.email);
+          break;
+        case 'phone':
+          compareResult = (a.phone).compareTo(b.phone);
+          break;
+        case 'status':
+          compareResult = a.status.toString().compareTo(b.status.toString());
+          break;
+        case 'processStatus':
+          compareResult =
+              a.processStatus.toString().compareTo(b.processStatus.toString());
+          break;
+        case 'createdAt':
+          compareResult = a.createdAt.compareTo(b.createdAt);
+          break;
+        default:
+          compareResult = 0;
+      }
+      return ascending ? compareResult : -compareResult;
+    });
+    return sortedLeads;
+  }
+
+  String _getLeadName(entities.Lead lead) {
+    return '${lead.firstName} ${lead.lastName}'.trim();
+  }
+
+  List<entities.Lead> _applyFilter(List<entities.Lead> leads, LeadFilter filter) {
+    if (leads.isEmpty) return leads;
+
+    var filteredLeads = List<entities.Lead>.from(leads);
+
+    // Apply search term filter
+    if (filter.searchTerm != null && filter.searchTerm!.isNotEmpty) {
+      final searchTerm = filter.searchTerm!.toLowerCase();
+      filteredLeads = filteredLeads.where((lead) {
+        return _getLeadName(lead).toLowerCase().contains(searchTerm) ||
+            lead.email.toLowerCase().contains(searchTerm) ||
+            lead.phone.toLowerCase().contains(searchTerm) ||
+            lead.subject.toLowerCase().contains(searchTerm);
+      }).toList();
+    }
+
+    // Apply status filter
+    if (filter.status != null && filter.status!.isNotEmpty) {
+      filteredLeads = filteredLeads.where((lead) {
+        return lead.status.toString().split('.').last.toLowerCase() ==
+            filter.status!.toLowerCase();
+      }).toList();
+    }
+
+    // Apply process status filter
+    if (filter.processStatus != null && filter.processStatus!.isNotEmpty) {
+      filteredLeads = filteredLeads.where((lead) {
+        return lead.processStatus.toString().split('.').last.toLowerCase() ==
+            filter.processStatus!.toLowerCase();
+      }).toList();
+    }
+
+    return filteredLeads;
+  }
+
+  entities.Lead _convertToEntity(models.LeadModel model) {
+    final entityStatus = entities.LeadStatus.values.firstWhere(
+      (s) =>
+          s.toString().split('.').last ==
+          model.status.toString().split('.').last,
+      orElse: () => entities.LeadStatus.cold,
+    );
+
+    final entityProcessStatus = entities.ProcessStatus.values.firstWhere(
+      (s) =>
+          s.toString().split('.').last ==
+          model.processStatus.toString().split('.').last,
+      orElse: () => entities.ProcessStatus.fresh,
+    );
+
+    final nameParts = (model.name ?? '').split(' ');
+    final hasLastName = nameParts.length > 1;
+
+    return entities.Lead(
+      id: model.id ?? '',
+      uid: model.id ?? '',
+      firstName: nameParts.isNotEmpty ? nameParts[0] : '',
+      lastName: hasLastName ? nameParts.sublist(1).join(' ') : '',
+      phone: model.phone ?? '',
+      email: model.email ?? '',
+      subject: model.company ?? '',
+      message: '',
+      status: entityStatus,
+      processStatus: entityProcessStatus,
+      createdAt: model.createdAt,
+      metadata: const {},
+      segments: const [],
+    );
+  }
+
+  models.LeadModel _convertToModel(entities.Lead lead) {
+    final modelStatus = models.LeadStatus.values.firstWhere(
+      (s) =>
+          s.toString().split('.').last ==
+          lead.status.toString().split('.').last,
+      orElse: () => models.LeadStatus.cold,
+    );
+
+    final modelProcessStatus = models.ProcessStatus.values.firstWhere(
+      (s) =>
+          s.toString().split('.').last ==
+          lead.processStatus.toString().split('.').last,
+      orElse: () => models.ProcessStatus.fresh,
+    );
+
+    return models.LeadModel(
+      id: lead.id,
+      name: _getLeadName(lead),
+      email: lead.email,
+      phone: lead.phone,
+      company: lead.subject,
+      status: modelStatus,
+      processStatus: modelProcessStatus,
+      createdAt: lead.createdAt,
+    );
+  }
+
+  void _onLoadSegments(LoadSegments event, Emitter<LeadsState> emit) {
+    emit(state.copyWith(segments: event.segments));
+  }
+
+  @override
+  Future<void> close() {
+    _leadsSubscription?.cancel();
+    return super.close();
   }
 }
