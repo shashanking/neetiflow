@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
-import 'package:neetiflow/presentation/pages/home/home_page.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class RegisterOrganizationPage extends StatefulWidget {
   const RegisterOrganizationPage({super.key});
@@ -66,6 +66,8 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
         email: _adminEmailController.text.trim(),
         address: _adminAddressController.text.trim(),
         role: EmployeeRole.admin,
+        isActive: true,
+        joiningDate: DateTime.now(),
       );
 
       context.read<AuthBloc>().add(
@@ -101,7 +103,7 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
             );
           } else if (state is Authenticated) {
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomePage()),
+              MaterialPageRoute(builder: (_) => const PersistentShell()),
             );
           }
         },
