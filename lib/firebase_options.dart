@@ -18,10 +18,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.macOS:
         return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -35,6 +32,16 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDYpIqRcN87PbhlyxJ-A9rlK8aUjJRFbl8',
+    appId: '1:691923559988:web:cd2724642769eb9e69cc61',
+    messagingSenderId: '691923559988',
+    projectId: 'neeti-flow-crm',
+    authDomain: 'neeti-flow-crm.firebaseapp.com',
+    storageBucket: 'neeti-flow-crm.firebasestorage.app',
+    measurementId: 'G-VXQCTEH2SG',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyDYpIqRcN87PbhlyxJ-A9rlK8aUjJRFbl8',
     appId: '1:691923559988:web:cd2724642769eb9e69cc61',
     messagingSenderId: '691923559988',

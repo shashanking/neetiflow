@@ -20,11 +20,14 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    debugPrint('Initializing Firebase with options: ${DefaultFirebaseOptions.currentPlatform}');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-  } catch (e) {
+    debugPrint('Firebase initialized successfully');
+  } catch (e, stackTrace) {
     debugPrint('Failed to initialize Firebase: $e');
+    debugPrint('Stack trace: $stackTrace');
   }
   runApp(const MainApp());
 }

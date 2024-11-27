@@ -13,6 +13,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _emailSent = false;
+  String? _organizationName;
 
   @override
   void dispose() {
@@ -49,7 +50,10 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
               ),
             );
           } else if (state is PasswordResetEmailSent) {
-            setState(() => _emailSent = true);
+            setState(() {
+              _emailSent = true;
+              _organizationName = state.organizationName;
+            });
           }
         },
         child: SafeArea(
@@ -160,6 +164,26 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
         Text(
           'We\'ve sent password reset instructions to:\n${_emailController.text}',
           style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        if (_organizationName != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Organization: $_organizationName',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+        const SizedBox(height: 16),
+        Text(
+          'Please check your email and follow the instructions to reset your password. '
+          'The reset link will expire in 1 hour for security purposes.',
+          style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurface.withOpacity(0.7),
           ),
           textAlign: TextAlign.center,
