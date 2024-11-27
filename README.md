@@ -13,6 +13,21 @@ A modern employee management system built with Flutter and Firebase.
 - Department role management
 - Detailed employee information display
 
+### Lead Management
+- Comprehensive lead information tracking
+- Advanced lead filtering and search
+- Lead scoring system
+- Timeline-based activity tracking
+- Intuitive lead details view
+- Bulk actions support
+- Smart navigation system
+  - Multiple entry points to lead details
+  - Separate selection and navigation actions
+  - Quick access via info icons
+- Export/Import capabilities
+- Custom fields support
+- Process status tracking
+
 ### Navigation
 - Persistent shell implementation with customizable initial routes
 - Responsive drawer navigation
@@ -99,13 +114,43 @@ flutter run
 ```
 
 ## Project Structure
-
 ```
 lib/
 ├── application/      # Business logic and state management
-├── domain/          # Business objects and interfaces
+├── data/
+│   ├── models/
+│   │   ├── lead.dart
+│   │   └── lead_filter.dart
+│   └── repositories/
+│       └── leads_repository.dart
+├── domain/
+│   ├── entities/
+│   │   └── lead.dart
+│   └── models/
+│       └── lead_filter.dart
+│   ├── entities/
+│   │   └── employee.dart
+│   └── models/
+│       └── employee_filter.dart
 ├── infrastructure/  # Implementation of repositories
-└── presentation/   # UI components and pages
+└── presentation/
+│   ├── blocs/
+│   │   └── leads/
+│   │       ├── leads_bloc.dart
+│   │       ├── leads_event.dart
+│   │       └── leads_state.dart
+│   ├── pages/
+│   │   └── leads/
+│   │       ├── lead_details_page.dart
+│   │       └── leads_page.dart
+│   └── widgets/
+│       └── leads/
+│           ├── lead_filter_widget.dart
+│           ├── lead_form.dart
+│           ├── lead_score_badge.dart
+│           └── timeline_widget.dart
+└── utils/
+    └── lead_utils.dart
 ```
 
 ## Development

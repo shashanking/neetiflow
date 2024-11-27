@@ -155,7 +155,12 @@ class DeselectLead extends LeadsEvent {
 
 /// Event to select all leads.
 class SelectAllLeads extends LeadsEvent {
-  const SelectAllLeads();
+  final List<String> leadIds;
+
+  const SelectAllLeads({required this.leadIds});
+
+  @override
+  List<Object> get props => [leadIds];
 }
 
 /// Event to deselect all leads.
@@ -187,4 +192,18 @@ class LoadSegments extends LeadsEvent {
 
   @override
   List<Object> get props => [segments];
+}
+
+/// Event to handle custom events
+class CustomEvent extends LeadsEvent {
+  final String eventType;
+  final Map<String, dynamic> eventData;
+
+  const CustomEvent({
+    required this.eventType,
+    required this.eventData,
+  });
+
+  @override
+  List<Object> get props => [eventType, eventData];
 }

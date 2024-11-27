@@ -1,5 +1,4 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
@@ -7,9 +6,12 @@ import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
+import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_filter_widget.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_form.dart';
+import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
+import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 
 class LeadsPage extends StatelessWidget {
   const LeadsPage({super.key});
@@ -24,7 +26,7 @@ class LeadsPage extends StatelessWidget {
     return BlocProvider(
       create: (context) => LeadsBloc(
         leadsRepository: LeadsRepositoryImpl(),
-        companyId: authState.employee.companyId!,
+        organizationId: authState.employee.companyId!,
       ),
       child: const LeadsView(),
     );
@@ -39,6 +41,10 @@ class LeadsView extends StatefulWidget {
 }
 
 class _LeadsViewState extends State<LeadsView> {
+  String? _sortColumn;
+  bool _sortAscending = true;
+  bool _selectAll = false;
+
   @override
   void initState() {
     super.initState();
@@ -304,9 +310,7 @@ class _LeadsViewState extends State<LeadsView> {
                             id: '',
                             uid: '',
                             firstName: nameController.text,
-                            lastName: nameController.text.isEmpty
-                                ? ''
-                                : '',
+                            lastName: nameController.text.isEmpty ? '' : '',
                             phone: phoneController.text,
                             email: emailController.text,
                             subject: subjectController.text,
@@ -442,12 +446,13 @@ class _LeadsViewState extends State<LeadsView> {
     if (state.status != LeadsStatus.success) return const SizedBox.shrink();
 
     // Helper function to count leads with a specific status
-    int _countLeadsByStatus(List<Lead> leads, LeadStatus status) {
+    int countLeadsByStatus(List<Lead> leads, LeadStatus status) {
       return leads.where((lead) => lead.status == status).length;
     }
 
     // Helper function to count leads with a specific process status
-    int _countLeadsByProcessStatus(List<Lead> leads, ProcessStatus processStatus) {
+    int countLeadsByProcessStatus(
+        List<Lead> leads, ProcessStatus processStatus) {
       return leads.where((lead) => lead.processStatus == processStatus).length;
     }
 
@@ -460,182 +465,166 @@ class _LeadsViewState extends State<LeadsView> {
       },
       {
         'title': 'Hot Leads',
-        'value': _countLeadsByStatus(state.filteredLeads, LeadStatus.hot).toString(),
+        'value':
+            countLeadsByStatus(state.filteredLeads, LeadStatus.hot).toString(),
         'icon': Icons.local_fire_department_outlined,
         'color': Colors.red,
       },
       {
         'title': 'Warm Leads',
-        'value': _countLeadsByStatus(state.filteredLeads, LeadStatus.warm).toString(),
+        'value':
+            countLeadsByStatus(state.filteredLeads, LeadStatus.warm).toString(),
         'icon': Icons.trending_up_outlined,
         'color': Colors.orange,
       },
       {
         'title': 'Cold Leads',
-        'value': _countLeadsByStatus(state.filteredLeads, LeadStatus.cold).toString(),
+        'value':
+            countLeadsByStatus(state.filteredLeads, LeadStatus.cold).toString(),
         'icon': Icons.ac_unit_outlined,
         'color': Colors.blue,
       },
       {
         'title': 'Fresh Leads',
-        'value': _countLeadsByProcessStatus(state.filteredLeads, ProcessStatus.fresh).toString(),
+        'value':
+            countLeadsByProcessStatus(state.filteredLeads, ProcessStatus.fresh)
+                .toString(),
         'icon': Icons.fiber_new_outlined,
         'color': Colors.green,
       },
       {
         'title': 'In Progress Leads',
-        'value': _countLeadsByProcessStatus(state.filteredLeads, ProcessStatus.inProgress).toString(),
+        'value': countLeadsByProcessStatus(
+                state.filteredLeads, ProcessStatus.inProgress)
+            .toString(),
         'icon': Icons.pending_outlined,
         'color': Colors.amber,
       },
     ];
 
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      itemCount: stats.length,
-      separatorBuilder: (context, index) => const SizedBox(width: 8),
-      itemBuilder: (context, index) {
-        final stat = stats[index];
-        return SizedBox(
-          width: 200,
-          child: _buildStatCard(
-            context,
-            stat['title'] as String,
-            stat['value'] as String,
-            stat['icon'] as IconData,
-            stat['color'] as Color,
-          ),
-        );
-      },
+    return SizedBox(
+      height: 120, // Fixed height for the stats cards
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemCount: stats.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final stat = stats[index];
+          return SizedBox(
+            width: 200,
+            child: _buildStatCard(
+              context,
+              stat['title'] as String,
+              stat['value'] as String,
+              stat['icon'] as IconData,
+              stat['color'] as Color,
+            ),
+          );
+        },
+      ),
     );
   }
 
   Widget _buildLeadsTable(BuildContext context, List<Lead> leads) {
-    final theme = Theme.of(context);
-    final state = context.watch<LeadsBloc>().state;
-    final hasSelection = state.selectedLeadIds.isNotEmpty;
-
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (hasSelection) ...[
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: theme.colorScheme.primary.withOpacity(0.1),
-            child: Row(
-              children: [
-                Text(
-                  '${state.selectedLeadIds.length} leads selected',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(width: 16),
-                FilledButton.icon(
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Delete Selected'),
-                  onPressed: () => _bulkDeleteLeads(state.selectedLeadIds.toList()),
-                ),
-                const SizedBox(width: 8),
-                PopupMenuButton<LeadStatus>(
-                  tooltip: 'Change status for selected leads',
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.flag),
-                    label: const Text('Change Status'),
-                    onPressed: null,
-                  ),
-                  itemBuilder: (context) => LeadStatus.values
-                      .map(
-                        (status) => PopupMenuItem(
-                          value: status,
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.circle,
-                                size: 12,
-                                color: LeadStatusColors.getLeadStatusColor(status),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(status.toString().split('.').last),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onSelected: (status) => _bulkUpdateLeadsStatus(
-                    state.selectedLeadIds.toList(),
-                    status.toString(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                PopupMenuButton<ProcessStatus>(
-                  tooltip: 'Change process status for selected leads',
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.sync),
-                    label: const Text('Change Process'),
-                    onPressed: null,
-                  ),
-                  itemBuilder: (context) => ProcessStatus.values
-                      .map(
-                        (status) => PopupMenuItem(
-                          value: status,
-                          child: Text(status.toString().split('.').last),
-                        ),
-                      )
-                      .toList(),
-                  onSelected: (status) => _bulkUpdateLeadsProcessStatus(
-                    state.selectedLeadIds.toList(),
-                    status.toString(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        Card(
-          elevation: 1,
+        if (context.watch<LeadsBloc>().state.selectedLeadIds.isNotEmpty)
+          _buildBulkActionsToolbar(context),
+        Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minWidth: MediaQuery.of(context).size.width - 48,
+                minWidth: MediaQuery.of(context).size.width,
               ),
-              child: DataTable(
-                showCheckboxColumn: true,
-                sortColumnIndex: state.sortColumn != null
-                    ? _getColumnIndex(state.sortColumn!)
-                    : null,
-                sortAscending: state.sortAscending,
-                columns: [
-                  DataColumn(
-                    label: const Text('Name'),
-                    onSort: (index, ascending) => _onSort(index, ascending),
-                  ),
-                  DataColumn(
-                    label: const Text('Email'),
-                    onSort: (index, ascending) => _onSort(index, ascending),
-                  ),
-                  DataColumn(
-                    label: const Text('Phone'),
-                    onSort: (index, ascending) => _onSort(index, ascending),
-                  ),
-                  DataColumn(
-                    label: const Text('Status'),
-                    onSort: (index, ascending) => _onSort(index, ascending),
-                  ),
-                  DataColumn(
-                    label: const Text('Process'),
-                    onSort: (index, ascending) => _onSort(index, ascending),
-                  ),
-                  DataColumn(
-                    label: const Text('Created'),
-                    onSort: (index, ascending) => _onSort(index, ascending),
-                  ),
-                  const DataColumn(label: Text('Actions')),
-                ],
-                rows: _getSortedLeads(leads, state.sortColumn, state.sortAscending)
-                    .map((lead) => _buildDataRow(context, lead))
-                    .toList(),
+              child: SingleChildScrollView(
+                child: DataTable(
+                  showCheckboxColumn: true,
+                  sortColumnIndex: _sortColumn != null
+                      ? _getColumnIndex(_sortColumn!)
+                      : null,
+                  sortAscending: _sortAscending,
+                  columns: [
+                    const DataColumn(
+                      label: Text(''), // Empty label for checkbox column
+                    ),
+                    DataColumn(
+                      label: const Text('Name'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'name';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    DataColumn(
+                      label: const Text('Score'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'score';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    DataColumn(
+                      label: const Text('Email'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'email';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    DataColumn(
+                      label: const Text('Phone'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'phone';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    DataColumn(
+                      label: const Text('Status'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'status';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    DataColumn(
+                      label: const Text('Process'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'processStatus';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    DataColumn(
+                      label: const Text('Created'),
+                      onSort: (columnIndex, ascending) {
+                        setState(() {
+                          _sortColumn = 'createdAt';
+                          _sortAscending = ascending;
+                        });
+                        _onSort(columnIndex, ascending);
+                      },
+                    ),
+                    const DataColumn(label: Text('Actions')),
+                  ],
+                  rows: leads
+                      .map((lead) => _buildDataRow(context, lead))
+                      .toList(),
+                ),
               ),
             ),
           ),
@@ -644,116 +633,53 @@ class _LeadsViewState extends State<LeadsView> {
     );
   }
 
-  int _getColumnIndex(String column) {
-    switch (column) {
-      case 'name':
-        return 0;
-      case 'email':
-        return 1;
-      case 'phone':
-        return 2;
-      case 'status':
-        return 3;
-      case 'processStatus':
-        return 4;
-      case 'createdAt':
-        return 5;
-      default:
-        return 0;
-    }
-  }
-
-  void _onSort(int columnIndex, bool ascending) {
-    final leadsBloc = context.read<LeadsBloc>();
-    final state = leadsBloc.state;
-    
-    final column = _getColumnName(columnIndex);
-    final sortedLeads = _getSortedLeads(state.filteredLeads, column, ascending);
-
-    leadsBloc.add(SortLeads(
-      leads: sortedLeads,
-      column: column,
-      ascending: ascending,
-    ));
-  }
-
-  String _getColumnName(int index) {
-    switch (index) {
-      case 0:
-        return 'name';
-      case 1:
-        return 'email';
-      case 2:
-        return 'phone';
-      case 3:
-        return 'status';
-      case 4:
-        return 'processStatus';
-      case 5:
-        return 'createdAt';
-      default:
-        return '';
-    }
-  }
-
-  List<Lead> _getSortedLeads(List<Lead> leads, String? column, bool ascending) {
-    if (leads.isEmpty) return leads;
-
-    final sortedLeads = List<Lead>.from(leads);
-    sortedLeads.sort((a, b) {
-      int compare = 0;
-      switch (column) {
-        case 'name':
-          compare = _getLeadName(a).compareTo(_getLeadName(b));
-          break;
-        case 'email':
-          compare = a.email.compareTo(b.email);
-          break;
-        case 'phone':
-          compare = a.phone.compareTo(b.phone);
-          break;
-        case 'status':
-          compare = a.status.toString().compareTo(b.status.toString());
-          break;
-        case 'processStatus':
-          compare = a.processStatus.toString().compareTo(b.processStatus.toString());
-          break;
-        case 'createdAt':
-          compare = a.createdAt.compareTo(b.createdAt);
-          break;
-        default:
-          compare = 0;
-      }
-      return ascending ? compare : -compare;
-    });
-
-    return sortedLeads;
-  }
-
   DataRow _buildDataRow(BuildContext context, Lead lead) {
     final state = context.watch<LeadsBloc>().state;
     final isSelected = state.selectedLeadIds.contains(lead.id);
 
     return DataRow(
+      selected: isSelected,
+      onSelectChanged: (selected) {
+        if (selected ?? false) {
+          context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
+        } else {
+          context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
+        }
+        setState(() {
+          _selectAll = context.read<LeadsBloc>().state.selectedLeadIds.length ==
+              state.filteredLeads.length;
+        });
+      },
       cells: [
+        const DataCell(SizedBox.shrink()), // Checkbox column
         DataCell(
-          Checkbox(
-            value: isSelected,
-            onChanged: (bool? value) {
-              if (value == true) {
-                context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
-              } else {
-                context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
-              }
-            },
-          ),
+          Text(_getLeadName(lead)),
+          onTap: () => _navigateToLeadDetails(context, lead),
         ),
-        DataCell(Text('${lead.firstName} ${lead.lastName}')),
-        DataCell(Text(lead.email)),
-        DataCell(Text(lead.phone)),
-        DataCell(_buildStatusChip(context, lead)),
-        DataCell(_buildProcessChip(context, lead)),
-        DataCell(Text(_formatDate(lead.createdAt))),
+        DataCell(
+          LeadScoreBadge(lead: lead),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(lead.email),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(lead.phone),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          _buildStatusChip(context, lead),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          _buildProcessChip(context, lead),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(_formatDate(lead.createdAt)),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
         DataCell(Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -767,10 +693,113 @@ class _LeadsViewState extends State<LeadsView> {
               onPressed: () => _deleteLead(lead),
               tooltip: 'Delete Lead',
             ),
+            IconButton(
+              icon: const Icon(Icons.info_outline, color: Colors.blue),
+              onPressed: () => _navigateToLeadDetails(context, lead),
+              tooltip: 'View Details',
+            ),
           ],
         )),
       ],
     );
+  }
+
+  int _getColumnIndex(String column) {
+    switch (column) {
+      case 'name':
+        return 1;
+      case 'score':
+        return 2;
+      case 'email':
+        return 3;
+      case 'phone':
+        return 4;
+      case 'status':
+        return 5;
+      case 'processStatus':
+        return 6;
+      case 'createdAt':
+        return 7;
+      default:
+        return 0;
+    }
+  }
+
+  void _onSort(int columnIndex, bool ascending) {
+    final leadsBloc = context.read<LeadsBloc>();
+    final state = leadsBloc.state;
+
+    final column = _getColumnName(columnIndex);
+    final sortedLeads = _getSortedLeads(state.filteredLeads, column, ascending);
+
+    leadsBloc.add(SortLeads(
+      leads: sortedLeads,
+      column: column,
+      ascending: ascending,
+    ));
+  }
+
+  String _getColumnName(int index) {
+    switch (index) {
+      case 1:
+        return 'name';
+      case 2:
+        return 'score';
+      case 3:
+        return 'email';
+      case 4:
+        return 'phone';
+      case 5:
+        return 'status';
+      case 6:
+        return 'processStatus';
+      case 7:
+        return 'createdAt';
+      default:
+        return '';
+    }
+  }
+
+  List<Lead> _getSortedLeads(List<Lead> leads, String? column, bool ascending) {
+    if (leads.isEmpty) return leads;
+
+    final sortedLeads = List<Lead>.from(leads);
+    sortedLeads.sort((a, b) {
+      int compare;
+      switch (column) {
+        case 'name':
+          compare = _getLeadName(a).compareTo(_getLeadName(b));
+          break;
+        case 'score':
+          compare = a.score.compareTo(b.score);
+          break;
+        case 'email':
+          compare = a.email.compareTo(b.email);
+          break;
+        case 'phone':
+          compare = a.phone.compareTo(b.phone);
+          break;
+        case 'status':
+          compare = a.status.toString().compareTo(b.status.toString());
+          break;
+        case 'processStatus':
+          compare =
+              a.processStatus.toString().compareTo(b.processStatus.toString());
+          break;
+        case 'createdAt':
+          compare = a.createdAt.compareTo(b.createdAt);
+          break;
+        default:
+          compare = 0;
+      }
+      return ascending ? compare : -compare;
+    });
+
+    return sortedLeads;
+  }
+
+  String _getLeadName(Lead lead) {
+    return '${lead.firstName} ${lead.lastName}'.trim();
   }
 
   Future<void> _bulkDeleteLeads(List<String> leadIds) async {
@@ -814,8 +843,7 @@ class _LeadsViewState extends State<LeadsView> {
         );
   }
 
-  void _bulkUpdateLeadsProcessStatus(
-      List<String> leadIds, String status) {
+  void _bulkUpdateLeadsProcessStatus(List<String> leadIds, String status) {
     context.read<LeadsBloc>().add(
           BulkUpdateLeadsProcessStatus(
             leadIds: leadIds.toList(),
@@ -827,7 +855,9 @@ class _LeadsViewState extends State<LeadsView> {
   Widget _buildStatusChip(BuildContext context, Lead lead) {
     final theme = Theme.of(context);
     final status = LeadStatus.values.firstWhere(
-      (s) => s.toString() == lead.status,
+      (s) =>
+          s.toString().split('.').last.toLowerCase() ==
+          lead.status.toString().split('.').last.toLowerCase(),
       orElse: () => LeadStatus.cold,
     );
     final color = LeadStatusColors.getLeadStatusColor(status);
@@ -880,7 +910,9 @@ class _LeadsViewState extends State<LeadsView> {
   Widget _buildProcessChip(BuildContext context, Lead lead) {
     final theme = Theme.of(context);
     final status = ProcessStatus.values.firstWhere(
-      (s) => s.toString() == lead.processStatus,
+      (s) =>
+          s.toString().split('.').last.toLowerCase() ==
+          lead.processStatus.toString().split('.').last.toLowerCase(),
       orElse: () => ProcessStatus.fresh,
     );
     final color = LeadStatusColors.getProcessStatusColor(status);
@@ -912,7 +944,17 @@ class _LeadsViewState extends State<LeadsView> {
           .map(
             (status) => PopupMenuItem(
               value: status,
-              child: Text(status.toString().split('.').last),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: LeadStatusColors.getProcessStatusColor(status),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(status.toString().split('.').last),
+                ],
+              ),
             ),
           )
           .toList(),
@@ -922,25 +964,21 @@ class _LeadsViewState extends State<LeadsView> {
 
   void _updateLeadStatus(Lead lead, LeadStatus newStatus) {
     context.read<LeadsBloc>().add(UpdateLeadStatus(
-      lead: lead,
-      status: newStatus.toString().split('.').last,
-    ));
+          lead: lead,
+          status: newStatus.toString().split('.').last,
+        ));
   }
 
   void _updateLeadProcessStatus(Lead lead, ProcessStatus newProcessStatus) {
     context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
-      lead: lead,
-      status: newProcessStatus,
-    ));
+          lead: lead,
+          status: newProcessStatus,
+        ));
   }
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'N/A';
     return '${date.day}/${date.month}/${date.year}';
-  }
-
-  String _getLeadName(Lead lead) {
-    return '${lead.firstName} ${lead.lastName}'.trim();
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -984,14 +1022,20 @@ class _LeadsViewState extends State<LeadsView> {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    final spacing = 8.0;
-    final state = context.watch<LeadsBloc>().state;
+    const spacing = 8.0;
+    final leadsBloc = context.watch<LeadsBloc>();
+    final state = leadsBloc.state;
 
     return Wrap(
       spacing: spacing,
       runSpacing: spacing,
       children: [
-        const LeadFilterWidget(),
+        LeadFilterWidget(
+          initialFilter: state.filter,
+          onFilterChanged: (filter) {
+            leadsBloc.add(FilterLeads(filter: filter));
+          },
+        ),
         OutlinedButton.icon(
           onPressed: _importLeads,
           icon: const Icon(Icons.upload_file),
@@ -1011,65 +1055,420 @@ class _LeadsViewState extends State<LeadsView> {
     );
   }
 
+  Widget _buildLeadsTableCompact(BuildContext context, List<Lead> leads) {
+    // Similar to _buildLeadsTable but with fewer columns
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: MediaQuery.of(context).size.width,
+        ),
+        child: SingleChildScrollView(
+          child: DataTable(
+            showCheckboxColumn: true,
+            sortColumnIndex:
+                _sortColumn != null ? _getColumnIndex(_sortColumn!) : null,
+            sortAscending: _sortAscending,
+            columns: [
+              const DataColumn(
+                label: Text(''), // Empty label for checkbox column
+              ),
+              DataColumn(
+                label: const Text('Name'),
+                onSort: (columnIndex, ascending) {
+                  setState(() {
+                    _sortColumn = 'name';
+                    _sortAscending = ascending;
+                  });
+                  _onSort(columnIndex, ascending);
+                },
+              ),
+              DataColumn(
+                label: const Text('Score'),
+                onSort: (columnIndex, ascending) {
+                  setState(() {
+                    _sortColumn = 'score';
+                    _sortAscending = ascending;
+                  });
+                  _onSort(columnIndex, ascending);
+                },
+              ),
+              DataColumn(
+                label: const Text('Status'),
+                onSort: (columnIndex, ascending) {
+                  setState(() {
+                    _sortColumn = 'status';
+                    _sortAscending = ascending;
+                  });
+                  _onSort(columnIndex, ascending);
+                },
+              ),
+              DataColumn(
+                label: const Text('Process'),
+                onSort: (columnIndex, ascending) {
+                  setState(() {
+                    _sortColumn = 'processStatus';
+                    _sortAscending = ascending;
+                  });
+                  _onSort(columnIndex, ascending);
+                },
+              ),
+              const DataColumn(label: Text('Actions')),
+            ],
+            rows: leads
+                .map((lead) => _buildCompactDataRow(context, lead))
+                .toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  DataRow _buildCompactDataRow(BuildContext context, Lead lead) {
+    final state = context.watch<LeadsBloc>().state;
+    final isSelected = state.selectedLeadIds.contains(lead.id);
+
+    return DataRow(
+      selected: isSelected,
+      onSelectChanged: (selected) {
+        if (selected ?? false) {
+          context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
+        } else {
+          context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
+        }
+        setState(() {
+          _selectAll = context.read<LeadsBloc>().state.selectedLeadIds.length ==
+              state.filteredLeads.length;
+        });
+      },
+      cells: [
+        DataCell(Text(_getLeadName(lead))),
+        DataCell(LeadScoreBadge(lead: lead)),
+        DataCell(_buildStatusChip(context, lead)),
+        DataCell(_buildProcessChip(context, lead)),
+        DataCell(Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue),
+              onPressed: () => _editLead(lead),
+              tooltip: 'Edit Lead',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _deleteLead(lead),
+              tooltip: 'Delete Lead',
+            ),
+          ],
+        )),
+      ],
+    );
+  }
+
+  Widget _buildLeadsListView(BuildContext context, List<Lead> leads) {
+    return Card(
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.all(16),
+        itemCount: leads.length,
+        separatorBuilder: (context, index) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final lead = leads[index];
+          final state = context.watch<LeadsBloc>().state;
+          final isSelected = state.selectedLeadIds.contains(lead.id);
+
+          return ListTile(
+            selected: isSelected,
+            leading: Checkbox(
+              value: isSelected,
+              onChanged: (selected) {
+                if (selected ?? false) {
+                  context
+                      .read<LeadsBloc>()
+                      .add(SelectLead(leadId: lead.id));
+                } else {
+                  context
+                      .read<LeadsBloc>()
+                      .add(DeselectLead(leadId: lead.id));
+                }
+              },
+            ),
+            title: Text(_getLeadName(lead)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(lead.email),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    _buildStatusChip(context, lead),
+                    const SizedBox(width: 8),
+                    _buildProcessChip(context, lead),
+                  ],
+                ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => _editLead(lead),
+                  tooltip: 'Edit Lead',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _deleteLead(lead),
+                  tooltip: 'Delete Lead',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.info_outline, color: Colors.blue),
+                  onPressed: () => _navigateToLeadDetails(context, lead),
+                  tooltip: 'View Details',
+                ),
+              ],
+            ),
+            onTap: () => _navigateToLeadDetails(context, lead),
+          );
+        },
+      ),
+    );
+  }
+
+  void _navigateToLeadDetails(BuildContext context, Lead lead) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LeadDetailsPage(lead: lead),
+      ),
+    );
+  }
+
+  Widget _buildBulkActionsToolbar(BuildContext context) {
+    final selectedCount =
+        context.watch<LeadsBloc>().state.selectedLeadIds.length;
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
+      child: Row(
+        children: [
+          Text(
+            '$selectedCount ${selectedCount == 1 ? 'lead' : 'leads'} selected',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(width: 16),
+          _buildBulkActionButton(
+            context,
+            'Delete',
+            Icons.delete_outline,
+            Theme.of(context).colorScheme.error,
+            () => _bulkDeleteLeads(
+                context.read<LeadsBloc>().state.selectedLeadIds.toList()),
+          ),
+          const SizedBox(width: 8),
+          _buildStatusDropdown(context),
+          const SizedBox(width: 8),
+          _buildProcessStatusDropdown(context),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () =>
+                context.read<LeadsBloc>().add(const DeselectAllLeads()),
+            icon: const Icon(Icons.close),
+            label: const Text('Clear Selection'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBulkActionButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, color: color, size: 20),
+      label: Text(label, style: TextStyle(color: color)),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      ),
+    );
+  }
+
+  Widget _buildStatusDropdown(BuildContext context) {
+    return PopupMenuButton<LeadStatus>(
+      tooltip: 'Update status',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.flag_outlined, size: 20),
+            SizedBox(width: 8),
+            Text('Update Status'),
+            Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (context) => LeadStatus.values
+          .map(
+            (status) => PopupMenuItem(
+              value: status,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: LeadStatusColors.getLeadStatusColor(status),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(status.toString().split('.').last),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      onSelected: (status) => _bulkUpdateLeadsStatus(
+        context.read<LeadsBloc>().state.selectedLeadIds.toList(),
+        status.toString().split('.').last.toLowerCase(),
+      ),
+    );
+  }
+
+  Widget _buildProcessStatusDropdown(BuildContext context) {
+    return PopupMenuButton<ProcessStatus>(
+      tooltip: 'Update process',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.pending_outlined, size: 20),
+            SizedBox(width: 8),
+            Text('Update Process'),
+            Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (context) => ProcessStatus.values
+          .map(
+            (status) => PopupMenuItem(
+              value: status,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: LeadStatusColors.getProcessStatusColor(status),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(status.toString().split('.').last),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      onSelected: (status) => _bulkUpdateLeadsProcessStatus(
+        context.read<LeadsBloc>().state.selectedLeadIds.toList(),
+        status.toString().split('.').last.toLowerCase(),
+      ),
+    );
+  }
+
+  Widget _buildLeadDetails(BuildContext context, Lead lead) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Lead Details',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16.0),
+        // Existing lead details UI
+        Text(lead.email),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            _buildStatusChip(context, lead),
+            const SizedBox(width: 8),
+            _buildProcessChip(context, lead),
+          ],
+        ),
+        const SizedBox(height: 16.0),
+        Text(
+          'Timeline',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8.0),
+        Expanded(
+          child: TimelineWidget(
+            events: lead.timelineEvents,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth > 1200 ? 24.0 : 16.0;
-    final verticalSpacing = screenWidth > 900 ? 16.0 : 12.0;
-
     return BlocBuilder<LeadsBloc, LeadsState>(
       builder: (context, state) {
-        if (state.status == LeadsStatus.loading) {
+        if (state.status == LeadsStatus.initial) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (state.status == LeadsStatus.failure) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(state.errorMessage ?? 'An error occurred'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _loadLeads,
-                  child: const Text('Retry'),
-                ),
-              ],
+            child: Text(
+              state.errorMessage ?? 'An error occurred',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );
         }
 
         if (state.filteredLeads.isEmpty) {
           return _NoLeadsWidget(
-            isFiltered: state.filter != const LeadFilter(),
-            onClearFilter: () {
-              context.read<LeadsBloc>().add(
-                    FilterLeads(filter: const LeadFilter()),
-                  );
-            },
+            hasFilter: state.filter != null,
             onAddLead: _addNewLead,
+            onImportLeads: _importLeads,
           );
         }
 
-        return Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: verticalSpacing,
-          ),
-          child: Column(
-            children: [
-              _buildHeader(context),
-              SizedBox(height: verticalSpacing),
-              SizedBox(
-                height: 80,
-                child: _buildStatsGrid(context, state),
-              ),
-              SizedBox(height: verticalSpacing),
-              Expanded(
-                child: _buildLeadsTable(context, state.filteredLeads),
-              ),
-            ],
-          ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth > 900;
+            final isTablet =
+                constraints.maxWidth > 600 && constraints.maxWidth <= 900;
+
+            return Column(
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: 16),
+                _buildStatsGrid(context, state),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: isDesktop
+                      ? _buildLeadsTable(context, state.filteredLeads)
+                      : isTablet
+                          ? _buildLeadsTableCompact(
+                              context, state.filteredLeads)
+                          : _buildLeadsListView(context, state.filteredLeads),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1077,14 +1476,14 @@ class _LeadsViewState extends State<LeadsView> {
 }
 
 class _NoLeadsWidget extends StatelessWidget {
-  final bool isFiltered;
-  final VoidCallback onClearFilter;
+  final bool hasFilter;
   final VoidCallback onAddLead;
+  final VoidCallback onImportLeads;
 
   const _NoLeadsWidget({
-    required this.isFiltered,
-    required this.onClearFilter,
+    required this.hasFilter,
     required this.onAddLead,
+    required this.onImportLeads,
   });
 
   @override
@@ -1100,22 +1499,25 @@ class _NoLeadsWidget extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            isFiltered ? 'No leads match your filter' : 'No leads yet',
+            hasFilter ? 'No leads match your filter' : 'No leads yet',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
           Text(
-            isFiltered
+            hasFilter
                 ? 'Try adjusting your filter settings'
                 : 'Start by adding your first lead',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 ),
           ),
           const SizedBox(height: 24),
-          if (isFiltered)
+          if (hasFilter)
             FilledButton.icon(
-              onPressed: onClearFilter,
+              onPressed: () => context
+                  .read<LeadsBloc>()
+                  .add(const FilterLeads(filter: LeadFilter())),
               icon: const Icon(Icons.filter_alt_off),
               label: const Text('Clear Filter'),
             )

@@ -1,28 +1,28 @@
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../domain/models/lead_model.dart';
+import 'package:neetiflow/domain/entities/lead.dart';
 
 abstract class LeadsRepository {
-  Stream<List<LeadModel>> getLeads(String companyId);
-  Future<void> createLead(String companyId, LeadModel lead);
-  Future<void> updateLead(String companyId, LeadModel lead);
-  Future<void> deleteLead(String companyId, String leadId);
+  Stream<List<Lead>> getLeads(String organizationId);
+  Future<void> createLead(String organizationId, Lead lead);
+  Future<void> updateLead(String organizationId, Lead lead);
+  Future<void> deleteLead(String organizationId, String leadId);
   Future<void> bulkDeleteLeads({
-    required String companyId,
+    required String organizationId,
     required Set<String> leadIds,
   });
   Future<void> bulkUpdateLeadsStatus({
-    required String companyId,
+    required String organizationId,
     required Set<String> leadIds,
     required String status,
   });
   Future<void> bulkUpdateLeadsProcessStatus({
-    required String companyId,
+    required String organizationId,
     required Set<String> leadIds,
     required String status,
   });
-  Future<List<LeadModel>> importLeadsFromCSV(Uint8List fileBytes);
-  Future<Uint8List> exportLeadsToCSV(List<LeadModel> leads);
+  Future<List<Lead>> importLeadsFromCSV(Uint8List fileBytes);
+  Future<Uint8List> exportLeadsToCSV(List<Lead> leads);
 }
 
 class LeadsRepositoryImpl implements LeadsRepository {
@@ -33,15 +33,15 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<void> bulkDeleteLeads({
-    required String companyId,
+    required String organizationId,
     required Set<String> leadIds,
   }) async {
     final batch = _firestore.batch();
     
     for (final leadId in leadIds) {
       final docRef = _firestore
-          .collection('companies')
-          .doc(companyId)
+          .collection('organizations')
+          .doc(organizationId)
           .collection('leads')
           .doc(leadId);
       batch.delete(docRef);
@@ -52,7 +52,7 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<void> bulkUpdateLeadsStatus({
-    required String companyId,
+    required String organizationId,
     required Set<String> leadIds,
     required String status,
   }) async {
@@ -60,8 +60,8 @@ class LeadsRepositoryImpl implements LeadsRepository {
     
     for (final leadId in leadIds) {
       final docRef = _firestore
-          .collection('companies')
-          .doc(companyId)
+          .collection('organizations')
+          .doc(organizationId)
           .collection('leads')
           .doc(leadId);
       batch.update(docRef, {'status': status});
@@ -72,7 +72,7 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<void> bulkUpdateLeadsProcessStatus({
-    required String companyId,
+    required String organizationId,
     required Set<String> leadIds,
     required String status,
   }) async {
@@ -80,8 +80,8 @@ class LeadsRepositoryImpl implements LeadsRepository {
     
     for (final leadId in leadIds) {
       final docRef = _firestore
-          .collection('companies')
-          .doc(companyId)
+          .collection('organizations')
+          .doc(organizationId)
           .collection('leads')
           .doc(leadId);
       batch.update(docRef, {'processStatus': status});
@@ -91,54 +91,54 @@ class LeadsRepositoryImpl implements LeadsRepository {
   }
 
   @override
-  Stream<List<LeadModel>> getLeads(String companyId) {
+  Stream<List<Lead>> getLeads(String organizationId) {
     return _firestore
-        .collection('companies')
-        .doc(companyId)
+        .collection('organizations')
+        .doc(organizationId)
         .collection('leads')
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => LeadModel.fromJson({...doc.data(), 'id': doc.id}))
+            .map((doc) => Lead.fromJson({...doc.data(), 'id': doc.id}))
             .toList());
   }
 
   @override
-  Future<void> createLead(String companyId, LeadModel lead) async {
+  Future<void> createLead(String organizationId, Lead lead) async {
     await _firestore
-        .collection('companies')
-        .doc(companyId)
+        .collection('organizations')
+        .doc(organizationId)
         .collection('leads')
         .add(lead.toJson()..remove('id'));
   }
 
   @override
-  Future<void> updateLead(String companyId, LeadModel lead) async {
+  Future<void> updateLead(String organizationId, Lead lead) async {
     await _firestore
-        .collection('companies')
-        .doc(companyId)
+        .collection('organizations')
+        .doc(organizationId)
         .collection('leads')
         .doc(lead.id)
         .update(lead.toJson()..remove('id'));
   }
 
   @override
-  Future<void> deleteLead(String companyId, String leadId) async {
+  Future<void> deleteLead(String organizationId, String leadId) async {
     await _firestore
-        .collection('companies')
-        .doc(companyId)
+        .collection('organizations')
+        .doc(organizationId)
         .collection('leads')
         .doc(leadId)
         .delete();
   }
 
   @override
-  Future<List<LeadModel>> importLeadsFromCSV(Uint8List fileBytes) {
+  Future<List<Lead>> importLeadsFromCSV(Uint8List fileBytes) {
     // TODO: implement importLeadsFromCSV
     throw UnimplementedError();
   }
 
   @override
-  Future<Uint8List> exportLeadsToCSV(List<LeadModel> leads) {
+  Future<Uint8List> exportLeadsToCSV(List<Lead> leads) {
     // TODO: implement exportLeadsToCSV
     throw UnimplementedError();
   }
