@@ -1,172 +1,153 @@
-# NeetiFlow - Modern Business Management System
+# Neetiflow
 
-A comprehensive CRM and business management system built with Flutter, following clean architecture principles and modern development practices.
+A modern employee management system built with Flutter and Firebase.
 
-## 🚀 Project Status
+## Features
 
-### Completed Features
-- ✅ Email-based Authentication System
-  - Modern, user-friendly login interface
-  - Comprehensive error handling
-  - Secure password management
-  - Company and employee auto-mapping
-- ✅ Home Page Dashboard
-  - Professional drawer layout
-  - Employee information display
-  - Material 3 design implementation
-- ✅ Clean Architecture Implementation
-  - Domain-driven design
-  - BLoC pattern for state management
-  - Repository pattern for data access
-- ✅ Firebase Integration
-  - Authentication
-  - Firestore database
-  - Secure data structure
-- ✅ Leads Management System
-  - Modern, responsive leads table
-  - CSV import/export functionality
-  - Status and process management
-  - Batch operations support
-  - Platform-specific file handling
+### Employee Management
+- Real-time employee status tracking (Online/Offline)
+- Comprehensive employee profile management
+- Role-based access control (Admin/Manager/Employee)
+- Active/Inactive status management
+- Cross-organization employee lookup
+- Department role management
+- Detailed employee information display
 
-### 🏗️ Current Development
-- Advanced Lead Management Features
-- User Profile Management
-- Role-based Access Control
-- Organization Management
-- Employee Directory
+### Navigation
+- Persistent shell implementation with customizable initial routes
+- Responsive drawer navigation
+- Dynamic page routing
+- Seamless page transitions
+- User profile integration
+- Quick access to key features
 
-### 📅 Roadmap
+### Authentication
+- Secure login system with error handling
+- Password reset functionality
+- Remember me functionality
+- Persistent session management
+- Automatic navigation flow
+- Account activation/deactivation
+- Online/Offline status tracking
+- Cross-organization authentication
 
-#### Phase 1: Core Features (In Progress)
-- [x] Lead Management System
-- [ ] Password Reset Flow
-- [ ] User Profile Management
-- [ ] Role-based Authorization
-- [ ] Multi-organization Support
+### Real-time Updates
+- Live status synchronization
+- Instant notifications
+- Stream-based data updates
+- Automatic UI refresh
+- Robust error handling
+- Efficient state management
 
-#### Phase 2: Lead Management Enhancements
-- [ ] Advanced Lead Filtering
-- [ ] Custom Lead Fields
-- [ ] Lead Analytics
-- [ ] Automated Lead Scoring
-- [ ] Lead Source Tracking
+### User Interface
+- Modern, responsive design
+- Intuitive navigation
+- Dark/Light theme support
+- Cross-platform compatibility
+- Null-safe implementations
+- Beautiful status indicators
+- Improved layout handling
 
-#### Phase 3: Business Operations
-- [ ] Task Management System
-- [ ] Calendar Integration
-- [ ] Document Management
-- [ ] Team Collaboration Tools
-
-#### Phase 4: Analytics & Reporting
-- [ ] Dashboard Analytics
-- [ ] Custom Report Builder
-- [ ] Data Export Features
-- [ ] Performance Metrics
-
-#### Phase 5: Advanced Features
-- [ ] Notification System
-- [ ] Mobile Responsiveness
-- [ ] Offline Support
-- [ ] API Integration System
-
-## 🛠️ Technical Stack
+## Tech Stack
 
 ### Frontend
 - Flutter SDK
-- Material 3 Design
-- flutter_bloc for State Management
-- Google Fonts with Noto Sans
+- BLoC Pattern
+- Stream Subscriptions
+- Custom Widgets
 
-### Backend Services
+### Backend
 - Firebase Authentication
 - Cloud Firestore
-- Firebase Storage
+- Firebase Functions
+- Real-time Database
 
-### Architecture
-- Clean Architecture
-- Domain-Driven Design
-- BLoC Pattern
+### State Management
+- flutter_bloc
+- StreamSubscription
 - Repository Pattern
+- Clean Architecture
 
-## 🔐 Security Features
-- Email-based Authentication
-- Secure Password Management
-- Firebase Security Rules
-- Role-based Access Control
-- Secure File Handling
+## Getting Started
 
-## 📊 Lead Management Features
-- Modern, responsive leads table
-- CSV import/export functionality
-- Status and process management
-- Batch operations support
-- Platform-specific file handling
-- Error handling and validation
-- Real-time updates
-- Sorting and filtering
-- Status tracking workflow
-- Lead creation and editing
+### Prerequisites
+- Flutter SDK (latest version)
+- Firebase project setup
+- IDE (VS Code or Android Studio)
+- Git
 
-## 🧪 Testing
-- Unit Tests (In Progress)
-- Widget Tests (Planned)
-- Integration Tests (Planned)
-- BLoC Tests (In Progress)
-
-## 📦 Dependencies
-- firebase_core: ^2.27.1
-- firebase_auth: ^4.17.9
-- cloud_firestore: ^4.15.9
-- flutter_bloc: ^8.1.4
-- google_fonts: ^6.2.1
-- csv: Latest version
-- file_picker: Latest version
-- And more in pubspec.yaml
-
-## 🚀 Getting Started
+### Installation
 
 1. Clone the repository
-2. Run `flutter pub get`
-3. Configure Firebase project
-4. Run the app with `flutter run`
+```bash
+git clone https://github.com/yourusername/neetiflow.git
+```
 
-## 📚 Documentation
-Detailed documentation is in progress. Key areas will include:
-- Architecture Overview
-- Authentication Flow
-- Data Models
-- State Management
-- Security Implementation
-- Lead Management System
-- CSV Import/Export Guidelines
-- Error Handling Strategies
+2. Install dependencies
+```bash
+flutter pub get
+```
 
-## 🤝 Contributing
-Contributions are welcome! Please read our contributing guidelines (coming soon).
+3. Configure Firebase
+- Add your `google-services.json` for Android
+- Add your `GoogleService-Info.plist` for iOS
+- Configure web setup if needed
 
-## 📄 License
+4. Run the app
+```bash
+flutter run
+```
+
+## Project Structure
+
+```
+lib/
+├── application/      # Business logic and state management
+├── domain/          # Business objects and interfaces
+├── infrastructure/  # Implementation of repositories
+└── presentation/   # UI components and pages
+```
+
+## Development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development documentation, including:
+- Current implementation status
+- Future development goals
+- Contributing guidelines
+- Known issues and limitations
+
+## Security
+
+- Secure authentication flow
+- Role-based access control
+- Data encryption
+- Regular security audits
+
+## Testing
+
+- Unit tests
+- Widget tests
+- Integration tests
+- Performance testing
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🔄 Recent Updates (March 2024)
+## Contact
 
-### Lead Management System
-- Implemented comprehensive lead management system
-- Added CSV import/export functionality
-- Enhanced error handling and validation
-- Improved state management with BLoC pattern
-- Added platform-specific file handling
-- Implemented batch operations for lead imports
-- Enhanced UI with responsive design
-- Added status and process management
-- Improved code organization and modularity
+For support or queries, please contact [your-email@domain.com]
 
-### Technical Improvements
-- Consolidated repository methods
-- Enhanced error handling
-- Improved state management
-- Added platform-specific adaptations
-- Enhanced type safety
-- Improved code documentation
-- Optimized CSV handling
-- Enhanced UI responsiveness
+## Acknowledgments
+
+- Flutter team
+- Firebase team
+- All contributors

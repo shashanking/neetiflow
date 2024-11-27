@@ -80,6 +80,35 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   Future<void> signOut() async {
     try {
       _logger.i('Signing out user');
+      
+      // Get current user's email before signing out
+      final currentUser = await getCurrentUser();
+      if (currentUser?.email != null) {
+        // Get user mapping to find company and employee IDs
+        final userMapping = await _firestore
+            .collection('user_mappings')
+            .doc(currentUser!.email)
+            .get();
+
+        if (userMapping.exists) {
+          final data = userMapping.data()!;
+          final companyId = data['companyId'] as String;
+          final employeeId = data['employeeId'] as String;
+
+          // Update employee active status to false
+          await _firestore
+              .collection('organizations')
+              .doc(companyId)
+              .collection('employees')
+              .doc(employeeId)
+              .update({
+            'isActive': false,
+            'isOnline': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
       await _firebaseAuth.signOut();
       await SecureStorageService.clearCredentials();
       _logger.i('Sign out successful');
@@ -199,6 +228,31 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Organization?> getOrganization(String organizationId) async {
+    try {
+      _logger.i('Getting organization data for ID: $organizationId');
+      final organizationDoc = await _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .get();
+
+      if (!organizationDoc.exists) {
+        _logger.w('Organization not found');
+        return null;
+      }
+
+      final data = organizationDoc.data()!;
+      data['id'] = organizationDoc.id;
+
+      _logger.i('Organization data retrieved successfully');
+      return Organization.fromJson(data);
+    } catch (e, stackTrace) {
+      _logger.e('Error getting organization data', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get organization data: $e');
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> registerOrganization({
     required Organization organization,
     required Employee admin,
@@ -275,88 +329,75 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
     try {
       _logger.i('Attempting login with email: ${email.split('@')[0]}***');
       
-      // Sign in with Firebase Auth first
+      // Get the employee data
+      final organizationsSnapshot = await _firestore
+          .collection('organizations')
+          .get();
+
+      Employee? foundEmployee;
+
+      for (var org in organizationsSnapshot.docs) {
+        final employeeSnapshot = await _firestore
+            .collection('organizations')
+            .doc(org.id)
+            .collection('employees')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (employeeSnapshot.docs.isNotEmpty) {
+          foundEmployee = Employee.fromJson({
+            'id': employeeSnapshot.docs.first.id,
+            ...employeeSnapshot.docs.first.data(),
+          });
+          break;
+        }
+      }
+
+      if (foundEmployee == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No employee found with this email',
+        );
+      }
+
+      final employee = foundEmployee;
+
+      // Check if employee is active (skip check for admins)
+      if (!employee.isActive && employee.role != EmployeeRole.admin) {
+        throw FirebaseAuthException(
+          code: 'user-disabled',
+          message: 'This account has been deactivated. Please contact your administrator.',
+        );
+      }
+
+      // Sign in with Firebase Auth
       final userCredential = await signInWithEmailAndPassword(
         email,
         password,
       );
 
-      if (userCredential == null) {
-        _logger.e('Authentication failed - null user credential');
-        throw FirebaseAuthException(
-          code: 'auth/invalid-credential',
-          message: 'Invalid login credentials',
-        );
-      }
-
-      // Get user mapping
-      _logger.i('Getting user mapping for email: ${email.split('@')[0]}***');
-      final userMapping = await _firestore
-          .collection('user_mappings')
-          .doc(email)
-          .get();
-
-      if (!userMapping.exists) {
-        _logger.e('User mapping not found for email: ${email.split('@')[0]}***');
-        throw FirebaseAuthException(
-          code: 'user-not-found',
-          message: 'No user mapping found for this email. Please contact your administrator.',
-        );
-      }
-
-      final data = userMapping.data()!;
-      final companyId = data['companyId'] as String;
-      final employeeId = data['employeeId'] as String;
-
-      // Get employee document
-      _logger.i('Fetching employee record: $employeeId');
-      final employeeDoc = await _firestore
+      // Update online status in Firestore
+      await _firestore
           .collection('organizations')
-          .doc(companyId)
+          .doc(employee.companyId)
           .collection('employees')
-          .doc(employeeId)
-          .get();
+          .doc(employee.id)
+          .update({
+        'isOnline': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-      if (!employeeDoc.exists) {
-        _logger.e('Employee record not found for ID: $employeeId');
-        throw FirebaseAuthException(
-          code: 'employee-not-found',
-          message: 'Employee record not found. Please contact your administrator.',
-        );
-      }
+      // Get the updated employee data
+      final updatedEmployee = employee.copyWith(
+        isOnline: true,
+        isActive: employee.role == EmployeeRole.admin ? employee.isActive : true
+      );
 
-      // Get organization name
-      final organizationDoc = await _firestore
-          .collection('organizations')
-          .doc(companyId)
-          .get();
-
-      if (!organizationDoc.exists) {
-        _logger.e('Organization not found for ID: $companyId');
-        throw FirebaseAuthException(
-          code: 'organization-not-found',
-          message: 'Organization not found. Please contact your administrator.',
-        );
-      }
-
-      final employeeData = employeeDoc.data()!;
-      employeeData['companyName'] = organizationDoc.data()?['name'] as String?;
-      
-      final employee = Employee.fromJson(employeeData);
-
-      // Check if employee is active
-      if (!employee.isActive) {
-        _logger.e('Employee account is inactive: $employeeId');
-        throw FirebaseAuthException(
-          code: 'account-disabled',
-          message: 'Your account is currently inactive. Please contact your administrator.',
-        );
-      }
-
-      _logger.i('Login successful for employee: ${employee.name}');
+      _logger.i('Login successful for employee: ${updatedEmployee.firstName} ${updatedEmployee.lastName}');
       return {
         'user': userCredential,
-        'employee': employee,
+        'employee': updatedEmployee,
       };
     } on FirebaseAuthException catch (e, stackTrace) {
       _logger.e('Firebase Auth Error: ${e.code}', error: e, stackTrace: stackTrace);

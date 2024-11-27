@@ -22,4 +22,6 @@ abstract class AuthRepository {
   });
 
   Future<Employee> getEmployeeData(String uid);
+  
+  Future<Organization?> getOrganization(String organizationId);
 }

@@ -140,8 +140,8 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     try {
       emit(LeadStatusUpdating());
       await _repository.updateLeadStatus(
-        event.companyId,
-        event.leadId,
+        companyId: event.companyId,
+        leadId: event.leadId,
         status: event.status,
         processStatus: event.processStatus,
       );
@@ -180,11 +180,18 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
-      await _repository.exportLeadsToCSV(event.companyId);
-      // Keep current state since export doesn't affect the leads list
-      if (_leads.isNotEmpty) {
-        emit(LeadsLoaded(_leads));
+      if (_leads.isEmpty) {
+        emit(const LeadsError('No leads available to export'));
+        return;
       }
+      
+      await _repository.exportLeadsToCSV(
+        _leads,
+        companyId: event.companyId,
+      );
+      
+      // Keep current state since export doesn't affect the leads list
+      emit(LeadsLoaded(_leads));
     } catch (e) {
       emit(LeadsError(e.toString()));
     }

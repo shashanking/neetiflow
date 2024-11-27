@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
+import 'package:neetiflow/presentation/pages/auth/password_reset_page.dart';
 import 'package:neetiflow/presentation/pages/auth/register_organization_page.dart';
-import 'package:neetiflow/presentation/pages/home/home_page.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -47,7 +49,7 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
         rememberMe: _rememberMe,
       );
-      
+
       context.read<AuthBloc>().add(
             SignInWithEmailRequested(
               email: _emailController.text.trim(),
@@ -67,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: BlocListener<AuthBloc, AuthState>(
@@ -82,7 +84,7 @@ class _LoginPageState extends State<LoginPage> {
           } else if (state is Authenticated) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (_) => const HomePage(),
+                builder: (_) => const PersistentShell(),
               ),
             );
           }
@@ -92,7 +94,7 @@ class _LoginPageState extends State<LoginPage> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
+                constraints: const BoxConstraints(maxWidth: 450),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -137,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 24),
-                              
+
                               // Email Field
                               TextFormField(
                                 controller: _emailController,
@@ -153,7 +155,8 @@ class _LoginPageState extends State<LoginPage> {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your email';
                                   }
-                                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                  if (!RegExp(
+                                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
                                       .hasMatch(value)) {
                                     return 'Please enter a valid email';
                                   }
@@ -196,7 +199,30 @@ class _LoginPageState extends State<LoginPage> {
                                   return null;
                                 },
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 8),
+
+                              // Forgot Password Link
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => BlocProvider(
+                                          create: (context) => PasswordResetBloc(),
+                                          child: const PasswordResetPage(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'Forgot Password?',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
 
                               // Remember Me Checkbox
                               Row(
@@ -211,12 +237,6 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   const Text('Remember Me'),
                                   const Spacer(),
-                                  TextButton(
-                                    onPressed: () {
-                                      // TODO: Implement forgot password
-                                    },
-                                    child: const Text('Forgot Password?'),
-                                  ),
                                 ],
                               ),
 
@@ -226,7 +246,8 @@ class _LoginPageState extends State<LoginPage> {
                               BlocBuilder<AuthBloc, AuthState>(
                                 builder: (context, state) {
                                   return FilledButton(
-                                    onPressed: state is AuthLoading ? null : _onSubmit,
+                                    onPressed:
+                                        state is AuthLoading ? null : _onSubmit,
                                     child: state is AuthLoading
                                         ? const SizedBox(
                                             height: 20,

@@ -1,6 +1,7 @@
+import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
-import 'dart:typed_data';
+import 'package:neetiflow/domain/entities/lead_filter.dart';
 
 abstract class LeadsEvent extends Equatable {
   const LeadsEvent();
@@ -62,9 +63,9 @@ class ImportLeadsFromCSV extends LeadsEvent {
 }
 
 class ExportLeadsToCSV extends LeadsEvent {
-  final String? companyId;
+  final String companyId;
 
-  const ExportLeadsToCSV({this.companyId});
+  const ExportLeadsToCSV({required this.companyId});
 
   @override
   List<Object?> get props => [companyId];
@@ -75,6 +76,45 @@ class CreateLead extends LeadsEvent {
   final Lead lead;
 
   const CreateLead({
+    required this.companyId,
+    required this.lead,
+  });
+
+  @override
+  List<Object?> get props => [companyId, lead];
+}
+
+class ApplyLeadFilter extends LeadsEvent {
+  final String companyId;
+  final LeadFilter filter;
+
+  const ApplyLeadFilter({
+    required this.companyId,
+    required this.filter,
+  });
+
+  @override
+  List<Object?> get props => [companyId, filter];
+}
+
+class DeleteLead extends LeadsEvent {
+  final String companyId;
+  final String leadId;
+
+  const DeleteLead({
+    required this.companyId,
+    required this.leadId,
+  });
+
+  @override
+  List<Object?> get props => [companyId, leadId];
+}
+
+class UpdateLead extends LeadsEvent {
+  final String companyId;
+  final Lead lead;
+
+  const UpdateLead({
     required this.companyId,
     required this.lead,
   });

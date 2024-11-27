@@ -1,13 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:equatable/equatable.dart';
+import 'package:neetiflow/domain/entities/department.dart';
 
 enum EmployeeRole { admin, manager, employee }
 
-class Employee {
+class Employee extends Equatable {
   final String? id;
   final String? uid;
   final String? companyId;
   final String? companyName;
-  final String name;
+  final String firstName;
+  final String lastName;
   final String? phone;
   final String email;
   final String? address;
@@ -17,13 +20,17 @@ class Employee {
   final DateTime? updatedAt;
   final String? photoUrl;
   final bool isActive;
+  final bool isOnline;
+  final String? departmentId;  
+  final DepartmentRole? departmentRole;  
 
-  Employee({
+  const Employee({
     this.id,
     this.uid,
     this.companyId,
     this.companyName,
-    required this.name,
+    required this.firstName,
+    required this.lastName,
     this.phone,
     required this.email,
     this.address,
@@ -33,7 +40,32 @@ class Employee {
     this.updatedAt,
     this.photoUrl,
     this.isActive = true,
+    this.isOnline = false,
+    this.departmentId,  
+    this.departmentRole,  
   });
+
+  @override
+  List<Object?> get props => [
+        id,
+        uid,
+        companyId,
+        companyName,
+        firstName,
+        lastName,
+        phone,
+        email,
+        address,
+        role,
+        joiningDate,
+        createdAt,
+        updatedAt,
+        photoUrl,
+        isActive,
+        isOnline,
+        departmentId,  
+        departmentRole,  
+      ];
 
   Map<String, dynamic> toJson() {
     return {
@@ -41,7 +73,8 @@ class Employee {
       'uid': uid,
       'companyId': companyId,
       'companyName': companyName,
-      'name': name,
+      'firstName': firstName,
+      'lastName': lastName,
       'phone': phone,
       'email': email,
       'address': address,
@@ -51,6 +84,9 @@ class Employee {
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
       'isActive': isActive,
+      'isOnline': isOnline,
+      'departmentId': departmentId,  
+      'departmentRole': departmentRole?.toString().split('.').last,  
     };
   }
 
@@ -60,8 +96,9 @@ class Employee {
       uid: json['uid'] as String?,
       companyId: json['companyId'] as String?,
       companyName: json['companyName'] as String?,
-      name: json['name'] as String,
-      phone: json['phone'] as String,
+      firstName: json['firstName'] as String? ?? '',
+      lastName: json['lastName'] as String? ?? '',
+      phone: json['phone'] as String?,
       email: json['email'] as String,
       address: json['address'] as String?,
       role: EmployeeRole.values.firstWhere(
@@ -79,6 +116,13 @@ class Employee {
           : null,
       photoUrl: json['photoUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
+      isOnline: json['isOnline'] as bool? ?? false,
+      departmentId: json['departmentId'] as String?,  
+      departmentRole: json['departmentRole'] != null  
+          ? DepartmentRole.values.firstWhere(
+              (role) => role.toString().split('.').last == json['departmentRole'],
+            )
+          : null,
     );
   }
 
@@ -87,7 +131,8 @@ class Employee {
     String? uid,
     String? companyId,
     String? companyName,
-    String? name,
+    String? firstName,
+    String? lastName,
     String? phone,
     String? email,
     String? address,
@@ -97,13 +142,17 @@ class Employee {
     DateTime? updatedAt,
     String? photoUrl,
     bool? isActive,
+    bool? isOnline,
+    String? departmentId,  
+    DepartmentRole? departmentRole,  
   }) {
     return Employee(
       id: id ?? this.id,
       uid: uid ?? this.uid,
       companyId: companyId ?? this.companyId,
       companyName: companyName ?? this.companyName,
-      name: name ?? this.name,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       address: address ?? this.address,
@@ -113,6 +162,9 @@ class Employee {
       updatedAt: updatedAt ?? this.updatedAt,
       photoUrl: photoUrl ?? this.photoUrl,
       isActive: isActive ?? this.isActive,
+      isOnline: isOnline ?? this.isOnline,
+      departmentId: departmentId ?? this.departmentId,  
+      departmentRole: departmentRole ?? this.departmentRole,  
     );
   }
 
