@@ -1,8 +1,8 @@
 import 'package:neetiflow/domain/entities/lead.dart';
 
 class LeadFilter {
-  final LeadStatus? status;
-  final ProcessStatus? processStatus;
+  final String? status;
+  final String? processStatus;
   final DateTime? startDate;
   final DateTime? endDate;
   final String? searchQuery;
@@ -18,8 +18,8 @@ class LeadFilter {
   });
 
   LeadFilter copyWith({
-    LeadStatus? status,
-    ProcessStatus? processStatus,
+    String? status,
+    String? processStatus,
     DateTime? startDate,
     DateTime? endDate,
     String? searchQuery,
@@ -44,14 +44,12 @@ class LeadFilter {
     
     if (searchQuery != null && searchQuery!.isNotEmpty) {
       final query = searchQuery!.toLowerCase();
-      if (!lead.firstName.toLowerCase().contains(query) &&
-          !lead.lastName.toLowerCase().contains(query) &&
-          !lead.email.toLowerCase().contains(query) &&
-          !lead.phone.toLowerCase().contains(query) &&
-          !lead.subject.toLowerCase().contains(query) &&
-          !lead.message.toLowerCase().contains(query)) {
-        return false;
-      }
+      return lead.firstName.toLowerCase().contains(query) ||
+          lead.lastName.toLowerCase().contains(query) ||
+          lead.email.toLowerCase().contains(query) ||
+          lead.phone.toLowerCase().contains(query) ||
+          lead.subject.toLowerCase().contains(query) ||
+          lead.message.toLowerCase().contains(query);
     }
     
     if (segments != null && segments!.isNotEmpty) {
@@ -66,8 +64,8 @@ class LeadFilter {
 
   Map<String, dynamic> toJson() {
     return {
-      'status': status?.toString(),
-      'processStatus': processStatus?.toString(),
+      'status': status,
+      'processStatus': processStatus,
       'startDate': startDate?.toIso8601String(),
       'endDate': endDate?.toIso8601String(),
       'searchQuery': searchQuery,
@@ -77,18 +75,33 @@ class LeadFilter {
 
   factory LeadFilter.fromJson(Map<String, dynamic> json) {
     return LeadFilter(
-      status: json['status'] != null ? LeadStatus.values.firstWhere(
-        (e) => e.toString() == json['status'],
-        orElse: () => LeadStatus.warm,
-      ) : null,
-      processStatus: json['processStatus'] != null ? ProcessStatus.values.firstWhere(
-        (e) => e.toString() == json['processStatus'],
-        orElse: () => ProcessStatus.fresh,
-      ) : null,
+      status: json['status'],
+      processStatus: json['processStatus'],
       startDate: json['startDate'] != null ? DateTime.parse(json['startDate']) : null,
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
       searchQuery: json['searchQuery'],
       segments: json['segments'] != null ? List<String>.from(json['segments']) : null,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LeadFilter &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          processStatus == other.processStatus &&
+          startDate == other.startDate &&
+          endDate == other.endDate &&
+          searchQuery == other.searchQuery &&
+          segments == other.segments;
+
+  @override
+  int get hashCode =>
+      status.hashCode ^
+      processStatus.hashCode ^
+      startDate.hashCode ^
+      endDate.hashCode ^
+      searchQuery.hashCode ^
+      segments.hashCode;
 }
