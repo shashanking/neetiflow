@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
+import 'package:neetiflow/domain/repositories/auth_repository.dart';
+import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
 import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
@@ -16,9 +18,13 @@ import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
+import 'package:neetiflow/domain/entities/client.dart';
+import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
+import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
 
 import '../../../data/repositories/custom_fields_repository.dart';
 import '../../../domain/entities/timeline_event.dart';
+import '../../../infrastructure/repositories/firebase_clients_repository.dart';
 import '../../blocs/custom_fields/custom_fields_bloc.dart';
 import '../../widgets/leads/status_note_dialog.dart';
 
@@ -32,11 +38,21 @@ class LeadsPage extends StatelessWidget {
       return const Center(child: Text('Please login to view leads'));
     }
 
-    return BlocProvider(
-      create: (context) => LeadsBloc(
-        leadsRepository: LeadsRepositoryImpl(),
-        organizationId: authState.employee.companyId!,
-      ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => LeadsBloc(
+            leadsRepository: LeadsRepositoryImpl(),
+            organizationId: authState.employee.companyId!,
+          ),
+        ),
+        BlocProvider(
+          create: (context) => ClientsBloc(
+            authRepository: context.read<AuthRepository>(),
+            employeesRepository: context.read<EmployeesRepository>(),
+          )..add(LoadClients()),
+        ),
+      ],
       child: const LeadsView(),
     );
   }
@@ -841,42 +857,47 @@ class _LeadsViewState extends State<LeadsView>
         ));
   }
 
-  void _updateLeadProcessStatus(Lead lead, ProcessStatus newStatus) async {
-    final oldStatus = lead.processStatus;
+  Future<void> _updateLeadProcessStatus(Lead lead, ProcessStatus newStatus) async {
+    try {
+      // Create timeline event
+      final timelineEvent = TimelineEvent(
+        id: const Uuid().v4(),
+        leadId: lead.id,
+        title: 'Process Status Updated',
+        description: 'Process status changed to ${newStatus.name}',
+        timestamp: DateTime.now(),
+        category: 'status_change',
+        metadata: {
+          'old_status': lead.processStatus.name,
+          'new_status': newStatus.name,
+          'type': 'process_status'
+        },
+      );
 
-    // Show note dialog
-    final note = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatusNoteDialog(
-        oldValue: oldStatus.toString().split('.').last,
-        newValue: newStatus.toString().split('.').last,
-        title: 'Process Status',
-      ),
-    );
+      // Update lead status
+      context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
+        lead: lead,
+        status: newStatus,
+        timelineEvent: timelineEvent,
+      ));
 
-    if (note == null) return; // User cancelled
+      // If completed, trigger conversion
+      if (newStatus == ProcessStatus.completed) {
+        await convertLeadToClient(lead);
+      }
 
-    // Create timeline event
-    final timelineEvent = TimelineEvent(
-      id: const Uuid().v4(),
-      leadId: lead.id,
-      title: 'Process Status Changed',
-      description: note,
-      timestamp: DateTime.now(),
-      category: 'status_change',
-      metadata: {
-        'old_status': oldStatus.toString().split('.').last,
-        'new_status': newStatus.toString().split('.').last,
-        'type': 'process_status'
-      },
-    );
-
-    context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
-          lead: lead,
-          status: newStatus,
-          timelineEvent: timelineEvent,
-        ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lead process status updated successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating lead process status: $e')),
+        );
+      }
+    }
   }
 
   String _formatDate(DateTime? date) {
@@ -1193,6 +1214,126 @@ class _LeadsViewState extends State<LeadsView>
         ),
       ],
     );
+  }
+
+  Future<void> convertLeadToClient(Lead lead) async {
+    // Get organization ID from AuthBloc
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! Authenticated || authState.employee.companyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Unable to get organization ID')),
+      );
+      return;
+    }
+    final organizationId = authState.employee.companyId!;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Convert Lead to Client'),
+        content: const Text('Would you like to convert this lead to a client?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final now = DateTime.now();
+    
+    // Create a new client from lead data
+    final client = Client(
+      id: const Uuid().v4(),
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      email: lead.email,
+      phone: lead.phone,
+      address: lead.metadata?['address'] ?? '',
+      type: ClientType.individual,
+      status: ClientStatus.active,
+      domain: ClientDomain.other,
+      rating: 0.0,
+      organizationName: lead.metadata?['companyName'] ?? lead.metadata?['organization'],
+      joiningDate: now,
+      lastInteractionDate: now,
+      projects: const [],
+      lifetimeValue: 0.0,
+      leadId: lead.id,
+      metadata: {
+        ...?lead.metadata,
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+        'organizationId': organizationId,
+      },
+    );
+
+    // Show client form for editing
+    final editedClient = await showDialog<Client>(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.8,
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: ClientForm(
+              client: client,
+              onSubmit: (client) => Navigator.pop(context, client),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (editedClient == null) return;
+
+    try {
+      // Add client to database
+      final clientsRepository = FirebaseClientsRepository();
+      await clientsRepository.createClient(organizationId, editedClient);
+
+      // Add to ClientsBloc state
+      context.read<ClientsBloc>().add(AddClient(editedClient));
+
+      // Update lead process status
+      context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
+        lead: lead,
+        status: ProcessStatus.completed,
+        timelineEvent: TimelineEvent(
+          id: const Uuid().v4(),
+          leadId: lead.id,
+          title: 'Lead Converted to Client',
+          description: 'Lead was successfully converted to a client.',
+          timestamp: now,
+          category: 'conversion',
+          metadata: {
+            'clientId': editedClient.id,
+            'type': 'lead_conversion',
+            'createdAt': now.toIso8601String(),
+            'organizationId': organizationId,
+          },
+        ),
+      ));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lead successfully converted to client')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error converting lead: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildBulkActionsToolbar(BuildContext context) {

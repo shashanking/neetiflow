@@ -317,19 +317,16 @@ class PersistentShell extends StatefulWidget {
 
 class PersistentShellState extends State<PersistentShell> {
   late int _selectedIndex;
-  Widget? _customPage;
   StreamSubscription<Employee>? _employeeSubscription;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void setCustomPage(Widget page) {
     setState(() {
-      _customPage = page;
     });
   }
 
   void clearCustomPage() {
     setState(() {
-      _customPage = null;
     });
   }
 
@@ -426,7 +423,6 @@ class PersistentShellState extends State<PersistentShell> {
                     onTap: () {
                       setState(() {
                         _selectedIndex = item.index;
-                        _customPage = null;
                       });
                       // Only pop for mobile screens
                       if (isCompact && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
@@ -457,7 +453,6 @@ class PersistentShellState extends State<PersistentShell> {
                     onTap: () {
                       setState(() {
                         _selectedIndex = item.index;
-                        _customPage = null;
                       });
                       // Only pop for mobile screens
                       if (isCompact && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
