@@ -1,5 +1,7 @@
 part of 'leads_bloc.dart';
 
+
+
 enum LeadsStatus { initial, loading, success, failure }
 
 class LeadsState extends Equatable {
@@ -13,6 +15,9 @@ class LeadsState extends Equatable {
   final String? sortColumn;
   final bool sortAscending;
   final List<String> segments;
+  final Uint8List? exportedCsvBytes;
+  final List<TimelineEvent>? selectedLeadTimelineEvents;
+  final String? selectedLeadId;
 
   const LeadsState({
     this.status = LeadsStatus.initial,
@@ -25,6 +30,9 @@ class LeadsState extends Equatable {
     this.sortColumn,
     this.sortAscending = true,
     this.segments = const [],
+    this.exportedCsvBytes,
+    this.selectedLeadTimelineEvents,
+    this.selectedLeadId,
   });
 
   LeadsState copyWith({
@@ -38,6 +46,9 @@ class LeadsState extends Equatable {
     String? sortColumn,
     bool? sortAscending,
     List<String>? segments,
+    Uint8List? exportedCsvBytes,
+    List<TimelineEvent>? selectedLeadTimelineEvents,
+    String? selectedLeadId,
   }) {
     return LeadsState(
       status: status ?? this.status,
@@ -50,6 +61,9 @@ class LeadsState extends Equatable {
       sortColumn: sortColumn ?? this.sortColumn,
       sortAscending: sortAscending ?? this.sortAscending,
       segments: segments ?? this.segments,
+      exportedCsvBytes: exportedCsvBytes ?? this.exportedCsvBytes,
+      selectedLeadTimelineEvents: selectedLeadTimelineEvents ?? this.selectedLeadTimelineEvents,
+      selectedLeadId: selectedLeadId ?? this.selectedLeadId,
     );
   }
 
@@ -65,6 +79,9 @@ class LeadsState extends Equatable {
         sortColumn,
         sortAscending,
         segments,
+        exportedCsvBytes,
+        selectedLeadTimelineEvents,
+        selectedLeadId,
       ];
 
   factory LeadsState.initial() => const LeadsState();

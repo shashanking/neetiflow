@@ -27,7 +27,7 @@
   - [x] Handle data mapping
   - [x] Show import progress
 - [ ] Add export customization
-  - [ ] Allow column selection
+  - [x] Allow column selection
   - [ ] Support different file formats
   - [ ] Add date range selection
 
@@ -40,10 +40,12 @@
   - [x] Add meaningful error messages
   - [x] Show error states in UI
   - [x] Implement error recovery
-- [ ] Enhance table view
-  - [ ] Add column sorting
-  - [ ] Implement row selection
-  - [ ] Add bulk actions
+- [x] Enhance table view
+  - [x] Add column sorting
+  - [x] Implement row selection
+  - [x] Add bulk actions
+  - [x] Separate selection and navigation
+  - [x] Add lead details navigation
 - [ ] Add responsive design
   - [ ] Optimize for mobile view
   - [ ] Improve tablet layout
@@ -64,27 +66,58 @@
   - [ ] Implement caching
 
 ## 5. Lead Scoring System
-- [ ] Design scoring algorithm
-  - [ ] Define scoring criteria and weights
-  - [ ] Implement scoring calculation logic
+- [x] Design scoring algorithm
+  - [x] Define base scoring criteria (0-100 scale)
+  - [ ] Implement weighted scoring for different factors:
+    - [ ] Interaction history (30%)
+    - [ ] Profile completeness (20%)
+    - [ ] Engagement level (25%)
+    - [ ] Deal potential (25%)
+  - [ ] Create score normalization function
 - [ ] Create scoring indicators
-  - [ ] Add visual score representation
-  - [ ] Implement real-time score updates
-- [ ] Add scoring factors:
-  - [ ] Interaction frequency tracking
-  - [ ] Response time monitoring
-  - [ ] Deal size evaluation
-  - [ ] Engagement metrics calculation
+  - [ ] Add score column to leads table
+  - [ ] Implement color-coded score badges (red: 0-40, yellow: 41-70, green: 71-100)
+  - [ ] Create score trend indicators (↑, ↓, →)
+  - [ ] Add score history graph
+- [ ] Add scoring factors tracking:
+  - [ ] Interaction tracking
+    - [ ] Email responses
+    - [ ] Meeting attendance
+    - [ ] Call duration
+    - [ ] Document views
+  - [ ] Engagement metrics
+    - [ ] Response time
+    - [ ] Communication frequency
+    - [ ] Platform activity
+  - [ ] Profile metrics
+    - [ ] Information completeness
+    - [ ] Company size/revenue
+    - [ ] Budget indication
+  - [ ] Behavioral tracking
+    - [ ] Website visits
+    - [ ] Resource downloads
+    - [ ] Product demo requests
 
 ## 6. Enhanced Lead Details
+- [x] Implement lead details page
+  - [x] Create comprehensive lead information display
+  - [x] Add timeline view
+  - [x] Integrate lead score visualization
+  - [x] Add process status tracking
+- [x] Improve navigation
+  - [x] Add multiple entry points to lead details
+  - [x] Separate selection and navigation actions
+  - [x] Add info icon for quick access
 - [ ] Implement custom fields system
-  - [ ] Create custom field types
-  - [ ] Add field configuration UI
-  - [ ] Implement field validation
-- [ ] Add timeline view
-  - [ ] Create timeline UI component
-  - [ ] Implement event tracking
+  - [ ] Create CustomField entity and model
+  - [ ] Add field type support (text, number, date, etc.)
+  - [ ] Create dynamic form builder
+  - [ ] Add field validation
+- [ ] Enhanced timeline features
   - [ ] Add timeline filtering
+  - [ ] Implement timeline search
+  - [ ] Add timeline categories
+  - [ ] Support file attachments
 
 ## 7. Automation Features
 - [ ] Lead assignment system

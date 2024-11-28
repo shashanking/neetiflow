@@ -48,13 +48,24 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
           .doc(department.organizationId)
           .collection('departments')
           .add({
-        ...department.toJson(),
+        'name': department.name,
+        'description': department.description,
+        'organizationId': department.organizationId,
+        'employeeRoles': department.employeeRoles.map(
+          (key, value) => MapEntry(key, value.toString().split('.').last),
+        ),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
       _logger.i('Department created successfully');
-      return department.copyWith(id: docRef.id);
+      
+      // Wait for the document to be available and get the server timestamps
+      final docSnapshot = await docRef.get();
+      final data = docSnapshot.data()!;
+      data['id'] = docRef.id;
+      
+      return Department.fromJson(data);
     } catch (e, stackTrace) {
       _logger.e('Error creating department', error: e, stackTrace: stackTrace);
       throw Exception('Failed to create department: $e');
@@ -71,7 +82,12 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
           .collection('departments')
           .doc(department.id)
           .update({
-        ...department.toJson(),
+        'name': department.name,
+        'description': department.description,
+        'organizationId': department.organizationId,
+        'employeeRoles': department.employeeRoles.map(
+          (key, value) => MapEntry(key, value.toString().split('.').last),
+        ),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 

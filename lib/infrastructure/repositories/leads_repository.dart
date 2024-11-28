@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'package:universal_html/html.dart' as html;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
-import 'package:csv/csv.dart';
+import 'package:universal_html/html.dart' as html;
 
 class LeadsRepository {
   final FirebaseFirestore _firestore;
@@ -40,14 +41,14 @@ class LeadsRepository {
           .collection('leads')
           .doc(leadId);
       final updates = <String, dynamic>{};
-      
+
       if (status != null) {
         updates['status'] = status.toString().split('.').last;
       }
       if (processStatus != null) {
         updates['processStatus'] = processStatus.toString().split('.').last;
       }
-      
+
       await docRef.update(updates);
     } catch (e) {
       throw Exception('Failed to update lead status: $e');
@@ -99,13 +100,15 @@ class LeadsRepository {
   Future<List<Lead>> importLeadsFromCSV(Uint8List fileBytes) async {
     try {
       final csvString = String.fromCharCodes(fileBytes);
-      final List<List<dynamic>> csvTable = const CsvToListConverter().convert(csvString);
-      
+      final List<List<dynamic>> csvTable =
+          const CsvToListConverter().convert(csvString);
+
       if (csvTable.isEmpty) {
         throw Exception('CSV file is empty');
       }
 
-      final headers = csvTable[0].map((e) => e.toString().toLowerCase()).toList();
+      final headers =
+          csvTable[0].map((e) => e.toString().toLowerCase()).toList();
       final leads = <Lead>[];
 
       for (var i = 1; i < csvTable.length; i++) {
@@ -147,7 +150,8 @@ class LeadsRepository {
   }
 
   // Export leads to CSV
-  Future<Uint8List> exportLeadsToCSV(List<Lead> leads, {required String companyId}) async {
+  Future<Uint8List> exportLeadsToCSV(List<Lead> leads,
+      {required String companyId}) async {
     try {
       print('Repository: Starting CSV export for ${leads.length} leads');
       final headers = [

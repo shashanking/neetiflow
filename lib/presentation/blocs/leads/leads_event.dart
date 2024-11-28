@@ -16,28 +16,32 @@ class LoadLeads extends LeadsEvent {
 class UpdateLeadStatus extends LeadsEvent {
   final Lead lead;
   final String status;
+  final TimelineEvent? timelineEvent;
 
   const UpdateLeadStatus({
     required this.lead,
     required this.status,
+    this.timelineEvent,
   });
 
   @override
-  List<Object> get props => [lead, status];
+  List<Object?> get props => [lead, status, timelineEvent];
 }
 
 /// Event to update the process status of a lead.
 class UpdateLeadProcessStatus extends LeadsEvent {
   final Lead lead;
   final ProcessStatus status;
+  final TimelineEvent? timelineEvent;
 
   const UpdateLeadProcessStatus({
     required this.lead,
     required this.status,
+    this.timelineEvent,
   });
 
   @override
-  List<Object> get props => [lead, status];
+  List<Object?> get props => [lead, status, timelineEvent];
 }
 
 /// Event to delete a lead.
@@ -97,15 +101,17 @@ class UpdateLead extends LeadsEvent {
 /// Event to update the process status of multiple leads.
 class BulkUpdateLeadsProcessStatus extends LeadsEvent {
   final List<String> leadIds;
-  final String status;
+  final ProcessStatus status;
+  final List<TimelineEvent>? timelineEvents;
 
   const BulkUpdateLeadsProcessStatus({
     required this.leadIds,
     required this.status,
+    this.timelineEvents,
   });
 
   @override
-  List<Object> get props => [leadIds, status];
+  List<Object?> get props => [leadIds, status, timelineEvents];
 }
 
 /// Event to import leads from a CSV file.
@@ -155,7 +161,12 @@ class DeselectLead extends LeadsEvent {
 
 /// Event to select all leads.
 class SelectAllLeads extends LeadsEvent {
-  const SelectAllLeads();
+  final List<String> leadIds;
+
+  const SelectAllLeads({required this.leadIds});
+
+  @override
+  List<Object> get props => [leadIds];
 }
 
 /// Event to deselect all leads.
@@ -187,4 +198,36 @@ class LoadSegments extends LeadsEvent {
 
   @override
   List<Object> get props => [segments];
+}
+
+/// Event to handle custom events
+class CustomEvent extends LeadsEvent {
+  final String eventType;
+  final Map<String, dynamic> eventData;
+
+  const CustomEvent({
+    required this.eventType,
+    required this.eventData,
+  });
+
+  @override
+  List<Object> get props => [eventType, eventData];
+}
+
+/// Event to subscribe to timeline events for a specific lead
+class SubscribeToTimelineEvents extends LeadsEvent {
+  final String leadId;
+
+  const SubscribeToTimelineEvents({required this.leadId});
+
+  @override
+  List<Object> get props => [leadId];
+}
+
+/// Event to unsubscribe from timeline events
+class UnsubscribeFromTimelineEvents extends LeadsEvent {
+  const UnsubscribeFromTimelineEvents();
+
+  @override
+  List<Object> get props => [];
 }

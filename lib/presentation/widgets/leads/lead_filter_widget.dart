@@ -3,8 +3,63 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
 
-class LeadFilterWidget extends StatelessWidget {
-  const LeadFilterWidget({super.key});
+class LeadFilterWidget extends StatefulWidget {
+  final Function(LeadFilter) onFilterChanged;
+  final LeadFilter initialFilter;
+
+  const LeadFilterWidget({
+    super.key,
+    required this.onFilterChanged,
+    required this.initialFilter,
+  });
+
+  @override
+  State<LeadFilterWidget> createState() => _LeadFilterWidgetState();
+}
+
+class _LeadFilterWidgetState extends State<LeadFilterWidget> {
+  late LeadFilter _filter;
+  final _searchController = TextEditingController();
+  final _minScoreController = TextEditingController();
+  final _maxScoreController = TextEditingController();
+  String? _selectedStatus;
+  String? _selectedProcessStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _filter = widget.initialFilter;
+    _searchController.text = _filter.searchTerm ?? '';
+    _minScoreController.text = _filter.minScore?.toString() ?? '';
+    _maxScoreController.text = _filter.maxScore?.toString() ?? '';
+    _selectedStatus = _filter.status;
+    _selectedProcessStatus = _filter.processStatus;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _minScoreController.dispose();
+    _maxScoreController.dispose();
+    super.dispose();
+  }
+
+  void _updateFilter() {
+    widget.onFilterChanged(_filter);
+  }
+
+  void _updateScoreRange() {
+    final minScore = int.tryParse(_minScoreController.text);
+    final maxScore = int.tryParse(_maxScoreController.text);
+    
+    setState(() {
+      _filter = _filter.copyWith(
+        minScore: minScore,
+        maxScore: maxScore,
+      );
+    });
+    _updateFilter();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,141 +72,135 @@ class LeadFilterWidget extends StatelessWidget {
   void _showFilterDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => const _FilterDialog(),
-    );
-  }
-}
-
-class _FilterDialog extends StatefulWidget {
-  const _FilterDialog();
-
-  @override
-  State<_FilterDialog> createState() => _FilterDialogState();
-}
-
-class _FilterDialogState extends State<_FilterDialog> {
-  final _searchController = TextEditingController();
-  String? _selectedStatus;
-  String? _selectedProcessStatus;
-
-  @override
-  void initState() {
-    super.initState();
-    final currentFilter = context.read<LeadsBloc>().state.filter;
-    _searchController.text = currentFilter.searchTerm ?? '';
-    _selectedStatus = currentFilter.status;
-    _selectedProcessStatus = currentFilter.processStatus;
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Filter Leads'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'Search',
-                hintText: 'Search by name, email, or phone',
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Status'),
-            DropdownButton<String>(
-              value: _selectedStatus,
-              isExpanded: true,
-              hint: const Text('Select Status'),
-              items: const [
-                DropdownMenuItem(
-                  value: 'new',
-                  child: Text('New'),
+      builder: (dialogContext) => BlocProvider.value(
+        value: context.read<LeadsBloc>(),
+        child: AlertDialog(
+          title: const Text('Filter Leads'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Search',
+                    hintText: 'Search by name, email, or phone',
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _filter = _filter.copyWith(searchTerm: value);
+                    });
+                    _updateFilter();
+                  },
                 ),
-                DropdownMenuItem(
-                  value: 'contacted',
-                  child: Text('Contacted'),
+                const SizedBox(height: 16),
+                const Text('Status'),
+                DropdownButton<String>(
+                  value: _selectedStatus,
+                  isExpanded: true,
+                  hint: const Text('Select Status'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'warm',
+                      child: Text('Warm'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'cold',
+                      child: Text('Cold'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'hot',
+                      child: Text('Hot'),
+                    ),
+                  ],
+                  onChanged: (String? status) {
+                    setState(() {
+                      _selectedStatus = status;
+                      _filter = _filter.copyWith(status: status);
+                    });
+                    _updateFilter();
+                  },
                 ),
-                DropdownMenuItem(
-                  value: 'qualified',
-                  child: Text('Qualified'),
+                const SizedBox(height: 16),
+                const Text('Process Status'),
+                DropdownButton<String>(
+                  value: _selectedProcessStatus,
+                  isExpanded: true,
+                  hint: const Text('Select Process Status'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'fresh',
+                      child: Text('Fresh'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'inProgress',
+                      child: Text('In Progress'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'completed',
+                      child: Text('Completed'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'rejected',
+                      child: Text('Rejected'),
+                    ),
+                  ],
+                  onChanged: (String? status) {
+                    setState(() {
+                      _selectedProcessStatus = status;
+                      _filter = _filter.copyWith(processStatus: status);
+                    });
+                    _updateFilter();
+                  },
                 ),
-                DropdownMenuItem(
-                  value: 'lost',
-                  child: Text('Lost'),
-                ),
-                DropdownMenuItem(
-                  value: 'converted',
-                  child: Text('Converted'),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _minScoreController,
+                        decoration: const InputDecoration(
+                          labelText: 'Min Score',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _updateScoreRange(),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: _maxScoreController,
+                        decoration: const InputDecoration(
+                          labelText: 'Max Score',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _updateScoreRange(),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-              onChanged: (String? status) {
-                setState(() {
-                  _selectedStatus = status;
-                });
-              },
             ),
-            const SizedBox(height: 16),
-            const Text('Process Status'),
-            DropdownButton<String>(
-              value: _selectedProcessStatus,
-              isExpanded: true,
-              hint: const Text('Select Process Status'),
-              items: const [
-                DropdownMenuItem(
-                  value: 'pending',
-                  child: Text('Pending'),
-                ),
-                DropdownMenuItem(
-                  value: 'in_progress',
-                  child: Text('In Progress'),
-                ),
-                DropdownMenuItem(
-                  value: 'completed',
-                  child: Text('Completed'),
-                ),
-                DropdownMenuItem(
-                  value: 'cancelled',
-                  child: Text('Cancelled'),
-                ),
-              ],
-              onChanged: (String? status) {
-                setState(() {
-                  _selectedProcessStatus = status;
-                });
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
               },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Apply'),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () {
-            final filter = LeadFilter(
-              searchTerm: _searchController.text.trim(),
-              status: _selectedStatus,
-              processStatus: _selectedProcessStatus,
-            );
-            context.read<LeadsBloc>().add(FilterLeads(filter: filter));
-            Navigator.of(context).pop();
-          },
-          child: const Text('Apply'),
-        ),
-      ],
     );
   }
 }

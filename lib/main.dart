@@ -5,16 +5,21 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/domain/repositories/departments_repository.dart';
+import 'package:neetiflow/domain/repositories/clients_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_employees_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_departments_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_clients_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employee_status/employee_status_bloc.dart';
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
+import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
+import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
+import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -35,6 +40,12 @@ void main() async {
 class MainApp extends StatelessWidget {
   const MainApp({super.key});
 
+  double _getTextScaleFactor(double width) {
+    if (width >= 1200) return 1.0;
+    if (width >= 800) return 0.95;
+    return 0.9;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
@@ -47,6 +58,9 @@ class MainApp extends StatelessWidget {
         ),
         RepositoryProvider<DepartmentsRepository>(
           create: (context) => FirebaseDepartmentsRepository(),
+        ),
+        RepositoryProvider<ClientsRepository>(
+          create: (context) => FirebaseClientsRepository(),
         ),
       ],
       child: MultiBlocProvider(
@@ -73,6 +87,20 @@ class MainApp extends StatelessWidget {
           ),
           BlocProvider(
             create: (context) => PasswordResetBloc(),
+          ),
+          MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (context) => ClientsBloc(
+                  authRepository: context.read<AuthRepository>(),
+                  employeesRepository: context.read<EmployeesRepository>(),
+                ),
+              ),
+              BlocProvider(
+                create: (context) => CustomFieldsBloc(repository: context.read<CustomFieldsRepository>()),
+              ),
+            ],
+            child: Container(),
           ),
         ],
         child: MaterialApp(
@@ -161,12 +189,5 @@ class MainApp extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  double _getTextScaleFactor(double width) {
-    if (width < 360) return 0.8; // Small mobile devices
-    if (width < 600) return 1.0; // Regular mobile devices
-    if (width < 1024) return 1.1; // Tablets
-    return 1.2; // Desktop and large screens
   }
 }
