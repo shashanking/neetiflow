@@ -24,50 +24,111 @@ class FirebaseClientsRepository implements ClientsRepository {
     ),
   );
 
-  ClientType _parseClientType(String? type) {
-    switch (type?.toLowerCase()) {
-      case 'individual':
-        return ClientType.individual;
-      case 'company':
-        return ClientType.company;
-      default:
-        return ClientType.individual;
-    }
-  }
 
-  ClientStatus _parseClientStatus(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return ClientStatus.active;
-      case 'inactive':
-        return ClientStatus.inactive;
-      case 'suspended':
-        return ClientStatus.suspended;
-      default:
-        return ClientStatus.active;
-    }
+
+  Future<Client> _createClientFromDocument(
+      DocumentSnapshot<Map<String, dynamic>> doc) async {
+    final data = doc.data()!;
+    return Client(
+      id: doc.id,
+      firstName: data['firstName'] as String? ?? '',
+      lastName: data['lastName'] as String? ?? '',
+      email: data['email'] as String? ?? '',
+      phone: data['phone'] as String? ?? '',
+      address: data['address'] as String? ?? '',
+      type: ClientType.values.firstWhere(
+        (e) => e.toString().split('.').last == data['type'],
+        orElse: () => ClientType.individual,
+      ),
+      status: ClientStatus.values.firstWhere(
+        (e) => e.toString().split('.').last == data['status'],
+        orElse: () => ClientStatus.active,
+      ),
+      domain: ClientDomain.values.firstWhere(
+        (e) => e.toString().split('.').last == data['domain'],
+        orElse: () => ClientDomain.other,
+      ),
+      rating: (data['rating'] as num?)?.toDouble() ?? 0.0,
+      organizationName: data['organizationName'] as String?,
+      governmentType: data['governmentType'] as String?,
+      website: data['website'] as String?,
+      gstin: data['gstin'] as String?,
+      pan: data['pan'] as String?,
+      leadId: data['leadId'] as String?,
+      joiningDate: data['joiningDate'] != null
+          ? (data['joiningDate'] as Timestamp).toDate()
+          : DateTime.now(),
+      lastInteractionDate: data['lastInteractionDate'] != null
+          ? (data['lastInteractionDate'] as Timestamp).toDate()
+          : null,
+      metadata: data['metadata'] as Map<String, dynamic>?,
+      tags: (data['tags'] as List<dynamic>?)?.cast<String>(),
+      assignedEmployeeId: data['assignedEmployeeId'] as String?,
+      projects: (data['projects'] as List<dynamic>?)
+              ?.map((e) => Project.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      lifetimeValue: (data['lifetimeValue'] as num?)?.toDouble() ?? 0.0,
+    );
   }
 
   @override
   Future<List<Client>> getClients(String organizationId) async {
     try {
       _logger.d('🔍 Getting clients for organization: $organizationId');
-      final snapshot = await _firestore
+      
+      // Get the organization document first to verify it exists
+      final orgDoc = await _firestore
           .collection('organizations')
           .doc(organizationId)
-          .collection('clients')
-          .orderBy('createdAt', descending: true)
+          .get();
+          
+      if (!orgDoc.exists) {
+        _logger.w('⚠️ Organization document not found');
+        return [];
+      }
+      
+      _logger.d('✅ Organization document found');
+      
+      // Get clients collection
+      final clientsRef = _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .collection('clients');
+          
+      _logger.d('📂 Querying clients collection at path: ${clientsRef.path}');
+      
+      final snapshot = await clientsRef
+          .orderBy('lastInteractionDate', descending: true)
           .get();
 
       _logger.d('📦 Retrieved ${snapshot.docs.length} clients');
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return Client.fromJson(data);
-      }).toList();
+      
+      if (snapshot.docs.isEmpty) {
+        _logger.w('⚠️ No client documents found in collection');
+        return [];
+      }
+      
+      // Log the first document's data to verify structure
+      if (snapshot.docs.isNotEmpty) {
+        final firstDoc = snapshot.docs.first.data();
+        _logger.d('📄 Sample client document structure: ${firstDoc.keys.join(', ')}');
+      }
+
+      // Wait for all futures to complete
+      final futures = snapshot.docs.map((doc) async {
+        try {
+          return await _createClientFromDocument(doc);
+        } catch (e) {
+          _logger.e('❌ Error parsing client document ${doc.id}', error: e);
+          rethrow;
+        }
+      });
+      
+      return await Future.wait(futures);
     } catch (e, stackTrace) {
       _logger.e('❌ Failed to get clients', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to get clients: $e');
+      throw FirebaseClientsException('Failed to get clients: $e');
     }
   }
 
@@ -85,9 +146,7 @@ class FirebaseClientsRepository implements ClientsRepository {
         throw Exception('Client not found');
       }
 
-      final data = doc.data()!;
-      data['id'] = doc.id;
-      return Client.fromJson(data);
+      return _createClientFromDocument(doc);
     } catch (e) {
       throw Exception('Failed to get client: $e');
     }
@@ -98,74 +157,128 @@ class FirebaseClientsRepository implements ClientsRepository {
     try {
       _logger.d('➕ Creating client in organization: $organizationId');
       
-      // Create document reference first
+      // Verify organization exists
+      final orgDoc = await _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .get();
+          
+      if (!orgDoc.exists) {
+        _logger.w('⚠️ Organization not found');
+        throw FirebaseClientsException('Organization not found');
+      }
+      
+      // Create document reference
       final docRef = _firestore
           .collection('organizations')
           .doc(organizationId)
           .collection('clients')
           .doc();
 
-      // Prepare client data
-      final clientData = client.toJson()
-        ..remove('id') // Remove any existing ID
-        ..addAll({
-          'id': docRef.id,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastInteractionDate': FieldValue.serverTimestamp(),
-        });
+      // Validate required fields
+      if (client.firstName.isEmpty && client.lastName.isEmpty && client.organizationName == null) {
+        throw FirebaseClientsException('Client must have a name or organization name');
+      }
 
-      _logger.d('📝 Setting client data with ID: ${docRef.id}');
+      // Prepare client data with validation
+      final clientData = {
+        'firstName': client.firstName.trim(),
+        'lastName': client.lastName.trim(),
+        'email': client.email.trim(),
+        'phone': client.phone.trim(),
+        'address': client.address.trim(),
+        'type': client.type.toString().split('.').last,
+        'status': client.status.toString().split('.').last,
+        'domain': client.domain.toString().split('.').last,
+        'rating': client.rating.clamp(0.0, 5.0),  // Ensure rating is between 0-5
+        'organizationName': client.organizationName?.trim(),
+        'governmentType': client.governmentType?.trim(),
+        'website': client.website?.trim(),
+        'gstin': client.gstin?.trim(),
+        'pan': client.pan?.trim(),
+        'leadId': client.leadId,
+        'joiningDate': Timestamp.fromDate(client.joiningDate),
+        'lastInteractionDate': Timestamp.fromDate(DateTime.now()),
+        'metadata': client.metadata ?? {},
+        'tags': client.tags ?? [],
+        'assignedEmployeeId': client.assignedEmployeeId,
+        'projects': client.projects.map((p) => p.toJson()).toList(),
+        'lifetimeValue': client.lifetimeValue.clamp(0.0, double.infinity),
+      };
+
+      _logger.d('📝 Creating client with ID: ${docRef.id}');
       
-      // Set the data in a single operation
-      await docRef.set(clientData);
+      // Create the document in a transaction for atomicity
+      await _firestore.runTransaction((transaction) async {
+        transaction.set(docRef, clientData);
+      });
       
       _logger.d('✅ Client created successfully');
       
-      // Convert timestamps to DateTime for the return value
-      clientData['createdAt'] = DateTime.now();
-      clientData['lastInteractionDate'] = DateTime.now();
-      
-      return Client.fromJson(clientData);
+      // Return the created client
+      return _createClientFromDocument(await docRef.get());
     } catch (e, stackTrace) {
       _logger.e('❌ Failed to create client', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to create client: $e');
+      if (e is FirebaseClientsException) {
+        rethrow;
+      }
+      throw FirebaseClientsException('Failed to create client: $e');
     }
   }
 
   @override
   Future<void> updateClient(String organizationId, Client client) async {
     try {
-      _logger.i('📝 Updating client in Firestore: ${client.id}');
+      _logger.i('📝 Updating client: ${client.id}');
       
+      // Get client reference
       final clientRef = _firestore
           .collection('organizations')
           .doc(organizationId)
           .collection('clients')
           .doc(client.id);
 
-      // Convert client to JSON and prepare update data
-      Map<String, dynamic> updateData = client.toJson();
-      
-      // Remove id from update data as it shouldn't be updated
-      updateData.remove('id');
-      
-      // Set server timestamp for updatedAt
-      updateData['updatedAt'] = FieldValue.serverTimestamp();
-      
-      // Convert DateTime to Timestamp for Firestore
-      if (client.lastInteractionDate != null) {
-        updateData['lastInteractionDate'] = Timestamp.fromDate(client.lastInteractionDate!);
+      // Validate required fields
+      if (client.firstName.isEmpty && client.lastName.isEmpty && client.organizationName == null) {
+        throw FirebaseClientsException('Client must have a name or organization name');
       }
-      updateData['createdAt'] = Timestamp.fromDate(client.createdAt);
 
-      // Update the document
+      // Prepare update data with validation
+      final updateData = {
+        'firstName': client.firstName.trim(),
+        'lastName': client.lastName.trim(),
+        'email': client.email.trim(),
+        'phone': client.phone.trim(),
+        'address': client.address.trim(),
+        'type': client.type.toString().split('.').last,
+        'status': client.status.toString().split('.').last,
+        'domain': client.domain.toString().split('.').last,
+        'rating': client.rating.clamp(0.0, 5.0),
+        'organizationName': client.organizationName?.trim(),
+        'governmentType': client.governmentType?.trim(),
+        'website': client.website?.trim(),
+        'gstin': client.gstin?.trim(),
+        'pan': client.pan?.trim(),
+        'leadId': client.leadId,
+        'joiningDate': Timestamp.fromDate(client.joiningDate),
+        'lastInteractionDate': Timestamp.fromDate(DateTime.now()),
+        'metadata': client.metadata ?? {},
+        'tags': client.tags ?? [],
+        'assignedEmployeeId': client.assignedEmployeeId,
+        'projects': client.projects.map((p) => p.toJson()).toList(),
+        'lifetimeValue': client.lifetimeValue.clamp(0.0, double.infinity),
+      };
+
+      // Update directly without transaction for better performance
       await clientRef.update(updateData);
-      _logger.d('✅ Client updated successfully in Firestore');
+      
+      _logger.d('✅ Client updated successfully');
     } catch (e, stackTrace) {
-      _logger.e('❌ Error updating client in Firestore',
-          error: e, stackTrace: stackTrace);
-      throw FirebaseClientsException(
-          'Failed to update client: ${e.toString()}');
+      _logger.e('❌ Failed to update client', error: e, stackTrace: stackTrace);
+      if (e is FirebaseClientsException) {
+        rethrow;
+      }
+      throw FirebaseClientsException('Failed to update client: $e');
     }
   }
 
@@ -174,18 +287,30 @@ class FirebaseClientsRepository implements ClientsRepository {
     try {
       _logger.d('🗑️ Deleting client: $clientId from organization: $organizationId');
       
-      // Delete in a single operation without fetching first
-      await _firestore
+      // Get the client document reference
+      final clientRef = _firestore
           .collection('organizations')
           .doc(organizationId)
           .collection('clients')
-          .doc(clientId)
-          .delete();
-          
+          .doc(clientId);
+      
+      // Verify the document exists before attempting deletion
+      final docSnapshot = await clientRef.get();
+      if (!docSnapshot.exists) {
+        _logger.w('⚠️ Client document not found');
+        throw FirebaseClientsException('Client not found');
+      }
+      
+      // Delete the client document
+      await clientRef.delete();
       _logger.d('✅ Client deleted successfully');
+      
     } catch (e, stackTrace) {
       _logger.e('❌ Failed to delete client', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to delete client: $e');
+      if (e is FirebaseClientsException) {
+        rethrow;
+      }
+      throw FirebaseClientsException('Failed to delete client: $e');
     }
   }
 
@@ -207,10 +332,32 @@ class FirebaseClientsRepository implements ClientsRepository {
           .doc();
 
       // Update the client with the reference to the lead
-      final clientData = client.copyWith(
-        id: clientRef.id,
-        leadId: lead.id,
-      ).toJson();
+      final clientData = {
+        'firstName': client.firstName,
+        'lastName': client.lastName,
+        'email': client.email,
+        'phone': client.phone,
+        'address': client.address,
+        'type': client.type.toString().split('.').last,
+        'status': client.status.toString().split('.').last,
+        'domain': client.domain.toString().split('.').last,
+        'rating': client.rating,
+        'organizationName': client.organizationName,
+        'governmentType': client.governmentType,
+        'website': client.website,
+        'gstin': client.gstin,
+        'pan': client.pan,
+        'leadId': lead.id,
+        'joiningDate': Timestamp.fromDate(client.joiningDate),
+        'lastInteractionDate': client.lastInteractionDate != null
+            ? Timestamp.fromDate(client.lastInteractionDate!)
+            : null,
+        'metadata': client.metadata,
+        'tags': client.tags,
+        'assignedEmployeeId': client.assignedEmployeeId,
+        'projects': client.projects.map((p) => p.toJson()).toList(),
+        'lifetimeValue': client.lifetimeValue,
+      };
 
       batch.set(clientRef, clientData);
 
@@ -228,7 +375,7 @@ class FirebaseClientsRepository implements ClientsRepository {
       // Commit the batch
       await batch.commit();
 
-      return client.copyWith(id: clientRef.id);
+      return _createClientFromDocument(await clientRef.get());
     } catch (e) {
       throw Exception('Failed to convert lead to client: $e');
     }
@@ -248,10 +395,11 @@ class FirebaseClientsRepository implements ClientsRepository {
           .get();
 
       // Filter clients based on the search query
-      return snapshot.docs.where((doc) {
+      final filteredDocs = snapshot.docs.where((doc) {
         final data = doc.data();
         final searchableFields = [
-          data['name']?.toString().toLowerCase(),
+          data['firstName']?.toString().toLowerCase(),
+          data['lastName']?.toString().toLowerCase(),
           data['email']?.toString().toLowerCase(),
           data['phone']?.toString().toLowerCase(),
           data['address']?.toString().toLowerCase(),
@@ -259,11 +407,11 @@ class FirebaseClientsRepository implements ClientsRepository {
 
         return searchableFields.any((field) =>
             field != null && field.contains(lowercaseQuery));
-      }).map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return Client.fromJson(data);
-      }).toList();
+      });
+
+      // Wait for all futures to complete
+      final futures = filteredDocs.map((doc) => _createClientFromDocument(doc));
+      return await Future.wait(futures);
     } catch (e) {
       throw Exception('Failed to search clients: $e');
     }
@@ -341,17 +489,12 @@ class FirebaseClientsRepository implements ClientsRepository {
         .collection('clients')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-          _logger.d('📥 Stream update with ${snapshot.docs.length} clients');
-          return snapshot.docs.map((doc) {
-            final data = doc.data();
-            data['id'] = doc.id;
-            return Client.fromJson(data);
-          }).toList();
+        .asyncMap((snapshot) async {
+          final futures = snapshot.docs.map((doc) => _createClientFromDocument(doc));
+          return await Future.wait(futures);
         });
   }
 
-  @override
   Stream<List<Client>> watchClients(String organizationId) {
     try {
       _logger.i('👀 Starting clients watch stream');
@@ -362,33 +505,10 @@ class FirebaseClientsRepository implements ClientsRepository {
           .collection('clients')
           .orderBy('lastInteractionDate', descending: true)
           .snapshots()
-          .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          final lastInteractionDate = (data['lastInteractionDate'] as Timestamp?)?.toDate();
-          final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-          
-          return Client(
-            id: doc.id,
-            name: data['name'] ?? '',
-            email: data['email'] ?? '',
-            phone: data['phone'] ?? '',
-            address: data['address'] ?? '',
-            type: _parseClientType(data['type']),
-            status: _parseClientStatus(data['status']),
-            website: data['website'],
-            gstin: data['gstin'],
-            pan: data['pan'],
-            leadId: data['leadId'],
-            createdAt: createdAt,
-            lastInteractionDate: lastInteractionDate,
-            metadata: Map<String, dynamic>.from(data['metadata'] ?? {}),
-            tags: List<String>.from(data['tags'] ?? []),
-            assignedEmployeeId: data['assignedEmployeeId'],
-            lifetimeValue: (data['lifetimeValue'] ?? 0.0).toDouble(),
-          );
-        }).toList();
-      });
+          .asyncMap((snapshot) async {
+            final futures = snapshot.docs.map((doc) => _createClientFromDocument(doc));
+            return await Future.wait(futures);
+          });
     } catch (e, stackTrace) {
       _logger.e('❌ Error setting up clients watch stream',
           error: e, stackTrace: stackTrace);
