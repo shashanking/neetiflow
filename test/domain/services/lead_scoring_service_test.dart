@@ -13,7 +13,6 @@ void main() {
     test('calculateScore returns score between 0 and 100', () {
       final lead = Lead(
         id: '1',
-        uid: 'test-uid',
         firstName: 'Test',
         lastName: 'Lead',
         email: 'test@example.com',
@@ -23,12 +22,12 @@ void main() {
         status: LeadStatus.warm,
         processStatus: ProcessStatus.inProgress,
         createdAt: DateTime.now(),
-        score: 0,
+        score: 0.0,
         scoreFactors: {
-          'interactions': 5,
-          'profileCompleteness': 80,
-          'engagement': 60,
-          'dealPotential': 40,
+          'interactions': 5.0,
+          'profileCompleteness': 80.0,
+          'engagement': 60.0,
+          'dealPotential': 40.0,
         },
       );
 
@@ -46,7 +45,6 @@ void main() {
     test('getScoreTrend returns correct trend symbol', () {
       final lead = Lead(
         id: '1',
-        uid: 'test-uid',
         firstName: 'Test',
         lastName: 'Lead',
         email: 'test@example.com',
@@ -56,11 +54,11 @@ void main() {
         status: LeadStatus.warm,
         processStatus: ProcessStatus.inProgress,
         createdAt: DateTime.now(),
-        score: 75,
+        score: 75.0,
         scoreHistory: [
           ScoreHistory(
             timestamp: DateTime.now().subtract(const Duration(days: 1)),
-            score: 75,
+            score: 75.0,
             reason: 'Initial score',
           ),
         ],
@@ -70,12 +68,12 @@ void main() {
         scoreHistory: [
           ScoreHistory(
             timestamp: DateTime.now().subtract(const Duration(days: 1)),
-            score: 70,
+            score: 70.0,
             reason: 'Previous score',
           ),
           ScoreHistory(
             timestamp: DateTime.now(),
-            score: 75,
+            score: 75.0,
             reason: 'Score increased',
           ),
         ],
@@ -87,12 +85,12 @@ void main() {
         scoreHistory: [
           ScoreHistory(
             timestamp: DateTime.now().subtract(const Duration(days: 1)),
-            score: 75,
+            score: 75.0,
             reason: 'Previous score',
           ),
           ScoreHistory(
             timestamp: DateTime.now(),
-            score: 75,
+            score: 75.0,
             reason: 'No change',
           ),
         ],
@@ -104,12 +102,12 @@ void main() {
         scoreHistory: [
           ScoreHistory(
             timestamp: DateTime.now().subtract(const Duration(days: 1)),
-            score: 80,
+            score: 80.0,
             reason: 'Previous score',
           ),
           ScoreHistory(
             timestamp: DateTime.now(),
-            score: 75,
+            score: 75.0,
             reason: 'Score decreased',
           ),
         ],
@@ -121,7 +119,6 @@ void main() {
     test('calculateScore weights factors correctly', () {
       final lead = Lead(
         id: '1',
-        uid: 'test-uid',
         firstName: 'Test',
         lastName: 'Lead',
         email: 'test@example.com',
@@ -131,12 +128,12 @@ void main() {
         status: LeadStatus.warm,
         processStatus: ProcessStatus.inProgress,
         createdAt: DateTime.now(),
-        score: 0,
+        score: 0.0,
         scoreFactors: {
-          'interactions': 100,    // 30% weight
-          'profileCompleteness': 100,  // 20% weight
-          'engagement': 100,      // 25% weight
-          'dealPotential': 100,   // 25% weight
+          'interactions': 100.0,    // 30% weight
+          'profileCompleteness': 100.0,  // 20% weight
+          'engagement': 100.0,      // 25% weight
+          'dealPotential': 100.0,   // 25% weight
         },
       );
 
@@ -145,10 +142,10 @@ void main() {
 
       final leadPartialScores = lead.copyWith(
         scoreFactors: {
-          'interactions': 50,     // 15 points
-          'profileCompleteness': 50,   // 10 points
-          'engagement': 50,       // 12.5 points
-          'dealPotential': 50,    // 12.5 points
+          'interactions': 50.0,     // 15 points
+          'profileCompleteness': 50.0,   // 10 points
+          'engagement': 50.0,       // 12.5 points
+          'dealPotential': 50.0,    // 12.5 points
         },
       );
 

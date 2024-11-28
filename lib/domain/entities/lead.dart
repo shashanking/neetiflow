@@ -1,6 +1,7 @@
 import 'dart:convert'; // added import for jsonDecode
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:equatable/equatable.dart';
 import 'custom_field_value.dart';
 import 'timeline_event.dart';
 
@@ -8,9 +9,8 @@ enum LeadStatus { warm, cold, hot }
 
 enum ProcessStatus { fresh, inProgress, completed, rejected }
 
-class Lead {
+class Lead extends Equatable {
   final String id;
-  final String uid;
   final String firstName;
   final String lastName;
   final String phone;
@@ -20,6 +20,7 @@ class Lead {
   final LeadStatus status;
   final ProcessStatus processStatus;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final Map<String, dynamic>? metadata;
   final List<String>? segments;
   final double score; // Overall lead score (0-100)
@@ -28,9 +29,8 @@ class Lead {
   final Map<String, CustomFieldValue> customFields;
   final List<TimelineEvent> timelineEvents;
 
-  Lead({
+  const Lead({
     required this.id,
-    required this.uid,
     required this.firstName,
     required this.lastName,
     required this.phone,
@@ -40,6 +40,7 @@ class Lead {
     required this.status,
     required this.processStatus,
     required this.createdAt,
+    this.updatedAt,
     this.metadata,
     this.segments,
     this.score = 0.0,
@@ -62,7 +63,6 @@ class Lead {
 
     return Lead(
       id: json['id'] as String? ?? '',
-      uid: json['uid'] as String? ?? '',
       firstName: json['firstName'] as String? ?? '',
       lastName: json['lastName'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
@@ -73,6 +73,9 @@ class Lead {
       processStatus:
           _parseProcessStatus(json['processStatus'] as String? ?? 'fresh'),
       createdAt: parseCreatedAt(json['createdAt']),
+      updatedAt: json['updatedAt'] == null
+          ? null
+          : DateTime.parse(json['updatedAt'] as String),
       metadata: json['metadata'] as Map<String, dynamic>?,
       segments: json['segments'] != null
           ? List<String>.from(json['segments'] as List)
@@ -101,7 +104,6 @@ class Lead {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'uid': uid,
       'firstName': firstName,
       'lastName': lastName,
       'phone': phone,
@@ -111,6 +113,7 @@ class Lead {
       'status': status.toString().split('.').last,
       'processStatus': processStatus.toString().split('.').last,
       'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': updatedAt?.toIso8601String(),
       'metadata': metadata,
       'segments': segments,
       'score': score,
@@ -133,7 +136,6 @@ class Lead {
 
     return Lead(
       id: getValue('id'),
-      uid: getValue('uid'),
       firstName: getValue('first name'),
       lastName: getValue('last name'),
       phone: getValue('phone'),
@@ -143,6 +145,9 @@ class Lead {
       status: _parseLeadStatus(getValue('status')),
       processStatus: _parseProcessStatus(getValue('process status')),
       createdAt: DateTime.parse(getValue('created at')),
+      updatedAt: getValue('updated at') != ''
+          ? DateTime.parse(getValue('updated at'))
+          : null,
       metadata: _parseMetadata(getValue('metadata')),
       segments: _parseSegments(getValue('segments')),
       score: double.parse(getValue('score')),
@@ -213,7 +218,6 @@ class Lead {
 
   Lead copyWith({
     String? id,
-    String? uid,
     String? firstName,
     String? lastName,
     String? phone,
@@ -223,6 +227,7 @@ class Lead {
     LeadStatus? status,
     ProcessStatus? processStatus,
     DateTime? createdAt,
+    DateTime? updatedAt,
     Map<String, dynamic>? metadata,
     List<String>? segments,
     double? score,
@@ -233,7 +238,6 @@ class Lead {
   }) {
     return Lead(
       id: id ?? this.id,
-      uid: uid ?? this.uid,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
@@ -243,6 +247,7 @@ class Lead {
       status: status ?? this.status,
       processStatus: processStatus ?? this.processStatus,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       metadata: metadata ?? this.metadata,
       segments: segments ?? this.segments,
       score: score ?? this.score,
@@ -254,6 +259,28 @@ class Lead {
   }
 
   String get fullName => '$firstName $lastName';
+
+  @override
+  List<Object?> get props => [
+        id,
+        firstName,
+        lastName,
+        phone,
+        email,
+        subject,
+        message,
+        status,
+        processStatus,
+        createdAt,
+        updatedAt,
+        metadata,
+        segments,
+        score,
+        scoreFactors,
+        scoreHistory,
+        customFields,
+        timelineEvents,
+      ];
 }
 
 class ScoreHistory {

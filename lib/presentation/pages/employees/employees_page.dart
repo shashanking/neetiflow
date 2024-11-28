@@ -311,26 +311,41 @@ class _EmployeesPageState extends State<EmployeesPage> {
                           final employee = filteredEmployees[index];
                           return EmployeeCard(
                             employee: employee,
-                            onTap: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => EmployeeDetailsPage(
-                                    employee: employee,
+                            onTap: () {
+                              final state = PersistentShell.of(context);
+                              if (state != null) {
+                                state.setCustomPage(
+                                  MultiBlocProvider(
+                                    providers: [
+                                      BlocProvider.value(
+                                        value: context.read<EmployeesBloc>(),
+                                      ),
+                                      BlocProvider.value(
+                                        value: context.read<DepartmentsBloc>(),
+                                      ),
+                                      RepositoryProvider.value(
+                                        value: context.read<EmployeesRepository>(),
+                                      ),
+                                    ],
+                                    child: EmployeeDetailsPage(
+                                      employee: employee,
+                                      onEdit: () {
+                                        state.clearCustomPage();
+                                        _showEditEmployeeDialog(
+                                          context,
+                                          employee,
+                                          authState.employee,
+                                        );
+                                      },
+                                      onDelete: () {
+                                        state.clearCustomPage();
+                                        _showDeleteConfirmationDialog(
+                                          context,
+                                          employee,
+                                        );
+                                      },
+                                    ),
                                   ),
-                                ),
-                              );
-
-                              if (result == 'edit') {
-                                _showEditEmployeeDialog(
-                                  context,
-                                  employee,
-                                  authState.employee,
-                                );
-                              } else if (result == 'delete') {
-                                _showDeleteConfirmationDialog(
-                                  context,
-                                  employee,
                                 );
                               }
                             },
@@ -483,7 +498,7 @@ class EmployeeCard extends StatelessWidget {
                             Hero(
                               tag: 'employee_name_${employee.id}',
                               child: Text(
-                                '${employee.firstName}',
+                                employee.firstName,
                                 style: Theme.of(context).textTheme.titleLarge,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

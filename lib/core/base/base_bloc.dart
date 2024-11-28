@@ -2,7 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Base abstract class for all BLoCs with common functionality
 abstract class BaseBLoC<Event, State> extends Bloc<Event, State> {
-  BaseBLoC(State initialState) : super(initialState);
+  BaseBLoC(super.initialState);
 
   /// Helper method to safely emit state
   void safeEmit(State newState) {

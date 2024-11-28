@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,12 +8,19 @@ import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
+import 'package:neetiflow/presentation/pages/leads/custom_fields_page.dart';
 import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_filter_widget.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_form.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../data/repositories/custom_fields_repository.dart';
+import '../../../domain/entities/timeline_event.dart';
+import '../../blocs/custom_fields/custom_fields_bloc.dart';
+import '../../widgets/leads/status_note_dialog.dart';
 
 class LeadsPage extends StatelessWidget {
   const LeadsPage({super.key});
@@ -40,16 +49,60 @@ class LeadsView extends StatefulWidget {
   State<LeadsView> createState() => _LeadsViewState();
 }
 
-class _LeadsViewState extends State<LeadsView> {
+class _LeadsViewState extends State<LeadsView>
+    with SingleTickerProviderStateMixin {
   String? _sortColumn;
   bool _sortAscending = true;
   bool _selectAll = false;
+  late TabController _tabController;
+  Lead? _selectedLead;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadLeads();
     _loadSegments();
+
+    // Listen to tab changes to manage timeline subscription
+    _tabController.addListener(_handleTabChange);
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (_tabController.index == 1) {
+      // Timeline tab selected
+      if (_selectedLead != null) {
+        context.read<LeadsBloc>().add(SubscribeToTimelineEvents(
+          leadId: _selectedLead!.id,
+        ));
+      }
+    } else {
+      // Other tab selected
+      context.read<LeadsBloc>().add(const UnsubscribeFromTimelineEvents());
+    }
+  }
+
+  void _selectLead(Lead? lead) {
+    setState(() {
+      if (_selectedLead?.id == lead?.id) {
+        _selectedLead = null;
+        context.read<LeadsBloc>().add(const UnsubscribeFromTimelineEvents());
+      } else {
+        _selectedLead = lead;
+        if (lead != null) {
+          context.read<LeadsBloc>().add(SubscribeToTimelineEvents(
+            leadId: lead.id,
+          ));
+        }
+      }
+    });
   }
 
   void _loadLeads() {
@@ -307,8 +360,7 @@ class _LeadsViewState extends State<LeadsView> {
                           }
 
                           final lead = Lead(
-                            id: '',
-                            uid: '',
+                            id: const Uuid().v4(),
                             firstName: nameController.text,
                             lastName: nameController.text.isEmpty ? '' : '',
                             phone: phoneController.text,
@@ -318,8 +370,9 @@ class _LeadsViewState extends State<LeadsView> {
                             status: selectedStatus,
                             processStatus: selectedProcessStatus,
                             createdAt: DateTime.now(),
-                            metadata: {},
-                            segments: ['manual-leads', ''],
+                            metadata: const {},
+                            segments: const ['manual-leads'],
+                            score: 0.0,
                           );
 
                           builderContext.read<LeadsBloc>().add(
@@ -344,11 +397,13 @@ class _LeadsViewState extends State<LeadsView> {
   Future<void> _editLead(Lead lead) async {
     final result = await showDialog<Lead>(
       context: context,
-      builder: (context) => LeadForm(
-        lead: lead,
-        onSubmit: (updatedLead) {
-          Navigator.of(context).pop(updatedLead);
-        },
+      builder: (context) => Dialog(
+        child: LeadForm(
+          lead: lead,
+          onSave: (updatedLead) {
+            Navigator.of(context).pop(updatedLead);
+          },
+        ),
       ),
     );
 
@@ -356,7 +411,6 @@ class _LeadsViewState extends State<LeadsView> {
       context.read<LeadsBloc>().add(
             UpdateLead(lead: result),
           );
-      Navigator.pop(context);
     }
   }
 
@@ -843,11 +897,44 @@ class _LeadsViewState extends State<LeadsView> {
         );
   }
 
-  void _bulkUpdateLeadsProcessStatus(List<String> leadIds, String status) {
+  void _bulkUpdateLeadsProcessStatus(
+      List<String> leadIds, ProcessStatus status) async {
+    // Show note dialog
+    final note = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatusNoteDialog(
+        oldValue: 'Multiple Values',
+        newValue: status.toString().split('.').last,
+        title: 'Process Status',
+      ),
+    );
+
+    if (note == null) return; // User cancelled
+
+    // Create timeline events for each lead
+    final timelineEvents = leadIds
+        .map((leadId) => TimelineEvent(
+              id: const Uuid().v4(),
+              leadId: leadId,
+              title: 'Process Status Changed',
+              description: note,
+              timestamp: DateTime.now(),
+              category: 'status_change',
+              metadata: {
+                'old_status': 'Multiple Values',
+                'new_status': status.toString().split('.').last,
+                'type': 'process_status'
+              },
+            ))
+        .toList();
+
+    // Add bulk update event with timeline events
     context.read<LeadsBloc>().add(
           BulkUpdateLeadsProcessStatus(
             leadIds: leadIds.toList(),
             status: status,
+            timelineEvents: timelineEvents,
           ),
         );
   }
@@ -962,17 +1049,79 @@ class _LeadsViewState extends State<LeadsView> {
     );
   }
 
-  void _updateLeadStatus(Lead lead, LeadStatus newStatus) {
+  void _updateLeadStatus(Lead lead, LeadStatus newStatus) async {
+    final oldStatus = lead.status;
+
+    // Show note dialog
+    final note = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatusNoteDialog(
+        oldValue: oldStatus.toString().split('.').last,
+        newValue: newStatus.toString().split('.').last,
+        title: 'Lead Status',
+      ),
+    );
+
+    if (note == null) return; // User cancelled
+
+    // Create timeline event
+    final timelineEvent = TimelineEvent(
+      id: const Uuid().v4(),
+      leadId: lead.id,
+      title: 'Lead Status Changed',
+      description: note,
+      timestamp: DateTime.now(),
+      category: 'status_change',
+      metadata: {
+        'old_status': oldStatus.toString().split('.').last,
+        'new_status': newStatus.toString().split('.').last,
+        'type': 'lead_status'
+      },
+    );
+
     context.read<LeadsBloc>().add(UpdateLeadStatus(
           lead: lead,
           status: newStatus.toString().split('.').last,
+          timelineEvent: timelineEvent,
         ));
   }
 
-  void _updateLeadProcessStatus(Lead lead, ProcessStatus newProcessStatus) {
+  void _updateLeadProcessStatus(Lead lead, ProcessStatus newStatus) async {
+    final oldStatus = lead.processStatus;
+
+    // Show note dialog
+    final note = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatusNoteDialog(
+        oldValue: oldStatus.toString().split('.').last,
+        newValue: newStatus.toString().split('.').last,
+        title: 'Process Status',
+      ),
+    );
+
+    if (note == null) return; // User cancelled
+
+    // Create timeline event
+    final timelineEvent = TimelineEvent(
+      id: const Uuid().v4(),
+      leadId: lead.id,
+      title: 'Process Status Changed',
+      description: note,
+      timestamp: DateTime.now(),
+      category: 'status_change',
+      metadata: {
+        'old_status': oldStatus.toString().split('.').last,
+        'new_status': newStatus.toString().split('.').last,
+        'type': 'process_status'
+      },
+    );
+
     context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
           lead: lead,
-          status: newProcessStatus,
+          status: newStatus,
+          timelineEvent: timelineEvent,
         ));
   }
 
@@ -1183,13 +1332,9 @@ class _LeadsViewState extends State<LeadsView> {
               value: isSelected,
               onChanged: (selected) {
                 if (selected ?? false) {
-                  context
-                      .read<LeadsBloc>()
-                      .add(SelectLead(leadId: lead.id));
+                  context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
                 } else {
-                  context
-                      .read<LeadsBloc>()
-                      .add(DeselectLead(leadId: lead.id));
+                  context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
                 }
               },
             ),
@@ -1236,50 +1381,199 @@ class _LeadsViewState extends State<LeadsView> {
   }
 
   void _navigateToLeadDetails(BuildContext context, Lead lead) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! Authenticated) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LeadDetailsPage(lead: lead),
+        builder: (context) => MultiBlocProvider(
+          providers: [
+            BlocProvider<CustomFieldsBloc>(
+              create: (context) => CustomFieldsBloc(
+                repository: CustomFieldsRepository(
+                  organizationId: authState.employee.companyId!,
+                ),
+              )..add(LoadCustomFields()),
+            ),
+            RepositoryProvider<LeadsRepository>(
+              create: (context) => LeadsRepositoryImpl(),
+            ),
+          ],
+          child: LeadDetailsPage(
+            lead: lead,
+            organizationId: authState.employee.companyId!,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildBulkActionsToolbar(BuildContext context) {
-    final selectedCount =
-        context.watch<LeadsBloc>().state.selectedLeadIds.length;
+  Widget _buildLeadDetails(BuildContext context, Lead lead) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Lead Details',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16.0),
+        // Existing lead details UI
+        Text(lead.email),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            _buildStatusChip(context, lead),
+            const SizedBox(width: 8),
+            _buildProcessChip(context, lead),
+          ],
+        ),
+        const SizedBox(height: 16.0),
+        Text(
+          'Timeline',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8.0),
+        Expanded(
+          child: TimelineWidget(
+            events: lead.timelineEvents,
+          ),
+        ),
+      ],
+    );
+  }
 
-    return Container(
+  Widget _buildBulkActionsToolbar(BuildContext context) {
+    final leadsBloc = context.watch<LeadsBloc>();
+    final selectedCount = leadsBloc.state.selectedLeadIds.length;
+
+    if (selectedCount == 0) return const SizedBox.shrink();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(8),
-      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          Text(
-            '$selectedCount ${selectedCount == 1 ? 'lead' : 'leads'} selected',
-            style: Theme.of(context).textTheme.titleSmall,
+          Expanded(
+            child: Text(
+              '$selectedCount ${selectedCount == 1 ? 'lead' : 'leads'} selected',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
           ),
           const SizedBox(width: 16),
-          _buildBulkActionButton(
-            context,
-            'Delete',
-            Icons.delete_outline,
-            Theme.of(context).colorScheme.error,
-            () => _bulkDeleteLeads(
-                context.read<LeadsBloc>().state.selectedLeadIds.toList()),
+          Tooltip(
+            message: 'Delete selected leads',
+            child: _buildBulkActionButton(
+              context,
+              'Delete',
+              Icons.delete_outline,
+              Theme.of(context).colorScheme.error,
+              () => _confirmBulkDelete(context),
+            ),
           ),
           const SizedBox(width: 8),
           _buildStatusDropdown(context),
           const SizedBox(width: 8),
           _buildProcessStatusDropdown(context),
-          const Spacer(),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Export selected leads',
+            child: IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: () => _exportSelectedLeads(context),
+            ),
+          ),
+          const SizedBox(width: 8),
           TextButton.icon(
-            onPressed: () =>
-                context.read<LeadsBloc>().add(const DeselectAllLeads()),
+            onPressed: () => leadsBloc.add(const DeselectAllLeads()),
             icon: const Icon(Icons.close),
-            label: const Text('Clear Selection'),
+            label: const Text('Clear'),
           ),
         ],
       ),
     );
+  }
+
+  void _confirmBulkDelete(BuildContext context) {
+    final leadsBloc = context.read<LeadsBloc>();
+    final selectedLeadIds = leadsBloc.state.selectedLeadIds.toList();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm Bulk Delete'),
+        content: Text(
+          'Are you sure you want to delete ${selectedLeadIds.length} ${selectedLeadIds.length == 1 ? 'lead' : 'leads'}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              leadsBloc.add(BulkDeleteLeads(leadIds: selectedLeadIds));
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _exportSelectedLeads(BuildContext context) async {
+    final leadsBloc = context.read<LeadsBloc>();
+    final selectedLeadIds = leadsBloc.state.selectedLeadIds.toList();
+
+    try {
+      final allLeads = leadsBloc.state.allLeads
+          .where((lead) => selectedLeadIds.contains(lead.id))
+          .toList();
+
+      if (allLeads.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No leads selected for export')),
+        );
+        return;
+      }
+
+      // TODO: Implement actual export logic
+      // For now, just show a placeholder
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Export Leads'),
+          content: Text('Exporting ${allLeads.length} leads...'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting leads: $e')),
+      );
+    }
   }
 
   Widget _buildBulkActionButton(
@@ -1338,7 +1632,7 @@ class _LeadsViewState extends State<LeadsView> {
           .toList(),
       onSelected: (status) => _bulkUpdateLeadsStatus(
         context.read<LeadsBloc>().state.selectedLeadIds.toList(),
-        status.toString().split('.').last.toLowerCase(),
+        status.toString().split('.').last,
       ),
     );
   }
@@ -1382,47 +1676,82 @@ class _LeadsViewState extends State<LeadsView> {
           .toList(),
       onSelected: (status) => _bulkUpdateLeadsProcessStatus(
         context.read<LeadsBloc>().state.selectedLeadIds.toList(),
-        status.toString().split('.').last.toLowerCase(),
+        status,
       ),
-    );
-  }
-
-  Widget _buildLeadDetails(BuildContext context, Lead lead) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Lead Details',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 16.0),
-        // Existing lead details UI
-        Text(lead.email),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            _buildStatusChip(context, lead),
-            const SizedBox(width: 8),
-            _buildProcessChip(context, lead),
-          ],
-        ),
-        const SizedBox(height: 16.0),
-        Text(
-          'Timeline',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 8.0),
-        Expanded(
-          child: TimelineWidget(
-            events: lead.timelineEvents,
-          ),
-        ),
-      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Leads'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_input_component),
+            tooltip: 'Custom Fields',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MultiBlocProvider(
+                    providers: [
+                      BlocProvider<CustomFieldsBloc>(
+                        create: (context) => CustomFieldsBloc(
+                          repository: context.read<CustomFieldsRepository>(),
+                        )..add(LoadCustomFields()),
+                      ),
+                    ],
+                    child: const CustomFieldsPage(),
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add Lead',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  child: LeadForm(
+                    onSave: (lead) {
+                      context.read<LeadsBloc>().add(AddLead(lead: lead));
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          TabBar(
+            controller: _tabController,
+            labelColor: Theme.of(context).primaryColor,
+            tabs: const [
+              Tab(text: 'Leads'),
+              Tab(text: 'Timeline'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildLeadsTab(),
+                _buildTimelineTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeadsTab() {
     return BlocBuilder<LeadsBloc, LeadsState>(
       builder: (context, state) {
         if (state.status == LeadsStatus.initial) {
@@ -1440,7 +1769,7 @@ class _LeadsViewState extends State<LeadsView> {
 
         if (state.filteredLeads.isEmpty) {
           return _NoLeadsWidget(
-            hasFilter: state.filter != null,
+            hasFilter: state.filter != const LeadFilter(),
             onAddLead: _addNewLead,
             onImportLeads: _importLeads,
           );
@@ -1469,6 +1798,138 @@ class _LeadsViewState extends State<LeadsView> {
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildTimelineTab() {
+    return BlocBuilder<LeadsBloc, LeadsState>(
+      builder: (context, state) {
+        if (state.status == LeadsStatus.initial ||
+            state.status == LeadsStatus.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (state.status == LeadsStatus.failure) {
+          return Center(
+            child: Text(
+              state.errorMessage ?? 'An error occurred',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          );
+        }
+
+        // Create timeline events list with lead creation date
+        final timelineEvents = <TimelineEvent>[];
+        
+        // Add lead creation event if a lead is selected
+        if (_selectedLead != null) {
+          timelineEvents.add(TimelineEvent(
+            id: 'lead_creation',
+            leadId: _selectedLead!.id,
+            title: 'Lead Created',
+            description: 'Lead was created in the system',
+            timestamp: _selectedLead!.createdAt,
+            category: 'system',
+            metadata: {
+              'event_type': 'lead_creation',
+              'first_name': _selectedLead!.firstName,
+              'last_name': _selectedLead!.lastName,
+              'email': _selectedLead!.email,
+            },
+          ));
+        }
+
+        // Add all other timeline events
+        if (state.selectedLeadTimelineEvents != null) {
+          timelineEvents.addAll(state.selectedLeadTimelineEvents!);
+        }
+
+        return Row(
+          children: [
+            // Lead selection sidebar
+            SizedBox(
+              width: 250,
+              child: Card(
+                margin: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Leads',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: state.allLeads.length,
+                        itemBuilder: (context, index) {
+                          final lead = state.allLeads[index];
+                          return ListTile(
+                            title: Text(
+                              lead.firstName ?? 'Unnamed Lead',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              lead.email ?? 'No email',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            selected: _selectedLead?.id == lead.id,
+                            onTap: () => _selectLead(lead),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Timeline view
+            Expanded(
+              child: Card(
+                margin: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Text(
+                            _selectedLead != null
+                                ? 'Timeline for ${_selectedLead!.firstName ?? 'Unnamed Lead'}'
+                                : 'All Leads Timeline',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          if (_selectedLead != null) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => _selectLead(null),
+                              tooltip: 'Show all leads',
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: TimelineWidget(
+                        events: timelineEvents,
+                        height: MediaQuery.of(context).size.height - 200,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

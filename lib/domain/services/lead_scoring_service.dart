@@ -67,26 +67,40 @@ class LeadScoringService {
     return score;
   }
 
-  /// Calculate engagement score based on user activity
+  /// Calculate engagement score based on user activity and timeline events
   double _calculateEngagementScore(Lead lead) {
     double score = 0.0;
     final metadata = lead.metadata ?? {};
+    final timelineEvents = lead.timelineEvents;
 
-    // Response time in hours (max 25 points)
-    final responseTime = metadata['avgResponseTime'] as int? ?? 48;
-    score += (1 - _normalizeValue(responseTime, 48)) * 25; // Lower is better
+    // Timeline activity frequency (max 30 points)
+    if (timelineEvents.isNotEmpty) {
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+      
+      // Count recent timeline events
+      final recentEvents = timelineEvents.where(
+        (event) => event.timestamp.isAfter(thirtyDaysAgo)
+      ).length;
+      score += _normalizeValue(recentEvents, 20) * 30;
+
+      // Calculate activity diversity (max 20 points)
+      final uniqueCategories = timelineEvents
+          .map((e) => e.category)
+          .toSet()
+          .length;
+      score += _normalizeValue(uniqueCategories, 5) * 20;
+
+      // Recent activity bonus (max 25 points)
+      final lastEvent = timelineEvents
+          .reduce((a, b) => a.timestamp.isAfter(b.timestamp) ? a : b);
+      final daysSinceLastActivity = now.difference(lastEvent.timestamp).inDays;
+      score += (1 - _normalizeValue(daysSinceLastActivity, 30)) * 25;
+    }
 
     // Communication frequency per week (max 25 points)
     final weeklyComms = metadata['weeklyComms'] as int? ?? 0;
     score += _normalizeValue(weeklyComms, 10) * 25;
-
-    // Platform activity score (max 25 points)
-    final platformActivity = metadata['platformActivity'] as int? ?? 0;
-    score += _normalizeValue(platformActivity, 100) * 25;
-
-    // Recent activity bonus (max 25 points)
-    final daysSinceLastActivity = _daysSinceLastActivity(lead);
-    score += (1 - _normalizeValue(daysSinceLastActivity, 30)) * 25; // Lower is better
 
     return score;
   }

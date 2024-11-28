@@ -7,6 +7,8 @@ import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 
+import '../../../domain/entities/timeline_event.dart';
+
 part 'leads_event.dart';
 part 'leads_state.dart';
 
@@ -14,6 +16,8 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   final LeadsRepository _leadsRepository;
   final String _organizationId;
   StreamSubscription<List<Lead>>? _leadsSubscription;
+  StreamSubscription<List<TimelineEvent>>? _timelineSubscription;
+  StreamSubscription<List<TimelineEvent>>? _allTimelineSubscription;
 
   LeadsBloc({
     required LeadsRepository leadsRepository,
@@ -39,6 +43,9 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     on<AddLead>(_onAddLead);
     on<UpdateLead>(_onUpdateLead);
     on<LoadSegments>(_onLoadSegments);
+    on<SubscribeToTimelineEvents>(_onSubscribeToTimelineEvents);
+    on<UnsubscribeFromTimelineEvents>(_onUnsubscribeFromTimelineEvents);
+    on<_TimelineEventsUpdated>(_onTimelineEventsUpdated);
     on<_LeadsLoadedEvent>(_handleLeadsLoaded);
     on<_LeadsErrorEvent>(_handleLeadsError);
   }
@@ -46,6 +53,8 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   @override
   Future<void> close() {
     _leadsSubscription?.cancel();
+    _timelineSubscription?.cancel();
+    _allTimelineSubscription?.cancel();
     return super.close();
   }
 
@@ -135,6 +144,22 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
+      // First update the status in the database
+      await _leadsRepository.bulkUpdateLeadsStatus(
+        organizationId: _organizationId,
+        leadIds: {event.lead.id},
+        status: event.status,
+      );
+
+      // Then save timeline event if provided
+      if (event.timelineEvent != null) {
+        await _leadsRepository.addTimelineEvent(
+          _organizationId,
+          event.timelineEvent!,
+        );
+      }
+
+      // Create updated lead with new status
       final updatedLead = event.lead.copyWith(
         status: LeadStatus.values.firstWhere(
           (s) =>
@@ -144,21 +169,21 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
         ),
       );
 
-      await _leadsRepository.updateLead(_organizationId, updatedLead);
-
+      // Update local state
       final updatedLeads = state.allLeads.map((lead) {
         return lead.id == event.lead.id ? updatedLead : lead;
       }).toList();
 
-      add(_LeadsLoadedEvent(
+      emit(state.copyWith(
+        status: LeadsStatus.success,
         allLeads: updatedLeads,
-        filteredLeads: _applyFilter(
-          updatedLeads,
-          state.filter,
-        ),
+        filteredLeads: _applyFilter(updatedLeads, state.filter),
       ));
     } catch (e) {
-      add(_LeadsErrorEvent(e.toString()));
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: e.toString(),
+      ));
     }
   }
 
@@ -167,30 +192,41 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
-      final updatedLead = event.lead.copyWith(
-        processStatus: ProcessStatus.values.firstWhere(
-          (s) =>
-              s.toString().split('.').last.toLowerCase() ==
-              event.status.toString().toLowerCase(),
-          orElse: () => ProcessStatus.fresh,
-        ),
+      // First update the process status in the database
+      await _leadsRepository.bulkUpdateLeadsProcessStatus(
+        organizationId: _organizationId,
+        leadIds: {event.lead.id},
+        status: event.status.toString().split('.').last,
       );
 
-      await _leadsRepository.updateLead(_organizationId, updatedLead);
+      // Then save timeline event if provided
+      if (event.timelineEvent != null) {
+        await _leadsRepository.addTimelineEvent(
+          _organizationId,
+          event.timelineEvent!,
+        );
+      }
 
+      // Create updated lead with new process status
+      final updatedLead = event.lead.copyWith(
+        processStatus: event.status, // Directly use the provided ProcessStatus enum
+      );
+
+      // Update local state
       final updatedLeads = state.allLeads.map((lead) {
         return lead.id == event.lead.id ? updatedLead : lead;
       }).toList();
 
-      add(_LeadsLoadedEvent(
+      emit(state.copyWith(
+        status: LeadsStatus.success,
         allLeads: updatedLeads,
-        filteredLeads: _applyFilter(
-          updatedLeads,
-          state.filter,
-        ),
+        filteredLeads: _applyFilter(updatedLeads, state.filter),
       ));
     } catch (e) {
-      add(_LeadsErrorEvent(e.toString()));
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: e.toString(),
+      ));
     }
   }
 
@@ -255,21 +291,28 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
 
       final updatedLeads = leadsToUpdate.map((lead) {
         return lead.copyWith(
-          processStatus: ProcessStatus.values.firstWhere(
-            (s) =>
-                s.toString().split('.').last.toLowerCase() ==
-                event.status.toLowerCase(),
-            orElse: () => ProcessStatus.fresh,
-          ),
+          processStatus: event.status,
         );
       }).toList();
 
+      // First update the process status in the database
       await _leadsRepository.bulkUpdateLeadsProcessStatus(
         organizationId: _organizationId,
         leadIds: event.leadIds.toSet(),
-        status: event.status,
+        status: event.status.toString().split('.').last,
       );
 
+      // Then save timeline events if provided
+      if (event.timelineEvents != null) {
+        for (final timelineEvent in event.timelineEvents!) {
+          await _leadsRepository.addTimelineEvent(
+            _organizationId,
+            timelineEvent,
+          );
+        }
+      }
+
+      // Update local state
       final allUpdatedLeads = state.allLeads.map((lead) {
         final matchingLead = updatedLeads.firstWhere(
           (updatedLead) => updatedLead.id == lead.id,
@@ -278,17 +321,16 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
         return matchingLead;
       }).toList();
 
-      add(_LeadsLoadedEvent(
+      emit(state.copyWith(
+        status: LeadsStatus.success,
         allLeads: allUpdatedLeads,
-        filteredLeads: _applyFilter(
-          allUpdatedLeads,
-          state.filter,
-        ),
+        filteredLeads: _applyFilter(allUpdatedLeads, state.filter),
       ));
-    } catch (error) {
-      if (!isClosed) {
-        add(_LeadsErrorEvent(error.toString()));
-      }
+    } catch (e) {
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: e.toString(),
+      ));
     }
   }
 
@@ -301,6 +343,11 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
       final leads = await _leadsRepository.importLeadsFromCSV(
         Uint8List.fromList(event.bytes),
       );
+
+      // Create all leads in Firestore
+      for (final lead in leads) {
+        await _leadsRepository.createLead(_organizationId, lead);
+      }
 
       // Reload leads to reflect the import
       add(const LoadLeads());
@@ -317,11 +364,11 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   ) async {
     try {
       emit(state.copyWith(status: LeadsStatus.loading));
-      final bytes =
-          await _leadsRepository.exportLeadsToCSV(state.filteredLeads);
-
-      // Reload leads to reflect the export
-      add(const LoadLeads());
+      final bytes = await _leadsRepository.exportLeadsToCSV(state.filteredLeads);
+      emit(state.copyWith(
+        status: LeadsStatus.success,
+        exportedCsvBytes: bytes,
+      ));
     } catch (error) {
       if (!isClosed) {
         add(_LeadsErrorEvent(error.toString()));
@@ -403,6 +450,49 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     } catch (e) {
       add(_LeadsErrorEvent(e.toString()));
     }
+  }
+
+  Future<void> _onSubscribeToTimelineEvents(
+    SubscribeToTimelineEvents event,
+    Emitter<LeadsState> emit,
+  ) async {
+    _timelineSubscription?.cancel();
+    _allTimelineSubscription?.cancel();
+
+    // Subscribe to selected lead's timeline
+    _timelineSubscription = _leadsRepository
+        .getTimelineEvents(_organizationId, event.leadId)
+        .listen(
+          (events) => add(_TimelineEventsUpdated(
+            events: events,
+            leadId: event.leadId,
+          )),
+        );
+  }
+
+  void _onUnsubscribeFromTimelineEvents(
+    UnsubscribeFromTimelineEvents event,
+    Emitter<LeadsState> emit,
+  ) {
+    _timelineSubscription?.cancel();
+    _allTimelineSubscription?.cancel();
+    _timelineSubscription = null;
+    _allTimelineSubscription = null;
+    emit(state.copyWith(selectedLeadTimelineEvents: []));
+  }
+
+  void _onTimelineEventsUpdated(
+    _TimelineEventsUpdated event,
+    Emitter<LeadsState> emit,
+  ) {
+    // Sort events by timestamp in descending order (newest first)
+    final sortedEvents = List<TimelineEvent>.from(event.events)
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    emit(state.copyWith(
+      selectedLeadTimelineEvents: sortedEvents,
+      selectedLeadId: event.leadId,
+    ));
   }
 
   List<Lead> _applySort(List<Lead> leads, String column, bool ascending) {
@@ -492,4 +582,14 @@ class _LeadsErrorEvent extends LeadsEvent {
   final String errorMessage;
 
   _LeadsErrorEvent(this.errorMessage);
+}
+
+class _TimelineEventsUpdated extends LeadsEvent {
+  final List<TimelineEvent> events;
+  final String leadId;
+
+  _TimelineEventsUpdated({
+    required this.events,
+    required this.leadId,
+  });
 }

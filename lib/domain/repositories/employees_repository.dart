@@ -9,4 +9,6 @@ abstract class EmployeesRepository {
   Stream<List<Employee>> employeesStream(String companyId);
   Stream<Employee> employeeStream(String companyId, String employeeId);
   Future<bool> isEmailAvailable(String email);
+  Future<Employee?> getEmployeeByUid(String uid);
+  Future<Employee?> getEmployeeByEmail(String email);
 }

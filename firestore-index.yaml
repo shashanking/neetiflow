@@ -1,0 +1,6 @@
+indexes:
+- collection: organizations/{organizationId}/custom_fields
+  fields:
+  - name: isActive
+  - name: createdAt
+    order: descending

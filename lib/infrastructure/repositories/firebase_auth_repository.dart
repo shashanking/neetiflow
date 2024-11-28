@@ -146,19 +146,6 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
       final companyId = mappingData['companyId'] as String;
       final employeeId = mappingData['employeeId'] as String;
       
-      // Get organization data
-      final organizationDoc = await _firestore
-          .collection('organizations')
-          .doc(companyId)
-          .get();
-          
-      if (!organizationDoc.exists) {
-        throw Exception('Organization not found');
-      }
-      
-      final organizationData = organizationDoc.data()!;
-      final companyName = organizationData['name'] as String;
-      
       // Get employee data directly using company ID and employee ID
       final employeeDoc = await _firestore
           .collection('organizations')
@@ -171,10 +158,23 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         throw Exception('Employee not found');
       }
 
+      // Get organization data to ensure we have the company name
+      final organizationDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .get();
+          
+      if (!organizationDoc.exists) {
+        throw Exception('Organization not found');
+      }
+      
+      final organizationData = organizationDoc.data()!;
+      final companyName = organizationData['name'] as String;
+
       final data = employeeDoc.data()!;
       data['id'] = employeeDoc.id;
       data['companyId'] = companyId;
-      data['companyName'] = companyName;
+      data['companyName'] = companyName;  // Set the company name from organization data
 
       _logger.i('Employee data retrieved successfully');
       return Employee.fromJson(data);
@@ -291,7 +291,10 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         ...admin.toJson(),
         'id': employeeId,
         'companyId': companyId,
+        'companyName': organization.name,
         'role': 'admin',
+        'isActive': true,
+        'joiningDate': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -313,6 +316,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         'employee': admin.copyWith(
           id: employeeId,
           companyId: companyId,
+          companyName: organization.name,  // Add the company name here
         ),
       };
     } catch (e, stackTrace) {

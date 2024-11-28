@@ -27,7 +27,7 @@
   - [x] Handle data mapping
   - [x] Show import progress
 - [ ] Add export customization
-  - [ ] Allow column selection
+  - [x] Allow column selection
   - [ ] Support different file formats
   - [ ] Add date range selection
 
@@ -66,8 +66,8 @@
   - [ ] Implement caching
 
 ## 5. Lead Scoring System
-- [ ] Design scoring algorithm
-  - [ ] Define base scoring criteria (0-100 scale)
+- [x] Design scoring algorithm
+  - [x] Define base scoring criteria (0-100 scale)
   - [ ] Implement weighted scoring for different factors:
     - [ ] Interaction history (30%)
     - [ ] Profile completeness (20%)

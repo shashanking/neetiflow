@@ -1,0 +1,2 @@
+ID,First Name,Last Name,Email,Phone,Subject,Msg,Status,Process Status,Created At,Updated At,Score,Metadata,Segments,Score Factors,Score History
+1,John,Doe,john@example.com,1234567890,Test Subject,Test Message,cold,fresh,2024-01-20T10:00:00Z,,0,{},{},{},[],

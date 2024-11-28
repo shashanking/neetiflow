@@ -249,11 +249,102 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     }
   }
 
-  Future<void> _updateOrganizationEmployeeCount(String organizationId, int change) async {
+  @override
+  Future<Employee?> getEmployeeByUid(String uid) async {
+    try {
+      _logger.i('Getting employee by UID: $uid');
+      
+      // First check user_mappings collection using the current user's email
+      final currentUser = _auth.currentUser;
+      if (currentUser == null || currentUser.email == null) {
+        _logger.e('No authenticated user or email found');
+        return null;
+      }
+
+      final userMapping = await _firestore
+          .collection('user_mappings')
+          .doc(currentUser.email)
+          .get();
+
+      if (!userMapping.exists) {
+        _logger.e('No user mapping found for email: ${currentUser.email}');
+        return null;
+      }
+
+      final data = userMapping.data()!;
+      final companyId = data['companyId'] as String;
+      final employeeId = data['employeeId'] as String;
+
+      // Get employee data
+      final employeeDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .get();
+
+      if (!employeeDoc.exists) {
+        _logger.e('No employee document found for ID: $employeeId');
+        return null;
+      }
+
+      final employeeData = employeeDoc.data()!;
+      employeeData['id'] = employeeDoc.id;
+      _logger.i('Successfully retrieved employee data');
+      return Employee.fromJson(employeeData);
+    } catch (e, stackTrace) {
+      _logger.e('Error getting employee by UID', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+  @override
+  Future<Employee?> getEmployeeByEmail(String email) async {
+    try {
+      _logger.i('Getting employee by email: $email');
+      // First check user_mappings collection
+      final userMapping = await _firestore
+          .collection('user_mappings')
+          .doc(email)
+          .get();
+
+      if (!userMapping.exists) {
+        _logger.e('No user mapping found for email: $email');
+        return null;
+      }
+
+      final data = userMapping.data()!;
+      final companyId = data['companyId'] as String;
+      final employeeId = data['employeeId'] as String;
+
+      // Get employee data
+      final employeeDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .get();
+
+      if (!employeeDoc.exists) {
+        _logger.e('No employee document found for ID: $employeeId');
+        return null;
+      }
+
+      final employeeData = employeeDoc.data()!;
+      employeeData['id'] = employeeDoc.id;
+      _logger.i('Successfully retrieved employee data');
+      return Employee.fromJson(employeeData);
+    } catch (e, stackTrace) {
+      _logger.e('Error getting employee by email', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+  Future<void> _updateOrganizationEmployeeCount(String companyId, int change) async {
     try {
       await _firestore.runTransaction((transaction) async {
         final orgDoc = await transaction.get(
-          _firestore.collection('organizations').doc(organizationId)
+          _firestore.collection('organizations').doc(companyId)
         );
         
         if (!orgDoc.exists) {
@@ -264,7 +355,7 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
         final newCount = currentCount + change;
         
         transaction.update(
-          _firestore.collection('organizations').doc(organizationId),
+          _firestore.collection('organizations').doc(companyId),
           {'employeeCount': newCount}
         );
       });
