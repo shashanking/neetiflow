@@ -7,6 +7,16 @@ import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_clients_repository.dart';
 import 'package:logger/logger.dart';
 
+// Client sort options
+enum ClientSortOption {
+  nameAsc,
+  nameDesc,
+  dateAsc,
+  dateDesc,
+  ratingAsc,
+  ratingDesc,
+}
+
 // Events
 abstract class ClientsEvent {}
 
@@ -271,9 +281,10 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
       if (state.searchQuery.isNotEmpty) {
         final query = state.searchQuery.toLowerCase();
         filteredClients = filteredClients.where((client) {
-          return client.name.toLowerCase().contains(query) ||
+          return client.fullName.toLowerCase().contains(query) ||
               client.email.toLowerCase().contains(query) ||
-              client.phone.toLowerCase().contains(query);
+              client.phone.toLowerCase().contains(query) ||
+              (client.organizationName?.toLowerCase().contains(query) ?? false);
         }).toList();
       }
 
@@ -291,90 +302,70 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
   }) {
     var filteredClients = List<Client>.from(clients);
 
-    try {
-      // Apply status filter
-      if (status != null) {
-        filteredClients = filteredClients
-            .where((client) => client.status == status)
-            .toList();
-      }
-
-      // Apply search
-      if (searchQuery.isNotEmpty) {
-        final query = searchQuery.toLowerCase();
-        filteredClients = filteredClients.where((client) {
-          return client.name.toLowerCase().contains(query) ||
-              client.email.toLowerCase().contains(query) ||
-              client.phone.toLowerCase().contains(query);
-        }).toList();
-      }
-
-      return filteredClients;
-    } catch (e, stackTrace) {
-      _logger.e('Error applying filters', error: e, stackTrace: stackTrace);
-      return clients;
+    // Apply status filter if specified
+    if (status != null) {
+      filteredClients = filteredClients
+          .where((client) => client.status == status)
+          .toList();
     }
+
+    // Apply search filter if query is not empty
+    if (searchQuery.isNotEmpty) {
+      final lowercaseQuery = searchQuery.toLowerCase();
+      filteredClients = filteredClients.where((client) {
+        final searchableFields = [
+          client.fullName.toLowerCase(),
+          client.email.toLowerCase(),
+          client.phone.toLowerCase(),
+          client.organizationName?.toLowerCase() ?? '',
+          client.domain.name.toLowerCase(),
+        ];
+
+        return searchableFields.any((field) => field.contains(lowercaseQuery));
+      }).toList();
+    }
+
+    return filteredClients;
   }
+
 
   Future<void> _onUpdateClient(
     UpdateClient event,
     Emitter<ClientsState> emit,
   ) async {
-    if (emit.isDone) return;
-
     try {
-      _logger.i('✏️ Updating client: ${event.client.id}');
-      
-      // Get organization ID with potential refresh if needed
-      final orgId = await _getOrganizationId();
-      if (orgId == null) {
-        _logger.e('❌ No organization ID for updating client');
-        if (!emit.isDone) {
-          emit(ClientsError('Failed to update client: No organization ID'));
-        }
-        return;
+      if (state is! ClientsLoaded) {
+        throw Exception('Invalid state for updating client');
       }
 
-      // Get current state data
-      final currentClients = state is ClientsLoaded 
-          ? (state as ClientsLoaded).clients 
-          : <Client>[];
-      final currentQuery = state is ClientsLoaded 
-          ? (state as ClientsLoaded).searchQuery 
-          : '';
-      final currentFilter = state is ClientsLoaded 
-          ? (state as ClientsLoaded).filterStatus 
-          : null;
-
-      // Create a new client with updated lastInteractionDate
-      final updatedClient = event.client.copyWith(
-        lastInteractionDate: DateTime.now(),
-      );
-
-      // Update the client in Firestore
-      await _clientsRepository.updateClient(orgId, updatedClient);
-      _logger.d('✅ Client updated successfully');
-
-      // Update local state immediately for better UX
-      final updatedClients = List<Client>.from(currentClients);
+      final currentState = state as ClientsLoaded;
+      
+      // Update local state first for immediate UI feedback
+      final updatedClients = List<Client>.from(currentState.clients);
       final index = updatedClients.indexWhere((c) => c.id == event.client.id);
       if (index != -1) {
-        updatedClients[index] = updatedClient;
+        updatedClients[index] = event.client;
       }
 
-      // Emit success state with updated data
-      if (!emit.isDone) {
-        emit(ClientsLoaded(
-          clients: updatedClients,
-          searchQuery: currentQuery,
-          filterStatus: currentFilter,
-        ));
+      emit(ClientsLoaded(
+        clients: updatedClients,
+        searchQuery: currentState.searchQuery,
+        filterStatus: currentState.filterStatus,
+      ));
+
+      // Then update Firestore in the background
+      final orgId = await _getOrganizationId();
+      if (orgId == null) {
+        throw Exception('Organization ID not found');
       }
-      
+
+      await _clientsRepository.updateClient(orgId, event.client);
+      _logger.d('✅ Client updated successfully');
+
     } catch (e, stackTrace) {
-      _logger.e('❌ Error updating client', error: e, stackTrace: stackTrace);
+      _logger.e('❌ Failed to update client', error: e, stackTrace: stackTrace);
       if (!emit.isDone) {
-        emit(ClientsError('Failed to update client: ${e.toString()}'));
+        emit(ClientsError('Failed to update client: $e'));
       }
     }
   }
@@ -383,52 +374,33 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     AddClient event,
     Emitter<ClientsState> emit,
   ) async {
-    if (emit.isDone) return;
-
     try {
-      _logger.i('➕ Adding new client: ${event.client.name}');
-      
-      // Get organization ID with potential refresh if needed
-      final orgId = await _getOrganizationId();
-      if (orgId == null) {
-        _logger.e('❌ No organization ID for adding client');
-        if (!emit.isDone) {
-          emit(ClientsError('Failed to add client: No organization ID'));
-        }
-        return;
-      }
+      // Update local state first for immediate UI feedback
+      if (state is ClientsLoaded) {
+        final currentState = state as ClientsLoaded;
+        final updatedClients = List<Client>.from(currentState.clients)
+          ..add(event.client);
 
-      // Get current state data
-      final currentClients = state is ClientsLoaded 
-          ? (state as ClientsLoaded).clients 
-          : <Client>[];
-      final currentQuery = state is ClientsLoaded 
-          ? (state as ClientsLoaded).searchQuery 
-          : '';
-      final currentFilter = state is ClientsLoaded 
-          ? (state as ClientsLoaded).filterStatus 
-          : null;
-
-      // Create the client
-      await _clientsRepository.createClient(orgId, event.client);
-      _logger.d('✅ Client added successfully');
-
-      // Update local state immediately for better UX
-      final updatedClients = [event.client, ...currentClients];
-
-      // Emit success state with updated data
-      if (!emit.isDone) {
         emit(ClientsLoaded(
           clients: updatedClients,
-          searchQuery: currentQuery,
-          filterStatus: currentFilter,
+          searchQuery: currentState.searchQuery,
+          filterStatus: currentState.filterStatus,
         ));
       }
-      
+
+      // Then update Firestore in the background
+      final orgId = await _getOrganizationId();
+      if (orgId == null) {
+        throw Exception('Organization ID not found');
+      }
+
+      await _clientsRepository.createClient(orgId, event.client);
+      _logger.d('✅ Client created successfully');
+
     } catch (e, stackTrace) {
-      _logger.e('❌ Error adding client', error: e, stackTrace: stackTrace);
+      _logger.e('❌ Failed to create client', error: e, stackTrace: stackTrace);
       if (!emit.isDone) {
-        emit(ClientsError('Failed to add client: ${e.toString()}'));
+        emit(ClientsError('Failed to create client: $e'));
       }
     }
   }
@@ -437,31 +409,39 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     DeleteClient event,
     Emitter<ClientsState> emit,
   ) async {
-    if (emit.isDone) return;
-
     try {
       _logger.i('🗑️ Deleting client: ${event.clientId}');
-      
-      // Get organization ID with potential refresh if needed
+
+      // Get current state data
+      if (state is! ClientsLoaded) {
+        throw Exception('Invalid state for client deletion');
+      }
+      final currentState = state as ClientsLoaded;
+
+      // Update local state immediately for better UX
+      final updatedClients = currentState.clients
+          .where((client) => client.id != event.clientId)
+          .toList();
+
+      emit(ClientsLoaded(
+        clients: updatedClients,
+        searchQuery: currentState.searchQuery,
+        filterStatus: currentState.filterStatus,
+      ));
+
+      // Delete from Firestore in the background
       final orgId = await _getOrganizationId();
       if (orgId == null) {
-        _logger.e('❌ No organization ID for deletion');
-        if (!emit.isDone) {
-          emit(ClientsError('Failed to delete client: No organization ID'));
-        }
-        return;
+        throw Exception('Organization ID not found');
       }
 
-      // Delete the client
       await _clientsRepository.deleteClient(orgId, event.clientId);
       _logger.d('✅ Client deleted successfully');
-
-      // No need to emit new state as the stream will handle the update
       
     } catch (e, stackTrace) {
-      _logger.e('❌ Error deleting client', error: e, stackTrace: stackTrace);
+      _logger.e('❌ Failed to delete client', error: e, stackTrace: stackTrace);
       if (!emit.isDone) {
-        emit(ClientsError('Failed to delete client: ${e.toString()}'));
+        emit(ClientsError('Failed to delete client: $e'));
       }
     }
   }

@@ -7,6 +7,8 @@ import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_list_item.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
 import 'package:neetiflow/presentation/widgets/common/search_bar.dart';
+import 'package:neetiflow/presentation/pages/clients/client_details_page.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class ClientsPage extends StatelessWidget {
   const ClientsPage({super.key});
@@ -106,12 +108,35 @@ class ClientsView extends StatelessWidget {
               }
               if (state is ClientsLoaded) {
                 if (state.filteredClients.isEmpty) {
-                  return const Center(
-                    child: Text('No clients found'),
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No clients found',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddClientDialog(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add New Client'),
+                        ),
+                      ],
+                    ),
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: state.filteredClients.length,
                   itemBuilder: (context, index) {
                     final client = state.filteredClients[index];
@@ -124,6 +149,7 @@ class ClientsView extends StatelessWidget {
                               UpdateClientStatus(client.id, status),
                             );
                       },
+                      onTap: () => _navigateToClientDetails(context, client),
                     );
                   },
                 );
@@ -133,17 +159,27 @@ class ClientsView extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: 16),
                       Text(
                         'Error: ${state.message}',
-                        style: const TextStyle(color: Colors.red),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontSize: 18,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
-                      ElevatedButton(
+                      ElevatedButton.icon(
                         onPressed: () {
                           context.read<ClientsBloc>().add(LoadClients());
                         },
-                        child: const Text('Retry'),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
                       ),
                     ],
                   ),
@@ -243,24 +279,64 @@ class ClientsView extends StatelessWidget {
   void _showDeleteConfirmation(BuildContext context, Client client) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Client'),
-        content: Text('Are you sure you want to delete ${client.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder: (dialogContext) => BlocListener<ClientsBloc, ClientsState>(
+        listenWhen: (previous, current) => current is ClientsError,
+        listener: (context, state) {
+          if (state is ClientsError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        child: AlertDialog(
+          title: const Text('Delete Client'),
+          content: Text(
+            'Are you sure you want to delete ${client.fullName}' +
+            (client.organizationName != null ? ' (${client.organizationName})' : '') +
+            '?'
           ),
-          TextButton(
-            onPressed: () {
-              context.read<ClientsBloc>().add(DeleteClient(client.id));
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                // Close dialog immediately
+                Navigator.of(dialogContext).pop();
+                // Then delete client and show success message
+                context.read<ClientsBloc>().add(DeleteClient(client.id));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Client deleted successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _navigateToClientDetails(BuildContext context, Client client) {
+    final shell = PersistentShell.of(context);
+    if (shell != null) {
+      shell.setCustomPage(ClientDetailsPage(
+        client: client,
+        onEdit: () {
+          _showEditClientDialog(context, client);
+        },
+        onDelete: () {
+          _showDeleteConfirmation(context, client);
+        },
+      ));
+    }
   }
 }

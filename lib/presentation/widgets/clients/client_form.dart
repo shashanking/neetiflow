@@ -18,40 +18,65 @@ class ClientForm extends StatefulWidget {
 class _ClientFormState extends State<ClientForm> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
-  late final TextEditingController _nameController;
+  
+  // Basic Info Controllers
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
+  
+  // Optional Info Controllers
   late final TextEditingController _websiteController;
   late final TextEditingController _gstinController;
   late final TextEditingController _panController;
+  late final TextEditingController _organizationNameController;
+  late final TextEditingController _governmentTypeController;
+  
+  // Dropdowns and Rating
   late ClientType _selectedType;
   late ClientStatus _selectedStatus;
+  late ClientDomain _selectedDomain;
+  late double _rating;
 
   @override
   void initState() {
     super.initState();
     final client = widget.client;
-    _nameController = TextEditingController(text: client?.name);
+    
+    // Initialize Basic Info Controllers
+    _firstNameController = TextEditingController(text: client?.firstName);
+    _lastNameController = TextEditingController(text: client?.lastName);
     _emailController = TextEditingController(text: client?.email);
     _phoneController = TextEditingController(text: client?.phone);
     _addressController = TextEditingController(text: client?.address);
+    
+    // Initialize Optional Info Controllers
     _websiteController = TextEditingController(text: client?.website);
     _gstinController = TextEditingController(text: client?.gstin);
     _panController = TextEditingController(text: client?.pan);
+    _organizationNameController = TextEditingController(text: client?.organizationName);
+    _governmentTypeController = TextEditingController(text: client?.governmentType);
+    
+    // Initialize Dropdowns and Rating
     _selectedType = client?.type ?? ClientType.individual;
     _selectedStatus = client?.status ?? ClientStatus.active;
+    _selectedDomain = client?.domain ?? ClientDomain.other;
+    _rating = client?.rating ?? 0;
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _websiteController.dispose();
     _gstinController.dispose();
     _panController.dispose();
+    _organizationNameController.dispose();
+    _governmentTypeController.dispose();
     super.dispose();
   }
 
@@ -66,34 +91,37 @@ class _ClientFormState extends State<ClientForm> {
       try {
         final client = Client(
           id: widget.client?.id ?? 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          name: _nameController.text.trim(),
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
           email: _emailController.text.trim(),
           phone: _phoneController.text.trim(),
           address: _addressController.text.trim(),
           type: _selectedType,
           status: _selectedStatus,
+          domain: _selectedDomain,
+          rating: _rating,
+          organizationName: _selectedType == ClientType.company 
+              ? _organizationNameController.text.trim() 
+              : null,
+          governmentType: _selectedType == ClientType.government 
+              ? _governmentTypeController.text.trim() 
+              : null,
           website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
           gstin: _gstinController.text.trim().isEmpty ? null : _gstinController.text.trim(),
           pan: _panController.text.trim().isEmpty ? null : _panController.text.trim(),
           leadId: widget.client?.leadId,
-          createdAt: widget.client?.createdAt ?? DateTime.now(),
+          joiningDate: widget.client?.joiningDate ?? DateTime.now(),
           lastInteractionDate: DateTime.now(),
           metadata: widget.client?.metadata ?? {},
           tags: widget.client?.tags ?? [],
           assignedEmployeeId: widget.client?.assignedEmployeeId,
+          projects: widget.client?.projects ?? [],
           lifetimeValue: widget.client?.lifetimeValue ?? 0.0,
         );
 
+        // Submit the form and close dialog immediately
         widget.onSubmit(client);
-
-        // Reset submission state after a short delay if still mounted
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() {
-              _isSubmitting = false;
-            });
-          }
-        });
+        Navigator.of(context).pop();
       } catch (e) {
         if (mounted) {
           setState(() {
@@ -114,7 +142,7 @@ class _ClientFormState extends State<ClientForm> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 600,
+      width: 800, // Increased width for more fields
       padding: const EdgeInsets.all(24.0),
       child: Form(
         key: _formKey,
@@ -128,66 +156,111 @@ class _ClientFormState extends State<ClientForm> {
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 24),
+              
+              // Client Type Selection
+              DropdownButtonFormField<ClientType>(
+                value: _selectedType,
+                decoration: const InputDecoration(
+                  labelText: 'Client Type',
+                  border: OutlineInputBorder(),
+                ),
+                items: ClientType.values.map((type) {
+                  return DropdownMenuItem(
+                    value: type,
+                    child: Text(type.toString().split('.').last),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedType = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              
+              // Basic Information
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<ClientType>(
-                      value: _selectedType,
+                    child: TextFormField(
+                      controller: _firstNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Client Type',
+                        labelText: 'First Name',
                         border: OutlineInputBorder(),
                       ),
-                      items: ClientType.values.map((type) {
-                        return DropdownMenuItem(
-                          value: type,
-                          child: Text(type.toString().split('.').last),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _selectedType = value);
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter first name';
                         }
+                        return null;
                       },
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: DropdownButtonFormField<ClientStatus>(
-                      value: _selectedStatus,
+                    child: TextFormField(
+                      controller: _lastNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Status',
+                        labelText: 'Last Name',
                         border: OutlineInputBorder(),
                       ),
-                      items: ClientStatus.values.map((status) {
-                        return DropdownMenuItem(
-                          value: status,
-                          child: Text(status.toString().split('.').last),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _selectedStatus = value);
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter last name';
                         }
+                        return null;
                       },
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
+              
+              // Organization Name (for company type)
+              if (_selectedType == ClientType.company)
+                Column(
+                  children: [
+                    TextFormField(
+                      controller: _organizationNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Organization Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (_selectedType == ClientType.company && 
+                            (value == null || value.isEmpty)) {
+                          return 'Please enter organization name';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter client name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+              
+              // Government Type (for government type)
+              if (_selectedType == ClientType.government)
+                Column(
+                  children: [
+                    TextFormField(
+                      controller: _governmentTypeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Government Type (e.g., Federal - USA, State - California)',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (_selectedType == ClientType.government && 
+                            (value == null || value.isEmpty)) {
+                          return 'Please enter government type';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              
+              // Contact Information
               Row(
                 children: [
                   Expanded(
@@ -228,6 +301,8 @@ class _ClientFormState extends State<ClientForm> {
                 ],
               ),
               const SizedBox(height: 16),
+              
+              // Address
               TextFormField(
                 controller: _addressController,
                 decoration: const InputDecoration(
@@ -243,38 +318,92 @@ class _ClientFormState extends State<ClientForm> {
                 maxLines: 2,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _websiteController,
+              
+              // Domain Selection
+              DropdownButtonFormField<ClientDomain>(
+                value: _selectedDomain,
                 decoration: const InputDecoration(
-                  labelText: 'Website (Optional)',
+                  labelText: 'Business Domain',
                   border: OutlineInputBorder(),
                 ),
+                items: ClientDomain.values.map((domain) {
+                  return DropdownMenuItem(
+                    value: domain,
+                    child: Text(domain.toString().split('.').last),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedDomain = value);
+                  }
+                },
               ),
               const SizedBox(height: 16),
-              Row(
+              
+              // Client Rating
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _gstinController,
-                      decoration: const InputDecoration(
-                        labelText: 'GSTIN (Optional)',
-                        border: OutlineInputBorder(),
-                      ),
+                  const Text('Client Rating'),
+                  Row(
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < _rating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _rating = index + 1.0;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Optional Information
+              ExpansionTile(
+                title: const Text('Additional Information'),
+                children: [
+                  TextFormField(
+                    controller: _websiteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Website (Optional)',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _panController,
-                      decoration: const InputDecoration(
-                        labelText: 'PAN (Optional)',
-                        border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _gstinController,
+                          decoration: const InputDecoration(
+                            labelText: 'GSTIN (Optional)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _panController,
+                          decoration: const InputDecoration(
+                            labelText: 'PAN (Optional)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
               const SizedBox(height: 24),
+              
+              // Form Actions
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
