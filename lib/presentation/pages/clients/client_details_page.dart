@@ -28,7 +28,6 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   @override
   void initState() {
     super.initState();
-    // Ensure clients are loaded
     context.read<ClientsBloc>().add(LoadClients());
   }
 
@@ -37,10 +36,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     return BlocBuilder<ClientsBloc, ClientsState>(
       builder: (context, state) {
         if (state is ClientsLoaded) {
-          // Get the latest client data
           final updatedClient = state.clients.firstWhere(
             (c) => c.id == client.id,
-            orElse: () => client, // Fallback to original client if not found
+            orElse: () => client,
           );
 
           return Scaffold(
@@ -88,7 +86,6 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           );
         }
         
-        // Show loading indicator while waiting for state
         return const Scaffold(
           body: Center(
             child: CircularProgressIndicator(),
@@ -132,8 +129,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (client.organizationName != null && 
-                          client.organizationName!.isNotEmpty) ...[
+                      if (client.organizationName?.isNotEmpty ?? false) ...[
                         const SizedBox(height: 4),
                         Text(
                           client.organizationName!,
@@ -232,7 +228,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
               title: Text(client.address),
               subtitle: const Text('Address'),
             ),
-            if (client.website != null) ...[
+            if (client.website?.isNotEmpty ?? false) ...[
               ListTile(
                 leading: const Icon(Icons.language),
                 title: Text(client.website!),
@@ -269,14 +265,14 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
               title: Text(client.domain.toString().split('.').last.toUpperCase()),
               subtitle: const Text('Domain'),
             ),
-            if (client.gstin != null) ...[
+            if (client.gstin?.isNotEmpty ?? false) ...[
               ListTile(
                 leading: const Icon(Icons.receipt),
                 title: Text(client.gstin!),
                 subtitle: const Text('GSTIN'),
               ),
             ],
-            if (client.pan != null) ...[
+            if (client.pan?.isNotEmpty ?? false) ...[
               ListTile(
                 leading: const Icon(Icons.credit_card),
                 title: Text(client.pan!),
@@ -384,8 +380,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
         listeners: [
           BlocListener<ClientsBloc, ClientsState>(
             listenWhen: (previous, current) => 
-              current is ClientsError || 
-              (current is ClientsLoaded && previous is! ClientsLoaded),
+              current is ClientsError || current is ClientsLoaded,
             listener: (context, state) {
               if (state is ClientsError) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -395,7 +390,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                   ),
                 );
               } else if (state is ClientsLoaded) {
-                Navigator.of(dialogContext).pop(); // Close dialog on success
+                Navigator.of(dialogContext).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Client updated successfully'),
@@ -406,15 +401,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
             },
           ),
         ],
-        child: Dialog(
-          child: ClientForm(
-            client: client,
-            onSubmit: (updatedClient) {
-              // Preserve the client ID when updating
-              final clientToUpdate = updatedClient.copyWith(id: client.id);
-              context.read<ClientsBloc>().add(UpdateClient(clientToUpdate));
-            },
-          ),
+        child: ClientForm(
+          client: client,
+          onSubmit: (updatedClient) {
+            context.read<ClientsBloc>().add(UpdateClient(updatedClient));
+          },
         ),
       ),
     );
@@ -425,10 +416,10 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
       context: context,
       builder: (dialogContext) => BlocListener<ClientsBloc, ClientsState>(
         listenWhen: (previous, current) => 
-          current is ClientsError || 
-          (current is ClientsLoaded && previous is! ClientsLoaded),
+          current is ClientsError || current is ClientsLoaded,
         listener: (context, state) {
           if (state is ClientsError) {
+            Navigator.of(dialogContext).pop(); // Close dialog
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
@@ -436,22 +427,36 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
               ),
             );
           } else if (state is ClientsLoaded) {
-            // Navigate back to clients list on successful delete
-            Navigator.of(context).pop();
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Client deleted successfully'),
-                backgroundColor: Colors.green,
-              ),
-            );
+            // Check if client was actually deleted
+            final clientExists = state.clients.any((c) => c.id == client.id);
+            if (!clientExists) {
+              // Close the dialog
+              Navigator.of(dialogContext).pop();
+              
+              // Navigate back to clients list using PersistentShell
+              final shell = PersistentShell.of(context);
+              if (shell != null) {
+                shell.clearCustomPage();
+              } else {
+                // Fallback navigation if PersistentShell is not available
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
+              
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Client deleted successfully'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
           }
         },
         child: AlertDialog(
           title: const Text('Delete Client'),
           content: Text(
             'Are you sure you want to delete ${client.fullName}' +
-            (client.organizationName != null ? ' (${client.organizationName})' : '') +
+            (client.organizationName?.isNotEmpty ?? false ? ' (${client.organizationName})' : '') +
             '?'
           ),
           actions: [
@@ -462,7 +467,6 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
             TextButton(
               onPressed: () {
                 context.read<ClientsBloc>().add(DeleteClient(client.id));
-                Navigator.of(dialogContext).pop(); // Close dialog
               },
               style: TextButton.styleFrom(
                 foregroundColor: Colors.red,

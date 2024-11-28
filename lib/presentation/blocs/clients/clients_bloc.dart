@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
+
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -163,89 +165,132 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     }
   }
 
-  Future<void> _onLoadClients(
-    LoadClients event,
-    Emitter<ClientsState> emit,
-  ) async {
-    if (emit.isDone) return;
+  void _onClientsUpdated(List<Client> clients) {
+    _logger.d('📡 Clients stream updated: ${clients.length} clients');
+    
+    if (state is ClientsLoaded) {
+      final currentState = state as ClientsLoaded;
+      emit(currentState.copyWith(
+        clients: clients,
+        filteredClients: _filterAndSearchClients(
+          clients,
+          searchQuery: currentState.searchQuery,
+          status: currentState.filterStatus,
+        ),
+      ));
+    } else {
+      emit(ClientsLoaded(
+        clients: clients,
+        filteredClients: clients,
+        searchQuery: '',
+        filterStatus: null,
+      ));
+    }
+  }
 
+  Future<void> _initializeClientsStream() async {
     try {
-      emit(ClientsLoading());
-      _logger.i('🔄 Loading clients...');
-
-      // Force refresh organization ID on initial load
-      final orgId = await _getOrganizationId(forceRefresh: true);
+      _logger.d('🌊 Initializing clients stream...');
+      
+      final orgId = await _getOrganizationId();
       if (orgId == null) {
-        _logger.e('❌ Failed to get organization ID');
-        if (!emit.isDone) emit(ClientsError('Failed to get organization ID'));
-        return;
+        throw Exception('Organization ID not found');
       }
+
+      _logger.d('🌊 Starting clients watch stream for organization: $orgId');
 
       // Cancel any existing subscription
       await _clientsSubscription?.cancel();
 
-      // Subscribe to real-time updates
+      // Start watching clients stream
       _clientsSubscription = _clientsRepository
           .watchClients(orgId)
           .listen(
-            (clients) {
-              if (state is ClientsLoaded) {
-                final currentState = state as ClientsLoaded;
-                add(SearchClients(currentState.searchQuery));
-              } else {
-                add(SearchClients(''));
-              }
-            },
+            _onClientsUpdated,
             onError: (error) {
               _logger.e('❌ Error in clients stream', error: error);
-              add(LoadClients());
+              emit(ClientsError('Failed to watch clients: $error'));
             },
+            cancelOnError: false,
           );
 
+      _logger.d('🌊 Clients stream initialized successfully');
     } catch (e, stackTrace) {
-      _logger.e('❌ Error loading clients', error: e, stackTrace: stackTrace);
-      if (!emit.isDone) {
-        emit(ClientsError('Failed to load clients: ${e.toString()}'));
-      }
+      _logger.e('❌ Failed to initialize clients stream', error: e, stackTrace: stackTrace);
+      emit(ClientsError('Failed to initialize clients stream: $e'));
     }
   }
 
-  void _onSearchClients(
-    SearchClients event,
+  Future<void> _onLoadClients(
+    LoadClients event,
     Emitter<ClientsState> emit,
   ) async {
-    if (emit.isDone) return;
-
     try {
-      _logger.d('🔍 Searching clients with query: ${event.query}');
-      
+      // Immediately emit loading state
+      emit(ClientsLoading());
+
+      // Get organization ID
       final orgId = await _getOrganizationId();
       if (orgId == null) {
-        _logger.e('❌ Failed to get organization ID while searching');
-        return;
+        throw Exception('Organization ID not found');
       }
 
-      final clients = await _clientsRepository.getClients(orgId);
-      
-      if (!emit.isDone) {
-        final filteredClients = _filterAndSearchClients(
-          clients,
-          searchQuery: event.query,
-          status: state is ClientsLoaded
-              ? (state as ClientsLoaded).filterStatus
-              : null,
-        );
+      // Initialize stream if not already done
+      if (_clientsSubscription == null) {
+        await _initializeClientsStream();
+      }
 
+      // If we're not in a loaded state after stream initialization, fetch initial data
+      if (state is! ClientsLoaded) {
+        final clients = await _clientsRepository.getClients(orgId);
+        _logger.d('📦 Loaded ${clients.length} clients');
+        
         emit(ClientsLoaded(
           clients: clients,
-          filteredClients: filteredClients,
-          searchQuery: event.query,
-          filterStatus:
-              state is ClientsLoaded ? (state as ClientsLoaded).filterStatus : null,
+          filteredClients: clients,
+          searchQuery: '',
+          filterStatus: null,
         ));
       }
     } catch (e, stackTrace) {
-      _logger.e('❌ Error searching clients', error: e, stackTrace: stackTrace);
+      _logger.e('❌ Failed to load clients', error: e, stackTrace: stackTrace);
+      emit(ClientsError('Failed to load clients: $e'));
+    }
+  }
+
+  Future<void> _onSearchClients(
+    SearchClients event,
+    Emitter<ClientsState> emit,
+  ) async {
+    try {
+      // Ensure we have a valid loaded state
+      if (state is! ClientsLoaded) {
+        _logger.w('⚠️ Invalid state for searching clients');
+        return;
+      }
+
+      final currentState = state as ClientsLoaded;
+      
+      // Use empty string if query is null
+      final searchQuery = event.query;
+
+      // Filter clients based on search query and current filter status
+      final filteredClients = _filterAndSearchClients(
+        currentState.clients, 
+        searchQuery: searchQuery, 
+        status: currentState.filterStatus
+      );
+
+      // Emit updated state
+      emit(ClientsLoaded(
+        clients: currentState.clients,
+        filteredClients: filteredClients,
+        searchQuery: searchQuery,
+        filterStatus: currentState.filterStatus,
+      ));
+    } catch (e, stackTrace) {
+      _logger.e('❌ Failed to search clients', error: e, stackTrace: stackTrace);
+      emit(ClientsError('Failed to search clients: $e'));
     }
   }
 
@@ -300,74 +345,37 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     required String searchQuery,
     ClientStatus? status,
   }) {
-    var filteredClients = List<Client>.from(clients);
+    // Normalize search query
+    final lowercaseQuery = (searchQuery).toLowerCase().trim();
 
-    // Apply status filter if specified
-    if (status != null) {
-      filteredClients = filteredClients
-          .where((client) => client.status == status)
-          .toList();
+    // Filter by status first if specified
+    var filteredClients = status != null
+        ? clients.where((client) => client.status == status).toList()
+        : List<Client>.from(clients);
+
+    // If no search query, return filtered clients
+    if (lowercaseQuery.isEmpty) {
+      return filteredClients;
     }
 
-    // Apply search filter if query is not empty
-    if (searchQuery.isNotEmpty) {
-      final lowercaseQuery = searchQuery.toLowerCase();
-      filteredClients = filteredClients.where((client) {
-        final searchableFields = [
-          client.fullName.toLowerCase(),
-          client.email.toLowerCase(),
-          client.phone.toLowerCase(),
-          client.organizationName?.toLowerCase() ?? '',
-          client.domain.name.toLowerCase(),
-        ];
+    // Perform search across multiple fields
+    return filteredClients.where((client) {
+      // Create list of searchable fields
+      final searchableFields = [
+        client.firstName.toLowerCase(),
+        client.lastName.toLowerCase(),
+        client.email.toLowerCase(),
+        client.phone.toLowerCase(),
+        if (client.organizationName != null) 
+          client.organizationName!.toLowerCase(),
+        client.status.toString().toLowerCase(),
+        client.type.toString().toLowerCase(),
+        client.domain.toString().toLowerCase(),
+      ];
 
-        return searchableFields.any((field) => field.contains(lowercaseQuery));
-      }).toList();
-    }
-
-    return filteredClients;
-  }
-
-
-  Future<void> _onUpdateClient(
-    UpdateClient event,
-    Emitter<ClientsState> emit,
-  ) async {
-    try {
-      if (state is! ClientsLoaded) {
-        throw Exception('Invalid state for updating client');
-      }
-
-      final currentState = state as ClientsLoaded;
-      
-      // Update local state first for immediate UI feedback
-      final updatedClients = List<Client>.from(currentState.clients);
-      final index = updatedClients.indexWhere((c) => c.id == event.client.id);
-      if (index != -1) {
-        updatedClients[index] = event.client;
-      }
-
-      emit(ClientsLoaded(
-        clients: updatedClients,
-        searchQuery: currentState.searchQuery,
-        filterStatus: currentState.filterStatus,
-      ));
-
-      // Then update Firestore in the background
-      final orgId = await _getOrganizationId();
-      if (orgId == null) {
-        throw Exception('Organization ID not found');
-      }
-
-      await _clientsRepository.updateClient(orgId, event.client);
-      _logger.d('✅ Client updated successfully');
-
-    } catch (e, stackTrace) {
-      _logger.e('❌ Failed to update client', error: e, stackTrace: stackTrace);
-      if (!emit.isDone) {
-        emit(ClientsError('Failed to update client: $e'));
-      }
-    }
+      // Check if any field contains the search query
+      return searchableFields.any((field) => field.contains(lowercaseQuery));
+    }).toList();
   }
 
   Future<void> _onAddClient(
@@ -375,32 +383,101 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     Emitter<ClientsState> emit,
   ) async {
     try {
-      // Update local state first for immediate UI feedback
-      if (state is ClientsLoaded) {
-        final currentState = state as ClientsLoaded;
-        final updatedClients = List<Client>.from(currentState.clients)
-          ..add(event.client);
+      _logger.i('📝 Adding new client');
 
-        emit(ClientsLoaded(
-          clients: updatedClients,
-          searchQuery: currentState.searchQuery,
-          filterStatus: currentState.filterStatus,
-        ));
+      // Ensure we have a valid loaded state
+      if (state is! ClientsLoaded) {
+        _logger.w('⚠️ Invalid state for adding client');
+        return;
       }
 
-      // Then update Firestore in the background
+      final currentState = state as ClientsLoaded;
+
+      // Get organization ID
       final orgId = await _getOrganizationId();
       if (orgId == null) {
         throw Exception('Organization ID not found');
       }
 
-      await _clientsRepository.createClient(orgId, event.client);
-      _logger.d('✅ Client created successfully');
+      // Create the client in Firestore
+      final newClient = await _clientsRepository.createClient(orgId, event.client);
+      _logger.d('✅ Client created with ID: ${newClient.id}');
+
+      // Update local state with the new client
+      final updatedClients = [...currentState.clients, newClient];
+
+      // Emit updated state
+      emit(ClientsLoaded(
+        clients: updatedClients,
+        filteredClients: _filterAndSearchClients(
+          updatedClients,
+          searchQuery: currentState.searchQuery,
+          status: currentState.filterStatus,
+        ),
+        searchQuery: currentState.searchQuery,
+        filterStatus: currentState.filterStatus,
+      ));
+
+      _logger.d('✅ Client added successfully');
 
     } catch (e, stackTrace) {
-      _logger.e('❌ Failed to create client', error: e, stackTrace: stackTrace);
-      if (!emit.isDone) {
-        emit(ClientsError('Failed to create client: $e'));
+      _logger.e('❌ Failed to add client', error: e, stackTrace: stackTrace);
+      
+      // Re-emit the previous state to maintain UI consistency
+      if (state is ClientsLoaded) {
+        emit(state);
+      }
+      
+      emit(ClientsError('Failed to add client: $e'));
+    }
+  }
+
+  Future<void> _onUpdateClient(
+    UpdateClient event,
+    Emitter<ClientsState> emit,
+  ) async {
+    try {
+      _logger.i('📝 Updating client: ${event.client.id}');
+
+      // Ensure we have a valid loaded state
+      if (state is! ClientsLoaded) {
+        _logger.w('⚠️ Invalid state for updating client');
+        return;
+      }
+
+      final currentState = state as ClientsLoaded;
+      final orgId = await _getOrganizationId();
+      if (orgId == null) {
+        throw Exception('Organization ID not found');
+      }
+
+      // Update client in repository first
+      await _clientsRepository.updateClient(orgId, event.client);
+
+      // Update local state after successful repository update
+      final updatedClients = currentState.clients.map((client) {
+        return client.id == event.client.id ? event.client : client;
+      }).toList();
+
+      final updatedState = ClientsLoaded(
+        clients: updatedClients,
+        filteredClients: _filterAndSearchClients(
+          updatedClients,
+          searchQuery: currentState.searchQuery,
+          status: currentState.filterStatus,
+        ),
+        searchQuery: currentState.searchQuery,
+        filterStatus: currentState.filterStatus,
+      );
+
+      emit(updatedState);
+      _logger.d('✅ Client update successful');
+    } catch (e, stackTrace) {
+      _logger.e('❌ Failed to update client', error: e, stackTrace: stackTrace);
+      emit(ClientsError('Failed to update client: $e'));
+      // Re-emit the previous state to maintain UI consistency
+      if (state is ClientsLoaded) {
+        emit(state);
       }
     }
   }
@@ -412,37 +489,55 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     try {
       _logger.i('🗑️ Deleting client: ${event.clientId}');
 
-      // Get current state data
+      // Ensure we have a valid loaded state
       if (state is! ClientsLoaded) {
-        throw Exception('Invalid state for client deletion');
+        _logger.w('⚠️ Invalid state for deleting client');
+        return;
       }
+
       final currentState = state as ClientsLoaded;
+      
+      // Check if client exists in current state
+      final clientToDelete = currentState.clients.firstWhere(
+        (c) => c.id == event.clientId,
+        orElse: () => throw Exception('Client not found in current state'),
+      );
 
-      // Update local state immediately for better UX
-      final updatedClients = currentState.clients
-          .where((client) => client.id != event.clientId)
-          .toList();
-
-      emit(ClientsLoaded(
-        clients: updatedClients,
-        searchQuery: currentState.searchQuery,
-        filterStatus: currentState.filterStatus,
-      ));
-
-      // Delete from Firestore in the background
       final orgId = await _getOrganizationId();
       if (orgId == null) {
         throw Exception('Organization ID not found');
       }
 
+      // Remove client from local state first
+      final updatedClients = currentState.clients
+          .where((client) => client.id != event.clientId)
+          .toList();
+
+      // Emit updated state
+      emit(ClientsLoaded(
+        clients: updatedClients,
+        filteredClients: _filterAndSearchClients(
+          updatedClients,
+          searchQuery: currentState.searchQuery,
+          status: currentState.filterStatus,
+        ),
+        searchQuery: currentState.searchQuery,
+        filterStatus: currentState.filterStatus,
+      ));
+
+      // Then delete from Firestore
       await _clientsRepository.deleteClient(orgId, event.clientId);
       _logger.d('✅ Client deleted successfully');
-      
+
     } catch (e, stackTrace) {
       _logger.e('❌ Failed to delete client', error: e, stackTrace: stackTrace);
-      if (!emit.isDone) {
-        emit(ClientsError('Failed to delete client: $e'));
+      
+      // Re-emit the previous state to maintain UI consistency
+      if (state is ClientsLoaded) {
+        emit(state);
       }
+      
+      emit(ClientsError('Failed to delete client: $e'));
     }
   }
 

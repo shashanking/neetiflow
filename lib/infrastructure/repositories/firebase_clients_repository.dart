@@ -14,62 +14,102 @@ class FirebaseClientsException implements Exception {
 
 class FirebaseClientsRepository implements ClientsRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final _logger = Logger(
-    printer: PrettyPrinter(
-      methodCount: 0,
-      errorMethodCount: 5,
-      lineLength: 50,
-      colors: true,
-      printEmojis: true,
-    ),
-  );
+  late final Logger _logger;
 
-
+  FirebaseClientsRepository() {
+    _logger = Logger(
+      printer: PrettyPrinter(
+        methodCount: 0,
+        errorMethodCount: 5,
+        lineLength: 50,
+        colors: true,
+        printEmojis: true,
+      ),
+    );
+  }
 
   Future<Client> _createClientFromDocument(
       DocumentSnapshot<Map<String, dynamic>> doc) async {
-    final data = doc.data()!;
-    return Client(
-      id: doc.id,
-      firstName: data['firstName'] as String? ?? '',
-      lastName: data['lastName'] as String? ?? '',
-      email: data['email'] as String? ?? '',
-      phone: data['phone'] as String? ?? '',
-      address: data['address'] as String? ?? '',
-      type: ClientType.values.firstWhere(
-        (e) => e.toString().split('.').last == data['type'],
-        orElse: () => ClientType.individual,
-      ),
-      status: ClientStatus.values.firstWhere(
-        (e) => e.toString().split('.').last == data['status'],
-        orElse: () => ClientStatus.active,
-      ),
-      domain: ClientDomain.values.firstWhere(
-        (e) => e.toString().split('.').last == data['domain'],
-        orElse: () => ClientDomain.other,
-      ),
-      rating: (data['rating'] as num?)?.toDouble() ?? 0.0,
-      organizationName: data['organizationName'] as String?,
-      governmentType: data['governmentType'] as String?,
-      website: data['website'] as String?,
-      gstin: data['gstin'] as String?,
-      pan: data['pan'] as String?,
-      leadId: data['leadId'] as String?,
-      joiningDate: data['joiningDate'] != null
-          ? (data['joiningDate'] as Timestamp).toDate()
-          : DateTime.now(),
-      lastInteractionDate: data['lastInteractionDate'] != null
-          ? (data['lastInteractionDate'] as Timestamp).toDate()
-          : null,
-      metadata: data['metadata'] as Map<String, dynamic>?,
-      tags: (data['tags'] as List<dynamic>?)?.cast<String>(),
-      assignedEmployeeId: data['assignedEmployeeId'] as String?,
-      projects: (data['projects'] as List<dynamic>?)
-              ?.map((e) => Project.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      lifetimeValue: (data['lifetimeValue'] as num?)?.toDouble() ?? 0.0,
-    );
+    try {
+      final data = doc.data();
+      if (data == null) {
+        throw FirebaseClientsException('Document data is null');
+      }
+
+      return Client(
+        id: doc.id,
+        firstName: data['firstName']?.toString() ?? '',
+        lastName: data['lastName']?.toString() ?? '',
+        email: data['email']?.toString() ?? '',
+        phone: data['phone']?.toString() ?? '',
+        address: data['address']?.toString() ?? '',
+        organizationName: data['organizationName']?.toString(),
+        governmentType: data['governmentType']?.toString(),
+        website: data['website']?.toString(),
+        gstin: data['gstin']?.toString(),
+        pan: data['pan']?.toString(),
+        leadId: data['leadId']?.toString(),
+        assignedEmployeeId: data['assignedEmployeeId']?.toString(),
+        rating: (data['rating'] is num) ? (data['rating'] as num).toDouble() : 0.0,
+        lifetimeValue: (data['lifetimeValue'] is num) ? (data['lifetimeValue'] as num).toDouble() : 0.0,
+        joiningDate: _parseTimestamp(data['joiningDate']) ?? DateTime.now(),
+        lastInteractionDate: _parseTimestamp(data['lastInteractionDate']) ?? DateTime.now(),
+        type: _parseEnum(data['type']?.toString(), ClientType.values, ClientType.individual),
+        status: _parseEnum(data['status']?.toString(), ClientStatus.values, ClientStatus.active),
+        domain: _parseEnum(data['domain']?.toString(), ClientDomain.values, ClientDomain.other),
+        projects: _parseProjects(data['projects']),
+        tags: (data['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+        metadata: (data['metadata'] as Map<String, dynamic>?) ?? {},
+      );
+    } catch (e, stackTrace) {
+      _logger.e('❌ Failed to create client from document', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  // Helper method to parse enums safely
+  T _parseEnum<T>(dynamic value, List<T> values, T defaultValue) {
+    if (value == null) return defaultValue;
+    
+    // Convert value to string and normalize it
+    final stringValue = value.toString().toLowerCase().trim();
+    
+    // Try to find a matching enum value
+    try {
+      return values.firstWhere(
+        (v) => v.toString().split('.').last.toLowerCase() == stringValue,
+        orElse: () => defaultValue,
+      );
+    } catch (e) {
+      _logger.w('⚠️ Failed to parse enum value: $value', error: e);
+      return defaultValue;
+    }
+  }
+
+  // Helper method to parse timestamps safely
+  DateTime? _parseTimestamp(dynamic timestamp) {
+    try {
+      return timestamp != null 
+        ? (timestamp as Timestamp).toDate() 
+        : null;
+    } catch (e) {
+      _logger.w('⚠️ Failed to parse timestamp', error: e);
+      return null;
+    }
+  }
+
+  // Helper method to parse projects safely
+  List<Project> _parseProjects(dynamic projectsData) {
+    try {
+      return projectsData != null
+        ? (projectsData as List<dynamic>)
+            .map((e) => Project.fromJson(e as Map<String, dynamic>))
+            .toList()
+        : [];
+    } catch (e) {
+      _logger.w('⚠️ Failed to parse projects, returning empty list');
+      return [];
+    }
   }
 
   @override
@@ -155,9 +195,9 @@ class FirebaseClientsRepository implements ClientsRepository {
   @override
   Future<Client> createClient(String organizationId, Client client) async {
     try {
-      _logger.d('➕ Creating client in organization: $organizationId');
+      _logger.i('📝 Creating new client');
       
-      // Verify organization exists
+      // Check if organization exists
       final orgDoc = await _firestore
           .collection('organizations')
           .doc(organizationId)
@@ -180,8 +220,8 @@ class FirebaseClientsRepository implements ClientsRepository {
         throw FirebaseClientsException('Client must have a name or organization name');
       }
 
-      // Prepare client data with validation
-      final clientData = {
+      // Prepare client data with validation and null checks
+      final Map<String, dynamic> clientData = {
         'firstName': client.firstName.trim(),
         'lastName': client.lastName.trim(),
         'email': client.email.trim(),
@@ -190,33 +230,48 @@ class FirebaseClientsRepository implements ClientsRepository {
         'type': client.type.toString().split('.').last,
         'status': client.status.toString().split('.').last,
         'domain': client.domain.toString().split('.').last,
-        'rating': client.rating.clamp(0.0, 5.0),  // Ensure rating is between 0-5
-        'organizationName': client.organizationName?.trim(),
-        'governmentType': client.governmentType?.trim(),
-        'website': client.website?.trim(),
-        'gstin': client.gstin?.trim(),
-        'pan': client.pan?.trim(),
-        'leadId': client.leadId,
+        'rating': client.rating.clamp(0.0, 5.0),
+        'lifetimeValue': client.lifetimeValue.clamp(0.0, double.infinity),
         'joiningDate': Timestamp.fromDate(client.joiningDate),
         'lastInteractionDate': Timestamp.fromDate(DateTime.now()),
-        'metadata': client.metadata ?? {},
-        'tags': client.tags ?? [],
-        'assignedEmployeeId': client.assignedEmployeeId,
-        'projects': client.projects.map((p) => p.toJson()).toList(),
-        'lifetimeValue': client.lifetimeValue.clamp(0.0, double.infinity),
+        'projects': [], // Initialize as empty array
+        'tags': [], // Initialize as empty array
+        'metadata': {}, // Initialize as empty map
       };
 
-      _logger.d('📝 Creating client with ID: ${docRef.id}');
+      // Add optional fields only if they have values
+      void addIfNotEmpty(String key, String? value) {
+        if (value != null && value.trim().isNotEmpty) {
+          clientData[key] = value.trim();
+        }
+      }
+
+      addIfNotEmpty('organizationName', client.organizationName);
+      addIfNotEmpty('governmentType', client.governmentType);
+      addIfNotEmpty('website', client.website);
+      addIfNotEmpty('gstin', client.gstin);
+      addIfNotEmpty('pan', client.pan);
+      addIfNotEmpty('leadId', client.leadId);
+      addIfNotEmpty('assignedEmployeeId', client.assignedEmployeeId);
+
+      // Add non-string optional fields if they have values
+      if (client.metadata != null && client.metadata!.isNotEmpty) {
+        clientData['metadata'] = Map<String, dynamic>.from(client.metadata!);
+      }
+      if (client.tags != null && client.tags!.isNotEmpty) {
+        clientData['tags'] = List<String>.from(client.tags!);
+      }
+      if (client.projects.isNotEmpty) {
+        clientData['projects'] = client.projects.map((p) => p.toJson()).toList();
+      }
+
+      // Create the document in Firestore
+      await docRef.set(clientData);
+      _logger.d('✅ Client document created successfully');
+
+      // Create and return the client object with the new ID
+      return client.copyWith(id: docRef.id);
       
-      // Create the document in a transaction for atomicity
-      await _firestore.runTransaction((transaction) async {
-        transaction.set(docRef, clientData);
-      });
-      
-      _logger.d('✅ Client created successfully');
-      
-      // Return the created client
-      return _createClientFromDocument(await docRef.get());
     } catch (e, stackTrace) {
       _logger.e('❌ Failed to create client', error: e, stackTrace: stackTrace);
       if (e is FirebaseClientsException) {
@@ -243,8 +298,8 @@ class FirebaseClientsRepository implements ClientsRepository {
         throw FirebaseClientsException('Client must have a name or organization name');
       }
 
-      // Prepare update data with validation
-      final updateData = {
+      // Prepare update data with validation and null checks
+      final Map<String, dynamic> updateData = {
         'firstName': client.firstName.trim(),
         'lastName': client.lastName.trim(),
         'email': client.email.trim(),
@@ -254,23 +309,39 @@ class FirebaseClientsRepository implements ClientsRepository {
         'status': client.status.toString().split('.').last,
         'domain': client.domain.toString().split('.').last,
         'rating': client.rating.clamp(0.0, 5.0),
-        'organizationName': client.organizationName?.trim(),
-        'governmentType': client.governmentType?.trim(),
-        'website': client.website?.trim(),
-        'gstin': client.gstin?.trim(),
-        'pan': client.pan?.trim(),
-        'leadId': client.leadId,
-        'joiningDate': Timestamp.fromDate(client.joiningDate),
-        'lastInteractionDate': Timestamp.fromDate(DateTime.now()),
-        'metadata': client.metadata ?? {},
-        'tags': client.tags ?? [],
-        'assignedEmployeeId': client.assignedEmployeeId,
-        'projects': client.projects.map((p) => p.toJson()).toList(),
         'lifetimeValue': client.lifetimeValue.clamp(0.0, double.infinity),
+        'lastInteractionDate': Timestamp.fromDate(DateTime.now()),
+        'joiningDate': Timestamp.fromDate(client.joiningDate),
       };
 
-      // Update directly without transaction for better performance
-      await clientRef.update(updateData);
+      // Add optional fields only if they have values
+      void addIfNotEmpty(String key, String? value) {
+        if (value != null && value.trim().isNotEmpty) {
+          updateData[key] = value.trim();
+        }
+      }
+
+      addIfNotEmpty('organizationName', client.organizationName);
+      addIfNotEmpty('governmentType', client.governmentType);
+      addIfNotEmpty('website', client.website);
+      addIfNotEmpty('gstin', client.gstin);
+      addIfNotEmpty('pan', client.pan);
+      addIfNotEmpty('leadId', client.leadId);
+      addIfNotEmpty('assignedEmployeeId', client.assignedEmployeeId);
+
+      // Add non-string optional fields
+      if (client.metadata != null && client.metadata!.isNotEmpty) {
+        updateData['metadata'] = client.metadata;
+      }
+      if (client.tags != null && client.tags!.isNotEmpty) {
+        updateData['tags'] = client.tags;
+      }
+      if (client.projects.isNotEmpty) {
+        updateData['projects'] = client.projects.map((p) => p.toJson()).toList();
+      }
+
+      // Update in Firestore with merge option to prevent field deletion
+      await clientRef.set(updateData, SetOptions(merge: true));
       
       _logger.d('✅ Client updated successfully');
     } catch (e, stackTrace) {
@@ -285,19 +356,30 @@ class FirebaseClientsRepository implements ClientsRepository {
   @override
   Future<void> deleteClient(String organizationId, String clientId) async {
     try {
-      _logger.d('🗑️ Deleting client: $clientId from organization: $organizationId');
+      _logger.i('🗑️ Deleting client: $clientId');
       
-      // Get the client document reference
+      // First check if organization exists
+      final orgDoc = await _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .get();
+          
+      if (!orgDoc.exists) {
+        _logger.w('⚠️ Organization not found');
+        throw FirebaseClientsException('Organization not found');
+      }
+      
+      // Get reference to the client document
       final clientRef = _firestore
           .collection('organizations')
           .doc(organizationId)
           .collection('clients')
           .doc(clientId);
       
-      // Verify the document exists before attempting deletion
-      final docSnapshot = await clientRef.get();
-      if (!docSnapshot.exists) {
-        _logger.w('⚠️ Client document not found');
+      // Check if client exists before deleting
+      final clientDoc = await clientRef.get();
+      if (!clientDoc.exists) {
+        _logger.w('⚠️ Client not found');
         throw FirebaseClientsException('Client not found');
       }
       
@@ -497,7 +579,7 @@ class FirebaseClientsRepository implements ClientsRepository {
 
   Stream<List<Client>> watchClients(String organizationId) {
     try {
-      _logger.i('👀 Starting clients watch stream');
+      _logger.d('🌊 Starting clients watch stream for organization: $organizationId');
       
       return _firestore
           .collection('organizations')
@@ -506,14 +588,33 @@ class FirebaseClientsRepository implements ClientsRepository {
           .orderBy('lastInteractionDate', descending: true)
           .snapshots()
           .asyncMap((snapshot) async {
-            final futures = snapshot.docs.map((doc) => _createClientFromDocument(doc));
-            return await Future.wait(futures);
+            final List<Client> clients = [];
+            
+            for (var doc in snapshot.docs) {
+              try {
+                // Safely create client, skipping documents that can't be parsed
+                final client = await _createClientFromDocument(doc);
+                clients.add(client);
+              } catch (e) {
+                _logger.e('❌ Failed to parse client document: ${doc.id}', error: e);
+                // Optionally log the problematic document data
+                _logger.d('Problematic document data: ${doc.data()}');
+                // Continue processing other documents
+                continue;
+              }
+            }
+            
+            _logger.d('📦 Successfully processed ${clients.length} clients from stream');
+            return clients;
           });
     } catch (e, stackTrace) {
       _logger.e('❌ Error setting up clients watch stream',
           error: e, stackTrace: stackTrace);
-      throw FirebaseClientsException(
-          'Failed to watch clients: ${e.toString()}');
+      
+      // Return a stream that immediately emits an error
+      return Stream.error(
+        FirebaseClientsException('Failed to watch clients: ${e.toString()}')
+      );
     }
   }
 }

@@ -249,14 +249,37 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
         throw Exception('Company ID is required');
       }
 
+      // Preserve the current state before updating
+      final currentState = state is EmployeesLoaded 
+        ? (state as EmployeesLoaded).employees 
+        : <Employee>[];
+
+      // Emit loading state to show progress
+      emit(EmployeesLoading(employees: currentState));
+
+      // Update the employee
       await _employeesRepository.updateEmployee(event.employee);
-      emit(EmployeeOperationSuccess('Employee ${event.employee.firstName} ${event.employee.lastName} updated successfully'));
+
+      // Fetch updated employees list
       final employees = await _employeesRepository.getEmployees(event.employee.companyId!);
       final sortedEmployees = List<Employee>.from(employees)
         ..sort((a, b) => '${a.firstName} ${a.lastName}'.compareTo('${b.firstName} ${b.lastName}'));
+
+      // Emit the updated list with a success message
       emit(EmployeesLoaded(sortedEmployees));
+
+      // Optional: Add a brief success notification
+      await Future.delayed(const Duration(milliseconds: 500), () {
+        add(ResetEmployeesState());
+      });
+
     } catch (e) {
-      emit(EmployeesError('Failed to update employee: ${e.toString()}', const []));
+      // If current state is EmployeesLoaded, preserve its employees
+      final currentEmployees = state is EmployeesLoaded 
+        ? (state as EmployeesLoaded).employees 
+        : <Employee>[];
+
+      emit(EmployeesError('Failed to update employee: ${e.toString()}', currentEmployees));
     }
   }
 
