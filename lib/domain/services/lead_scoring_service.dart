@@ -125,15 +125,6 @@ class LeadScoringService {
     return score;
   }
 
-  /// Calculate days since last activity
-  int _daysSinceLastActivity(Lead lead) {
-    final metadata = lead.metadata ?? {};
-    final lastActivity = metadata['lastActivityDate'] as String?;
-    if (lastActivity == null) return 30; // Default to maximum if no activity
-
-    final lastActivityDate = DateTime.parse(lastActivity);
-    return DateTime.now().difference(lastActivityDate).inDays;
-  }
 
   /// Normalize a value between 0 and 1 based on a maximum value
   double _normalizeValue(num value, num max) {

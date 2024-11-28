@@ -56,8 +56,9 @@ class Lead extends Equatable {
       if (createdAt == null) return DateTime.now();
       if (createdAt is Timestamp) return createdAt.toDate();
       if (createdAt is String) return DateTime.parse(createdAt);
-      if (createdAt is int)
+      if (createdAt is int) {
         return DateTime.fromMillisecondsSinceEpoch(createdAt);
+      }
       return DateTime.now();
     }
 
@@ -153,8 +154,8 @@ class Lead extends Equatable {
       score: double.parse(getValue('score')),
       scoreFactors: _parseScoreFactors(getValue('score factors')),
       scoreHistory: _parseScoreHistory(getValue('score history')),
-      customFields: {}, // Initialize customFields as an empty map
-      timelineEvents: [], // Initialize timelineEvents as an empty list
+      customFields: const {}, // Initialize customFields as an empty map
+      timelineEvents: const [], // Initialize timelineEvents as an empty list
     );
   }
 

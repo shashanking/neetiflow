@@ -498,7 +498,7 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
       final currentState = state as ClientsLoaded;
       
       // Check if client exists in current state
-      final clientToDelete = currentState.clients.firstWhere(
+      currentState.clients.firstWhere(
         (c) => c.id == event.clientId,
         orElse: () => throw Exception('Client not found in current state'),
       );

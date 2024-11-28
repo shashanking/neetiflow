@@ -455,9 +455,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
         child: AlertDialog(
           title: const Text('Delete Client'),
           content: Text(
-            'Are you sure you want to delete ${client.fullName}' +
-            (client.organizationName?.isNotEmpty ?? false ? ' (${client.organizationName})' : '') +
-            '?'
+            'Are you sure you want to delete ${client.fullName}${client.organizationName?.isNotEmpty ?? false ? ' (${client.organizationName})' : ''}?'
           ),
           actions: [
             TextButton(

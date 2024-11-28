@@ -4,6 +4,7 @@ import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
 import 'package:neetiflow/presentation/widgets/custom_fields/custom_field_widget.dart';
+// ignore: depend_on_referenced_packages
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -38,8 +39,6 @@ class _LeadFormState extends State<LeadForm> {
   late LeadStatus _status;
   late ProcessStatus _processStatus;
   late Map<String, CustomFieldValue> _customFieldValues = {};
-  late LeadStatus _initialStatus;
-  late ProcessStatus _initialProcessStatus;
 
   @override
   void initState() {
@@ -58,11 +57,10 @@ class _LeadFormState extends State<LeadForm> {
       _message = lead.message;
       _status = lead.status;
       _processStatus = lead.processStatus;
-      _initialStatus = lead.status;
-      _initialProcessStatus = lead.processStatus;
       _customFieldValues = Map<String, CustomFieldValue>.from(lead.customFields
           .map((key, value) => MapEntry(
               key,
+              // ignore: unnecessary_type_check
               value is CustomFieldValue
                   ? value
                   : CustomFieldValue(
@@ -76,8 +74,6 @@ class _LeadFormState extends State<LeadForm> {
       _message = '';
       _status = LeadStatus.cold;
       _processStatus = ProcessStatus.fresh;
-      _initialStatus = _status;
-      _initialProcessStatus = _processStatus;
       _customFieldValues = {};
     }
   }

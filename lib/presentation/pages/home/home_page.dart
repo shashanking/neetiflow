@@ -10,80 +10,142 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600; // Mobile breakpoint
     final isLargeScreen = screenWidth >= 1200;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, state) {
-              if (state is Authenticated) {
-                return Text(
-                  '${state.employee.companyName} Dashboard',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                );
-              }
-              return Text(
-                'Dashboard',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          GridView.count(
-            crossAxisCount: isLargeScreen ? 4 : 2,
-            shrinkWrap: true,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _DashboardCard(
-                icon: Icons.people,
-                title: 'Employees',
-                subtitle: 'Manage your team',
-                onTap: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => const PersistentShell(
-                        initialIndex: 5,
+    // If it's a large screen, return the content without an AppBar
+    if (!isCompact) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dashboard',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            GridView.count(
+              crossAxisCount: isLargeScreen ? 4 : 2,
+              shrinkWrap: true,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _DashboardCard(
+                  icon: Icons.people,
+                  title: 'Employees',
+                  subtitle: 'Manage your team',
+                  onTap: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => const PersistentShell(
+                          initialIndex: 5,
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-              _DashboardCard(
-                icon: Icons.business,
-                title: 'Organization',
-                subtitle: 'Company details',
-                onTap: () {
-                  // TODO: Navigate to organization page
-                },
-              ),
-              _DashboardCard(
-                icon: Icons.contacts,
-                title: 'Leads',
-                subtitle: 'Manage leads',
-                onTap: () {
-                  // TODO: Update navigation once navigation service is implemented
-                },
-              ),
-              _DashboardCard(
-                icon: Icons.analytics,
-                title: 'Analytics',
-                subtitle: 'View insights',
-                onTap: () {
-                  // TODO: Navigate to analytics page
-                },
-              ),
-            ],
-          ),
-        ],
+                    );
+                  },
+                ),
+                _DashboardCard(
+                  icon: Icons.business,
+                  title: 'Organization',
+                  subtitle: 'Company details',
+                  onTap: () {
+                    // TODO: Navigate to organization page
+                  },
+                ),
+                _DashboardCard(
+                  icon: Icons.contacts,
+                  title: 'Leads',
+                  subtitle: 'Manage leads',
+                  onTap: () {
+                    // TODO: Update navigation once navigation service is implemented
+                  },
+                ),
+                _DashboardCard(
+                  icon: Icons.analytics,
+                  title: 'Analytics',
+                  subtitle: 'View insights',
+                  onTap: () {
+                    // TODO: Navigate to analytics page
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Mobile/Compact view with AppBar
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        automaticallyImplyLeading: true,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            final persistentShell = PersistentShell.of(context);
+            persistentShell?.toggleDrawer();
+          },
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _DashboardCard(
+                  icon: Icons.people,
+                  title: 'Employees',
+                  subtitle: 'Manage your team',
+                  onTap: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => const PersistentShell(
+                          initialIndex: 5,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _DashboardCard(
+                  icon: Icons.business,
+                  title: 'Organization',
+                  subtitle: 'Company details',
+                  onTap: () {
+                    // TODO: Navigate to organization page
+                  },
+                ),
+                _DashboardCard(
+                  icon: Icons.contacts,
+                  title: 'Leads',
+                  subtitle: 'Manage leads',
+                  onTap: () {
+                    // TODO: Update navigation once navigation service is implemented
+                  },
+                ),
+                _DashboardCard(
+                  icon: Icons.analytics,
+                  title: 'Analytics',
+                  subtitle: 'View insights',
+                  onTap: () {
+                    // TODO: Navigate to analytics page
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

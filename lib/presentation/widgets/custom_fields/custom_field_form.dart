@@ -226,6 +226,7 @@ class _CustomFieldFormState extends State<CustomFieldForm> {
               ],
             ),
           );
+        // ignore: unnecessary_to_list_in_spreads
         }).toList(),
         TextButton.icon(
           onPressed: () {

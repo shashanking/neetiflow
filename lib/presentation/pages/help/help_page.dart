@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class HelpPage extends StatelessWidget {
   const HelpPage({super.key});
@@ -6,67 +7,93 @@ class HelpPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Help Center',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Welcome to NeetiFlow Help Center. Here you can find guides, tutorials, and answers to frequently asked questions.',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
-          ),
-          const SizedBox(height: 32),
-          _buildHelpSection(
-            theme,
-            title: 'Quick Start Guide',
-            icon: Icons.rocket_launch,
-            items: [
-              'Getting Started with NeetiFlow',
-              'Setting Up Your Organization',
-              'Managing Employees',
-              'Working with Leads',
-              'Understanding Reports',
-            ],
-          ),
-          const SizedBox(height: 24),
-          _buildHelpSection(
-            theme,
-            title: 'Frequently Asked Questions',
-            icon: Icons.help_outline,
-            items: [
-              'How to reset my password?',
-              'How to add a new employee?',
-              'How to manage departments?',
-              'How to track leads?',
-              'How to generate reports?',
-            ],
-          ),
-          const SizedBox(height: 24),
-          _buildHelpSection(
-            theme,
-            title: 'Contact Support',
-            icon: Icons.support_agent,
-            items: [
-              'Email Support',
-              'Live Chat',
-              'Documentation',
-              'Video Tutorials',
-              'Submit a Bug Report',
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Help & Support'),
+        automaticallyImplyLeading: !isCompact,
+        leading: isCompact
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () {
+                  PersistentShell.of(context)?.toggleDrawer();
+                },
+              )
+            : null,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.contact_support),
+            onPressed: () => _showContactSupport(context),
           ),
         ],
       ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Help Center',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Welcome to NeetiFlow Help Center. Here you can find guides, tutorials, and answers to frequently asked questions.',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 32),
+            _buildHelpSection(
+              theme,
+              title: 'Quick Start Guide',
+              icon: Icons.rocket_launch,
+              items: [
+                'Getting Started with NeetiFlow',
+                'Setting Up Your Organization',
+                'Managing Employees',
+                'Working with Leads',
+                'Understanding Reports',
+              ],
+            ),
+            const SizedBox(height: 24),
+            _buildHelpSection(
+              theme,
+              title: 'Frequently Asked Questions',
+              icon: Icons.help_outline,
+              items: [
+                'How to reset my password?',
+                'How to add a new employee?',
+                'How to manage departments?',
+                'How to track leads?',
+                'How to generate reports?',
+              ],
+            ),
+            const SizedBox(height: 24),
+            _buildHelpSection(
+              theme,
+              title: 'Contact Support',
+              icon: Icons.support_agent,
+              items: [
+                'Email Support',
+                'Live Chat',
+                'Documentation',
+                'Video Tutorials',
+                'Submit a Bug Report',
+              ],
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  void _showContactSupport(BuildContext context) {
+    // TODO: Implement contact support functionality
   }
 
   Widget _buildHelpSection(

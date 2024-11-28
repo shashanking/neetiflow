@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:provider/provider.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
 import 'package:neetiflow/domain/entities/custom_field.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';

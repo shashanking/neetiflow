@@ -16,6 +16,289 @@ import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
 import '../../domain/entities/employee.dart';
 import '../../domain/repositories/employees_repository.dart';
 
+/// Represents a single navigation item in the drawer
+class NavigationItem {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final int index;
+  final Widget? page;
+
+  const NavigationItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.index,
+    this.page,
+  });
+}
+
+/// Enhanced Navigation Drawer Configuration
+class NavigationDrawerConfig {
+  static List<NavigationItem> mainNavigationItems = [
+    const NavigationItem(
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard,
+      label: 'Dashboard',
+      index: 0,
+      page: HomePage(),
+    ),
+    const NavigationItem(
+      icon: Icons.contacts_outlined,
+      selectedIcon: Icons.contacts,
+      label: 'Leads',
+      index: 1,
+      page: LeadsPage(),
+    ),
+    const NavigationItem(
+      icon: Icons.people_outline,
+      selectedIcon: Icons.people,
+      label: 'Clients',
+      index: 2,
+      page: ClientsPage(),
+    ),
+    const NavigationItem(
+      icon: Icons.business_center_outlined,
+      selectedIcon: Icons.business_center,
+      label: 'Operations',
+      index: 3,
+      page: OperationsPage(),
+    ),
+    const NavigationItem(
+      icon: Icons.attach_money_outlined,
+      selectedIcon: Icons.attach_money,
+      label: 'Finances',
+      index: 4,
+      page: FinancesPage(),
+    ),
+    const NavigationItem(
+      icon: Icons.group_outlined,
+      selectedIcon: Icons.group,
+      label: 'Employees',
+      index: 5,
+      page: EmployeesPage(),
+    ),
+    const NavigationItem(
+      icon: Icons.corporate_fare_outlined,
+      selectedIcon: Icons.corporate_fare,
+      label: 'Organization',
+      index: 6,
+      page: OrganizationPage(),
+    ),
+  ];
+
+  static List<NavigationItem> preferenceItems = [
+    const NavigationItem(
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
+      label: 'Settings',
+      index: 7,
+      page: SettingsPage(),
+    ),
+    const NavigationItem(
+      icon: Icons.help_outline,
+      selectedIcon: Icons.help,
+      label: 'Help',
+      index: 8,
+      page: HelpPage(),
+    ),
+  ];
+}
+
+/// Custom Drawer Header
+class _NeetiFlowDrawerHeader extends StatelessWidget {
+  final ThemeData theme;
+
+  const _NeetiFlowDrawerHeader({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      color: theme.colorScheme.surface,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.business,
+              color: theme.colorScheme.primary,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'NeetiFlow',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Custom Navigation Item for Drawer
+class _NeetiFlowNavigationItem extends StatelessWidget {
+  final NavigationItem item;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  const _NeetiFlowNavigationItem({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Icon(
+        isSelected ? item.selectedIcon : item.icon,
+        color: isSelected 
+          ? theme.colorScheme.primary 
+          : theme.colorScheme.onSurfaceVariant,
+      ),
+      title: Text(
+        item.label,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: isSelected 
+            ? theme.colorScheme.primary 
+            : theme.colorScheme.onSurfaceVariant,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      selected: isSelected,
+      onTap: onTap,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
+}
+
+/// User Profile Section for Drawer
+class _NeetiFlowUserProfile extends StatelessWidget {
+  final ThemeData theme;
+
+  const _NeetiFlowUserProfile({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        ),
+        child: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            if (state is! Authenticated) {
+              return const SizedBox.shrink();
+            }
+
+            return Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: theme.colorScheme.surface,
+                    child: Text(
+                      state.employee.firstName.isNotEmpty
+                          ? state.employee.firstName[0].toUpperCase()
+                          : 'U',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${state.employee.firstName} ${state.employee.lastName}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: state.employee.isOnline
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.outline,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              state.employee.isOnline ? 'Online' : 'Offline',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      state.employee.isOnline
+                          ? Icons.toggle_on_outlined
+                          : Icons.toggle_off_outlined,
+                      color: state.employee.isOnline
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.outline,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      context.read<AuthBloc>().add(
+                            UpdateEmployeeOnlineStatus(
+                              employee: state.employee,
+                              isOnline: !state.employee.isOnline,
+                            ),
+                          );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () {
+                      context.read<AuthBloc>().add(SignOutRequested());
+                    },
+                    tooltip: 'Sign Out',
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class PersistentShell extends StatefulWidget {
   final int initialIndex;
 
@@ -36,6 +319,7 @@ class PersistentShellState extends State<PersistentShell> {
   late int _selectedIndex;
   Widget? _customPage;
   StreamSubscription<Employee>? _employeeSubscription;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void setCustomPage(Widget page) {
     setState(() {
@@ -49,94 +333,44 @@ class PersistentShellState extends State<PersistentShell> {
     });
   }
 
+  void toggleDrawer() {
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+    } else {
+      _scaffoldKey.currentState?.openDrawer();
+    }
+  }
+
   List<NavigationDrawerDestination> buildNavigationItems(ThemeData theme) {
     return [
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.dashboard_outlined),
-        selectedIcon: Icon(Icons.dashboard, color: theme.colorScheme.primary),
-        label: Text(
-          'Dashboard',
-          style: TextStyle(
-            color: _selectedIndex == 0
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
+      ...NavigationDrawerConfig.mainNavigationItems.map((item) {
+        return NavigationDrawerDestination(
+          icon: Icon(item.icon),
+          selectedIcon: Icon(item.selectedIcon, color: theme.colorScheme.primary),
+          label: Text(
+            item.label,
+            style: TextStyle(
+              color: _selectedIndex == item.index
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface,
+            ),
           ),
-        ),
-      ),
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.contacts_outlined),
-        selectedIcon: Icon(Icons.contacts, color: theme.colorScheme.primary),
-        label: Text(
-          'Leads',
-          style: TextStyle(
-            color: _selectedIndex == 1
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
+        );
+      }),
+      ...NavigationDrawerConfig.preferenceItems.map((item) {
+        return NavigationDrawerDestination(
+          icon: Icon(item.icon),
+          selectedIcon: Icon(item.selectedIcon, color: theme.colorScheme.primary),
+          label: Text(
+            item.label,
+            style: TextStyle(
+              color: _selectedIndex == item.index
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface,
+            ),
           ),
-        ),
-      ),
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.business_center_outlined),
-        selectedIcon:
-            Icon(Icons.business_center, color: theme.colorScheme.primary),
-        label: Text(
-          'Clients',
-          style: TextStyle(
-            color: _selectedIndex == 2
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
-          ),
-        ),
-      ),
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.engineering_outlined),
-        selectedIcon: Icon(Icons.engineering, color: theme.colorScheme.primary),
-        label: Text(
-          'Operations',
-          style: TextStyle(
-            color: _selectedIndex == 3
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
-          ),
-        ),
-      ),
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.account_balance_wallet_outlined),
-        selectedIcon: Icon(Icons.account_balance_wallet,
-            color: theme.colorScheme.primary),
-        label: Text(
-          'Finances',
-          style: TextStyle(
-            color: _selectedIndex == 4
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
-          ),
-        ),
-      ),
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.people_outline),
-        selectedIcon: Icon(Icons.people, color: theme.colorScheme.primary),
-        label: Text(
-          'Employees',
-          style: TextStyle(
-            color: _selectedIndex == 5
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
-          ),
-        ),
-      ),
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.business_outlined),
-        selectedIcon: Icon(Icons.business, color: theme.colorScheme.primary),
-        label: Text(
-          'Organization',
-          style: TextStyle(
-            color: _selectedIndex == 6
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface,
-          ),
-        ),
-      ),
+        );
+      }),
     ];
   }
 
@@ -165,286 +399,86 @@ class PersistentShellState extends State<PersistentShell> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isLargeScreen = screenWidth >= 1200;
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final isCompact = screenWidth < 600; // Mobile breakpoint
 
-    final drawerContent = Column(
-      children: [
-        // Logo and app name
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.business,
-                  color: theme.colorScheme.primary,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'NeetiFlow',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
+    // Drawer content that will be used in both mobile and desktop layouts
+    final drawerWidget = Drawer(
+      backgroundColor: theme.colorScheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Drawer Header
+          _NeetiFlowDrawerHeader(theme: theme),
+          
+          const Divider(),
 
-        // Main navigation area
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  theme.colorScheme.primary.withOpacity(0.05),
-                  theme.colorScheme.primary.withOpacity(0.02),
-                ],
-              ),
-            ),
-            child: NavigationDrawer(
-              selectedIndex: _selectedIndex,
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              indicatorColor: theme.colorScheme.primary.withOpacity(0.1),
-              onDestinationSelected: (index) {
-                if (!isLargeScreen) {
-                  Navigator.pop(context);
-                }
-                setState(() {
-                  _selectedIndex = index;
-                  _customPage = null;
-                });
-              },
+          // Main Navigation Items
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
               children: [
-                const SizedBox(height: 8),
-                ...buildNavigationItems(theme),
-                const SizedBox(height: 16),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(28, 16, 28, 10),
-                  child: Divider(),
+                ...NavigationDrawerConfig.mainNavigationItems.map((item) => 
+                  _NeetiFlowNavigationItem(
+                    item: item,
+                    isSelected: _selectedIndex == item.index,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = item.index;
+                        _customPage = null;
+                      });
+                      // Only pop for mobile screens
+                      if (isCompact && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    theme: theme,
+                  )
                 ),
+
+                const Divider(),
+
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 0, 16, 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text(
                     'Preferences',
-                    style: TextStyle(
-                      color: theme.colorScheme.primary.withOpacity(0.5),
-                      letterSpacing: 1.2,
-                      fontSize: 12,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary.withOpacity(0.7),
                     ),
                   ),
                 ),
-                _AnimatedListTile(
-                  leading: Icons.settings_outlined,
-                  title: 'Settings',
-                  isSelected: _selectedIndex == 7,
-                  onTap: () => setState(() => _selectedIndex = 7),
-                  theme: theme,
+
+                // Preference Items
+                ...NavigationDrawerConfig.preferenceItems.map((item) => 
+                  _NeetiFlowNavigationItem(
+                    item: item,
+                    isSelected: _selectedIndex == item.index,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = item.index;
+                        _customPage = null;
+                      });
+                      // Only pop for mobile screens
+                      if (isCompact && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    theme: theme,
+                  )
                 ),
-                _AnimatedListTile(
-                  leading: Icons.help_outline,
-                  title: 'Help',
-                  isSelected: _selectedIndex == 8,
-                  onTap: () => setState(() => _selectedIndex = 8),
-                  theme: theme,
-                ),
-                const SizedBox(height: 16),
               ],
             ),
           ),
-        ),
 
-        // User profile section at bottom
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-            ),
-            child: BlocBuilder<AuthBloc, AuthState>(
-              builder: (context, state) {
-                if (state is AuthInitial) {
-                  // Navigate to login page when signed out
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/login',
-                      (route) => false,
-                    );
-                  });
-                  return const SizedBox.shrink();
-                }
-
-                if (state is Authenticated) {
-                  // Subscribe to employee updates when authenticated
-                  if (state.employee.id != null &&
-                      state.employee.companyId != null) {
-                    _subscribeToEmployeeUpdates(
-                      state.employee.companyId!,
-                      state.employee.id!,
-                    );
-                  }
-
-                  return Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: theme.colorScheme.surface,
-                          child: Text(
-                            state.employee.firstName.isNotEmpty
-                                ? state.employee.firstName[0].toUpperCase()
-                                : 'U',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${state.employee.firstName} ${state.employee.lastName}',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: theme.colorScheme.onSurface,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: state.employee.isOnline
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.outline,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    state.employee.isOnline
-                                        ? 'Online'
-                                        : 'Offline',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            state.employee.isOnline
-                                ? Icons.toggle_on_outlined
-                                : Icons.toggle_off_outlined,
-                            color: state.employee.isOnline
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outline,
-                            size: 28,
-                          ),
-                          onPressed: () {
-                            context.read<AuthBloc>().add(
-                                  UpdateEmployeeOnlineStatus(
-                                    employee: state.employee,
-                                    isOnline: !state.employee.isOnline,
-                                  ),
-                                );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.logout),
-                          onPressed: () {
-                            context.read<AuthBloc>().add(SignOutRequested());
-                          },
-                          tooltip: 'Sign Out',
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-      ],
+          // User Profile Section
+          _NeetiFlowUserProfile(theme: theme),
+        ],
+      ),
     );
 
-    Widget getPage() {
-      if (_customPage != null) {
-        return _customPage!;
-      }
-
-      switch (_selectedIndex) {
-        case 0:
-          return SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppBar(
-                  title: const Text('Dashboard'),
-                  automaticallyImplyLeading: !isLargeScreen,
-                ),
-                const Expanded(child: HomePage()),
-              ],
-            ),
-          );
-        case 1:
-          return const LeadsPage();
-        case 2:
-          return const ClientsPage();
-        case 3:
-          return const OperationsPage();
-        case 4:
-          return const FinancesPage();
-        case 5:
-          return const EmployeesPage();
-        case 6:
-          return const OrganizationPage();
-        case 7:
-          return const SettingsPage();
-        case 8:
-          return const HelpPage();
-        default:
-          return SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppBar(
-                  title: const Text('Dashboard'),
-                  automaticallyImplyLeading: !isLargeScreen,
-                ),
-                const Expanded(child: HomePage()),
-              ],
-            ),
-          );
-      }
-    }
-
-    final content = AnimatedSwitcher(
+    // Animated page content
+    final pageContent = AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, animation) {
         return SlideTransition(
@@ -460,43 +494,32 @@ class PersistentShellState extends State<PersistentShell> {
       },
       child: KeyedSubtree(
         key: ValueKey<int>(_selectedIndex),
-        child: getPage(),
+        child: NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page!,
       ),
     );
 
+    // Responsive layout
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
-      drawer: isLargeScreen
-          ? null
-          : Container(
-              width: 280,
-              color: theme.colorScheme.primary.withOpacity(0.05),
-              child: drawerContent,
-            ),
-      body: isLargeScreen
-          ? Row(
+      key: _scaffoldKey,
+      // Drawer only for mobile
+      drawer: isCompact ? drawerWidget : null,
+      body: isCompact
+          ? pageContent
+          : Row(
               children: [
-                Container(
+                // Permanent drawer for larger screens
+                SizedBox(
                   width: 280,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.05),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: drawerContent,
+                  child: drawerWidget,
                 ),
-                Expanded(
-                  child: content,
-                ),
+                // Expanded content area
+                Expanded(child: pageContent),
               ],
-            )
-          : content,
+            ),
     );
   }
+
+  GlobalKey<ScaffoldState> get scaffoldKey => _scaffoldKey;
 }
 
 class _AnimatedListTile extends StatelessWidget {

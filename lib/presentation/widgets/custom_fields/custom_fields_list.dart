@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/domain/entities/custom_field.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
-import 'package:neetiflow/presentation/widgets/custom_fields/custom_field_form.dart';
 
 class CustomFieldsList extends StatelessWidget {
   final void Function(BuildContext, {CustomField? field}) onEditField;

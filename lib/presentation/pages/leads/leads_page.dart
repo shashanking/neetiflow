@@ -8,13 +8,13 @@ import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
-import 'package:neetiflow/presentation/pages/leads/custom_fields_page.dart';
 import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_filter_widget.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_form.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../data/repositories/custom_fields_repository.dart';
@@ -53,7 +53,6 @@ class _LeadsViewState extends State<LeadsView>
     with SingleTickerProviderStateMixin {
   String? _sortColumn;
   bool _sortAscending = true;
-  bool _selectAll = false;
   late TabController _tabController;
   Lead? _selectedLead;
 
@@ -133,262 +132,19 @@ class _LeadsViewState extends State<LeadsView>
     context.read<LeadsBloc>().add(const ExportLeadsToCSV());
   }
 
-  Future<void> _addNewLead() async {
-    final authState = context.read<AuthBloc>().state;
-    if (authState is! Authenticated) return;
+  void _addNewLead() {
+    _showLeadCreationDialog(context);
+  }
 
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-    final emailController = TextEditingController();
-    final subjectController = TextEditingController();
-    final messageController = TextEditingController();
-    var selectedStatus = LeadStatus.hot;
-    var selectedProcessStatus = ProcessStatus.fresh;
-
-    final leadsBloc = context.read<LeadsBloc>();
-
-    await showDialog(
+  void _showLeadCreationDialog(BuildContext context) {
+    showDialog(
       context: context,
-      builder: (dialogContext) => MultiBlocProvider(
-        providers: [
-          BlocProvider.value(value: leadsBloc),
-        ],
-        child: Builder(
-          builder: (builderContext) => Dialog(
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.8,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.person_add, size: 24),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Add New Lead',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(dialogContext),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.6,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Contact Information',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Name*',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.person_outline),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: phoneController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Phone*',
-                                    border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.phone),
-                                  ),
-                                  keyboardType: TextInputType.phone,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TextField(
-                                  controller: emailController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Email*',
-                                    border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.email),
-                                  ),
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Lead Details',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: subjectController,
-                            decoration: const InputDecoration(
-                              labelText: 'Subject*',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.subject),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: messageController,
-                            decoration: const InputDecoration(
-                              labelText: 'Message',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.message),
-                              alignLabelWithHint: true,
-                            ),
-                            maxLines: 3,
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Status Information',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          StatefulBuilder(
-                            builder: (context, setState) => Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<LeadStatus>(
-                                    value: selectedStatus,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Lead Status',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.thermostat),
-                                    ),
-                                    items: LeadStatus.values.map((status) {
-                                      final color =
-                                          LeadStatusColors.getLeadStatusColor(
-                                              status);
-                                      return DropdownMenuItem(
-                                        value: status,
-                                        child: Text(
-                                          status.toString().split('.').last,
-                                          style: TextStyle(color: color),
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() => selectedStatus = value);
-                                      }
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: DropdownButtonFormField<ProcessStatus>(
-                                    value: selectedProcessStatus,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Process Status',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.pending_actions),
-                                    ),
-                                    items: ProcessStatus.values.map((status) {
-                                      final color = LeadStatusColors
-                                          .getProcessStatusColor(status);
-                                      return DropdownMenuItem(
-                                        value: status,
-                                        child: Text(
-                                          status.toString().split('.').last,
-                                          style: TextStyle(color: color),
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() =>
-                                            selectedProcessStatus = value);
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => Navigator.pop(dialogContext),
-                        icon: const Icon(Icons.close),
-                        label: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 16),
-                      FilledButton.icon(
-                        onPressed: () {
-                          if (nameController.text.isEmpty ||
-                              phoneController.text.isEmpty ||
-                              emailController.text.isEmpty ||
-                              subjectController.text.isEmpty) {
-                            ScaffoldMessenger.of(builderContext).showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('Please fill all required fields'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                            return;
-                          }
-
-                          final lead = Lead(
-                            id: const Uuid().v4(),
-                            firstName: nameController.text,
-                            lastName: nameController.text.isEmpty ? '' : '',
-                            phone: phoneController.text,
-                            email: emailController.text,
-                            subject: subjectController.text,
-                            message: messageController.text,
-                            status: selectedStatus,
-                            processStatus: selectedProcessStatus,
-                            createdAt: DateTime.now(),
-                            metadata: const {},
-                            segments: const ['manual-leads'],
-                            score: 0.0,
-                          );
-
-                          builderContext.read<LeadsBloc>().add(
-                                AddLead(lead: lead),
-                              );
-                          Navigator.pop(dialogContext);
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Lead'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+      builder: (context) => Dialog(
+        child: LeadForm(
+          onSave: (lead) {
+            context.read<LeadsBloc>().add(AddLead(lead: lead));
+            Navigator.pop(context);
+          },
         ),
       ),
     );
@@ -700,8 +456,6 @@ class _LeadsViewState extends State<LeadsView>
           context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
         }
         setState(() {
-          _selectAll = context.read<LeadsBloc>().state.selectedLeadIds.length ==
-              state.filteredLeads.length;
         });
       },
       cells: [
@@ -1286,8 +1040,6 @@ class _LeadsViewState extends State<LeadsView>
           context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
         }
         setState(() {
-          _selectAll = context.read<LeadsBloc>().state.selectedLeadIds.length ==
-              state.filteredLeads.length;
         });
       },
       cells: [
@@ -1683,47 +1435,26 @@ class _LeadsViewState extends State<LeadsView>
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leads'),
+        automaticallyImplyLeading: !isCompact,
+        leading: isCompact
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () {
+                  PersistentShell.of(context)?.toggleDrawer();
+                },
+              )
+            : null,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_input_component),
-            tooltip: 'Custom Fields',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => MultiBlocProvider(
-                    providers: [
-                      BlocProvider<CustomFieldsBloc>(
-                        create: (context) => CustomFieldsBloc(
-                          repository: context.read<CustomFieldsRepository>(),
-                        )..add(LoadCustomFields()),
-                      ),
-                    ],
-                    child: const CustomFieldsPage(),
-                  ),
-                ),
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.add),
-            tooltip: 'Add Lead',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  child: LeadForm(
-                    onSave: (lead) {
-                      context.read<LeadsBloc>().add(AddLead(lead: lead));
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-              );
-            },
+            onPressed: _addNewLead,
           ),
         ],
       ),
@@ -1822,7 +1553,6 @@ class _LeadsViewState extends State<LeadsView>
 
         // Create timeline events list with lead creation date
         final timelineEvents = <TimelineEvent>[];
-        
         // Add lead creation event if a lead is selected
         if (_selectedLead != null) {
           timelineEvents.add(TimelineEvent(
@@ -1871,7 +1601,7 @@ class _LeadsViewState extends State<LeadsView>
                           final lead = state.allLeads[index];
                           return ListTile(
                             title: Text(
-                              lead.firstName ?? 'Unnamed Lead',
+                              lead.firstName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1903,7 +1633,7 @@ class _LeadsViewState extends State<LeadsView>
                         children: [
                           Text(
                             _selectedLead != null
-                                ? 'Timeline for ${_selectedLead!.firstName ?? 'Unnamed Lead'}'
+                                ? 'Timeline for ${_selectedLead!.firstName}'
                                 : 'All Leads Timeline',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),

@@ -96,7 +96,7 @@ class CustomFieldsBloc extends Bloc<CustomFieldsEvent, CustomFieldsState> {
       debugPrint('[CustomFieldsBloc] Map (${fields.length} items)');
       
       if (fields.isEmpty) {
-        emit(CustomFieldsLoaded(fields: []));
+        emit(const CustomFieldsLoaded(fields: []));
       } else {
         emit(CustomFieldsLoaded(fields: fields));
       }

@@ -190,10 +190,6 @@ class _TimelineWidgetState extends State<TimelineWidget>
     );
   }
 
-  bool _shouldShowTimeDiff(DateTime current, DateTime next) {
-    final difference = current.difference(next).abs();
-    return difference.inMinutes >= 1; // Show for gaps of 1 minute or more
-  }
 
   Widget _buildTimeDifferenceIndicator(DateTime current, DateTime next) {
     final difference = current.difference(next).abs();
@@ -392,7 +388,6 @@ class _TimelineEventCard extends StatefulWidget {
   final bool isUp;
 
   const _TimelineEventCard({
-    super.key,
     required this.event,
     required this.isOverview,
     required this.isUp,
@@ -494,11 +489,11 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (widget.event.description != null && widget.event.description!.isNotEmpty)
+          if (widget.event.description != null && widget.event.description.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                widget.event.description!,
+                widget.event.description,
                 style: TextStyle(
                   fontSize: 12,
                   color: isSystemEvent ? color : Colors.grey[600],
@@ -608,7 +603,7 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
             } else {
               return const SizedBox.shrink();
             }
-          }).toList(),
+          }),
         ],
       ),
     );

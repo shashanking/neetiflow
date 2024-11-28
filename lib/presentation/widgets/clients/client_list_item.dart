@@ -106,7 +106,7 @@ class ClientListItem extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.star,
                               size: 16,
                               color: Colors.amber,

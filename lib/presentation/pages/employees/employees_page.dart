@@ -60,6 +60,10 @@ class _EmployeesPageState extends State<EmployeesPage> {
 
     final String orgId = (authState).organization!.id!;
 
+    
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
+
     return MultiBlocProvider(
       providers: [
         BlocProvider(
@@ -74,6 +78,58 @@ class _EmployeesPageState extends State<EmployeesPage> {
         ),
       ],
       child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Employees'),
+          automaticallyImplyLeading: !isCompact,
+          leading: isCompact
+              ? IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () {
+                    // Use PersistentShell's toggleDrawer method
+                    PersistentShell.of(context)?.toggleDrawer();
+                  },
+                )
+              : null,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () {
+                final state = PersistentShell.of(context);
+                if (state != null) {
+                  state.setCustomPage(
+                    MultiBlocProvider(
+                      providers: [
+                        BlocProvider(
+                          create: (context) => DepartmentsBloc(
+                            departmentsRepository: context.read<DepartmentsRepository>(),
+                          ),
+                        ),
+                      ],
+                      child: const EmployeeManagementPage(),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: FilledButton.icon(
+                onPressed: () => _showAddEmployeeDialog(
+                  context,
+                  authState.employee,
+                ),
+                icon: const Icon(Icons.person_add),
+                label: const Text('Add Employee'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
         body: BlocBuilder<EmployeesBloc, EmployeesState>(
           builder: (context, state) {
             if (state is EmployeesInitial) {
@@ -88,48 +144,6 @@ class _EmployeesPageState extends State<EmployeesPage> {
 
             return CustomScrollView(
               slivers: [
-                SliverAppBar.large(
-                  title: const Text('Employees'),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.settings),
-                      onPressed: () {
-                        final state = PersistentShell.of(context);
-                        if (state != null) {
-                          state.setCustomPage(
-                            MultiBlocProvider(
-                              providers: [
-                                BlocProvider(
-                                  create: (context) => DepartmentsBloc(
-                                    departmentsRepository: context.read<DepartmentsRepository>(),
-                                  ),
-                                ),
-                              ],
-                              child: const EmployeeManagementPage(),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: FilledButton.icon(
-                        onPressed: () => _showAddEmployeeDialog(
-                          context,
-                          authState.employee,
-                        ),
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Add Employee'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(16),

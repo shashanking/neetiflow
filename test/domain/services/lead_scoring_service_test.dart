@@ -23,7 +23,7 @@ void main() {
         processStatus: ProcessStatus.inProgress,
         createdAt: DateTime.now(),
         score: 0.0,
-        scoreFactors: {
+        scoreFactors: const {
           'interactions': 5.0,
           'profileCompleteness': 80.0,
           'engagement': 60.0,
@@ -129,7 +129,7 @@ void main() {
         processStatus: ProcessStatus.inProgress,
         createdAt: DateTime.now(),
         score: 0.0,
-        scoreFactors: {
+        scoreFactors: const {
           'interactions': 100.0,    // 30% weight
           'profileCompleteness': 100.0,  // 20% weight
           'engagement': 100.0,      // 25% weight
