@@ -1,6 +1,6 @@
 # Neetiflow
 
-A modern employee management system built with Flutter and Firebase.
+A modern employee and client management system built with Flutter and Firebase.
 
 ## Features
 
@@ -14,6 +14,17 @@ A modern employee management system built with Flutter and Firebase.
 - Detailed employee information display
 - Real-time department updates
 - Efficient data synchronization
+
+### Client Management
+- Real-time client tracking and updates
+- Comprehensive client profile management
+- Client status tracking (Active/Inactive/Suspended)
+- Client type categorization (Individual/Company/Government)
+- Client interaction history
+- Document management (GSTIN, PAN)
+- Client assignment to employees
+- Lifetime value tracking
+- Tags and metadata support
 
 ### Navigation
 - Persistent shell implementation with customizable initial routes
@@ -43,127 +54,95 @@ A modern employee management system built with Flutter and Firebase.
 - Robust error handling
 - Efficient state management
 - Timestamp synchronization
-- Department data streaming
+- Department and client data streaming
 
 ### User Interface
 - Modern, responsive design
 - Intuitive navigation
 - Dark/Light theme support
-- Cross-platform compatibility
-- Null-safe implementations
-- Beautiful status indicators
-- Improved layout handling
-- User-friendly error messages
-- Real-time feedback system
-
-### Error Handling
-- Comprehensive error catching
-- User-friendly error messages
-- Graceful fallbacks
-- Network error handling
-- State recovery mechanisms
-- Debug logging system
-
-## Tech Stack
-
-### Frontend
-- Flutter SDK
-- BLoC Pattern
-- Stream Subscriptions
-- Custom Widgets
-
-### Backend
-- Firebase Authentication
-- Cloud Firestore
-- Firebase Functions
-- Real-time Database
-
-### State Management
-- flutter_bloc
-- StreamSubscription
-- Repository Pattern
-- Clean Architecture
+- Form validation and error handling
+- Loading indicators
+- Success/Error feedback
+- Responsive dialogs
+- Efficient state representation
 
 ## Getting Started
 
 ### Prerequisites
-- Flutter SDK (latest version)
-- Firebase project setup
-- IDE (VS Code or Android Studio)
-- Git
+- Flutter SDK (latest stable version)
+- Firebase project with Firestore and Authentication enabled
+- A code editor (VS Code recommended)
 
 ### Installation
 
-1. Clone the repository
+1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/neetiflow.git
 ```
 
-2. Install dependencies
+2. Install dependencies:
 ```bash
 flutter pub get
 ```
 
-3. Configure Firebase
-- Add your `google-services.json` for Android
-- Add your `GoogleService-Info.plist` for iOS
-- Configure web setup if needed
+3. Configure Firebase:
+   - Create a new Firebase project
+   - Enable Authentication and Firestore
+   - Add your Firebase configuration files
+   - Update the firebase options in the project
 
-4. Run the app
+4. Run the app:
 ```bash
-flutter run
+flutter run -d chrome
 ```
 
-## Project Structure
+## Architecture
 
-```
-lib/
-├── application/      # Business logic and state management
-├── domain/          # Business objects and interfaces
-├── infrastructure/  # Implementation of repositories
-└── presentation/   # UI components and pages
-```
+The project follows Clean Architecture principles:
 
-## Development
+- **Domain Layer**: Contains business logic and entities
+- **Infrastructure Layer**: Implements repositories and external services
+- **Presentation Layer**: Contains UI components and state management
+- **Application Layer**: Orchestrates the flow of data between layers
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development documentation, including:
-- Current implementation status
-- Future development goals
-- Contributing guidelines
-- Known issues and limitations
+### State Management
+- BLoC pattern for complex state management
+- Provider for simple state management
+- Stream-based real-time updates
 
-## Security
+### Firebase Integration
+- Firestore for real-time database
+- Firebase Authentication for user management
+- Cloud Functions for backend operations
 
-- Secure authentication flow
-- Role-based access control
-- Data encryption
-- Regular security audits
+## Development Status
 
-## Testing
+Current Version: 1.0.0-beta
 
-- Unit tests
-- Widget tests
-- Integration tests
-- Performance testing
+### Completed Features
+- Employee Management System
+- Client Management System
+- Real-time Updates
+- Authentication
+- Basic UI/UX
+- Error Handling
+
+### In Progress
+- Advanced Filtering
+- Reporting System
+- Offline Support
+- Performance Optimization
+
+### Planned Features
+- Mobile App Support
+- Advanced Analytics
+- Document Management
+- API Integration
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contact
-
-For support or queries, please contact [your-email@domain.com]
-
-## Acknowledgments
-
-- Flutter team
-- Firebase team
-- All contributors
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.

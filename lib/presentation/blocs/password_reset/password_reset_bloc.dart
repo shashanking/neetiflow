@@ -147,7 +147,7 @@ class PasswordResetBloc extends Bloc<PasswordResetEvent, PasswordResetState> {
           return;
         }
         
-        throw e;
+        rethrow;
       }
       
     } on FirebaseAuthException catch (e) {
