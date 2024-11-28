@@ -7,8 +7,9 @@ import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_list_item.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
 import 'package:neetiflow/presentation/widgets/common/search_bar.dart';
-import 'package:neetiflow/presentation/pages/clients/client_details_page.dart';
-import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
+
+import '../../widgets/persistent_shell.dart';
+import 'client_details_page.dart';
 
 class ClientsPage extends StatelessWidget {
   const ClientsPage({super.key});
@@ -142,13 +143,6 @@ class ClientsView extends StatelessWidget {
                     final client = state.filteredClients[index];
                     return ClientListItem(
                       client: client,
-                      onEdit: () => _showEditClientDialog(context, client),
-                      onDelete: () => _showDeleteConfirmation(context, client),
-                      onStatusChange: (status) {
-                        context.read<ClientsBloc>().add(
-                              UpdateClientStatus(client.id, status),
-                            );
-                      },
                       onTap: () => _navigateToClientDetails(context, client),
                     );
                   },
@@ -201,8 +195,7 @@ class ClientsView extends StatelessWidget {
         listeners: [
           BlocListener<ClientsBloc, ClientsState>(
             listenWhen: (previous, current) => 
-              current is ClientsError || 
-              (current is ClientsLoaded && previous is! ClientsLoaded),
+              current is ClientsError || current is ClientsLoaded,
             listener: (context, state) {
               if (state is ClientsError) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -219,6 +212,9 @@ class ClientsView extends StatelessWidget {
                     backgroundColor: Colors.green,
                   ),
                 );
+                // Navigate to client details page
+                final newClient = state.clients.last; // Get the newly added client
+                _navigateToClientDetails(context, newClient);
               }
             },
           ),
@@ -227,48 +223,6 @@ class ClientsView extends StatelessWidget {
           child: ClientForm(
             onSubmit: (client) {
               context.read<ClientsBloc>().add(AddClient(client));
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showEditClientDialog(BuildContext context, Client client) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => MultiBlocListener(
-        listeners: [
-          BlocListener<ClientsBloc, ClientsState>(
-            listenWhen: (previous, current) => 
-              current is ClientsError || 
-              (current is ClientsLoaded && previous is! ClientsLoaded),
-            listener: (context, state) {
-              if (state is ClientsError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } else if (state is ClientsLoaded) {
-                Navigator.of(dialogContext).pop(); // Close dialog on success
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Client updated successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-        child: Dialog(
-          child: ClientForm(
-            client: client,
-            onSubmit: (updatedClient) {
-              context.read<ClientsBloc>().add(UpdateClient(updatedClient));
             },
           ),
         ),
@@ -326,17 +280,18 @@ class ClientsView extends StatelessWidget {
   }
 
   void _navigateToClientDetails(BuildContext context, Client client) {
-    final shell = PersistentShell.of(context);
-    if (shell != null) {
-      shell.setCustomPage(ClientDetailsPage(
-        client: client,
-        onEdit: () {
-          _showEditClientDialog(context, client);
-        },
-        onDelete: () {
-          _showDeleteConfirmation(context, client);
-        },
-      ));
+    final state = PersistentShell.of(context);
+    if (state != null) {
+      state.setCustomPage(
+        ClientDetailsPage(client: client)
+      );
+    } else {
+      // Fallback navigation if PersistentShell is not available
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ClientDetailsPage(client: client),
+        ),
+      );
     }
   }
 }

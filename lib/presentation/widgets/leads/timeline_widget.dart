@@ -82,10 +82,10 @@ class _TimelineWidgetState extends State<TimelineWidget>
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (context) => Dialog(
+                  builder: (context) => const Dialog(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: const ColorIndexWidget(),
+                      padding: EdgeInsets.all(16),
+                      child: ColorIndexWidget(),
                     ),
                   ),
                 );

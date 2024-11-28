@@ -1342,7 +1342,7 @@ class _LeadsViewState extends State<LeadsView>
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(lead.email),
+                Text(lead.email.isEmpty ? 'No email' : lead.email),
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -1419,7 +1419,7 @@ class _LeadsViewState extends State<LeadsView>
         ),
         const SizedBox(height: 16.0),
         // Existing lead details UI
-        Text(lead.email),
+        Text(lead.email.isEmpty ? 'No email' : lead.email),
         const SizedBox(height: 4),
         Row(
           children: [
@@ -1836,7 +1836,7 @@ class _LeadsViewState extends State<LeadsView>
               'event_type': 'lead_creation',
               'first_name': _selectedLead!.firstName,
               'last_name': _selectedLead!.lastName,
-              'email': _selectedLead!.email,
+              'email': _selectedLead!.email.isEmpty ? 'No email' : _selectedLead!.email,
             },
           ));
         }
@@ -1876,7 +1876,7 @@ class _LeadsViewState extends State<LeadsView>
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              lead.email ?? 'No email',
+                              lead.email.isEmpty ? 'No email' : lead.email,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),

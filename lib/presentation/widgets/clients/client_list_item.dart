@@ -5,17 +5,11 @@ import 'package:neetiflow/presentation/pages/clients/client_details_page.dart';
 
 class ClientListItem extends StatelessWidget {
   final Client client;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final ValueChanged<ClientStatus> onStatusChange;
   final VoidCallback? onTap;
 
   const ClientListItem({
     super.key,
     required this.client,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onStatusChange,
     this.onTap,
   });
 
@@ -27,7 +21,13 @@ class ClientListItem extends StatelessWidget {
       elevation: 1,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: InkWell(
-        onTap: onTap,
+        onTap: onTap ?? () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ClientDetailsPage(client: client),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -106,7 +106,7 @@ class ClientListItem extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.star,
                               size: 16,
                               color: Colors.amber,
@@ -161,7 +161,6 @@ class ClientListItem extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -191,59 +190,33 @@ class ClientListItem extends StatelessWidget {
       ClientStatus.suspended: Colors.red,
     };
 
-    return InkWell(
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Change Status'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: ClientStatus.values.map((status) {
-                return ListTile(
-                  title: Text(status.toString().split('.').last.toUpperCase()),
-                  leading: CircleAvatar(
-                    radius: 4,
-                    backgroundColor: statusColors[status],
-                  ),
-                  onTap: () {
-                    onStatusChange(status);
-                    Navigator.pop(context);
-                  },
-                );
-              }).toList(),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusColors[client.status]?.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: statusColors[client.status] ?? Colors.grey,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 3,
+            backgroundColor: statusColors[client.status],
+          ),
+          const SizedBox(width: 6),
+          Text(
+            client.status.toString().split('.').last.toUpperCase(),
+            style: TextStyle(
+              color: statusColors[client.status],
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: statusColors[client.status]?.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: statusColors[client.status] ?? Colors.grey,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 3,
-              backgroundColor: statusColors[client.status],
-            ),
-            const SizedBox(width: 6),
-            Text(
-              client.status.toString().split('.').last.toUpperCase(),
-              style: TextStyle(
-                color: statusColors[client.status],
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
