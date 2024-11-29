@@ -319,14 +319,17 @@ class PersistentShellState extends State<PersistentShell> {
   late int _selectedIndex;
   StreamSubscription<Employee>? _employeeSubscription;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  Widget? _customPage;
 
   void setCustomPage(Widget page) {
     setState(() {
+      _customPage = page;
     });
   }
 
   void clearCustomPage() {
     setState(() {
+      _customPage = null;
     });
   }
 
@@ -400,6 +403,8 @@ class PersistentShellState extends State<PersistentShell> {
     final screenWidth = mediaQuery.size.width;
     final isCompact = screenWidth < 600; // Mobile breakpoint
 
+    final currentPage = _customPage ?? NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page ?? const SizedBox();
+
     // Drawer content that will be used in both mobile and desktop layouts
     final drawerWidget = Drawer(
       backgroundColor: theme.colorScheme.surface,
@@ -422,6 +427,7 @@ class PersistentShellState extends State<PersistentShell> {
                     isSelected: _selectedIndex == item.index,
                     onTap: () {
                       setState(() {
+                        _customPage = null;  // Clear the custom page
                         _selectedIndex = item.index;
                       });
                       // Only pop for mobile screens
@@ -452,6 +458,7 @@ class PersistentShellState extends State<PersistentShell> {
                     isSelected: _selectedIndex == item.index,
                     onTap: () {
                       setState(() {
+                        _customPage = null;  // Clear the custom page
                         _selectedIndex = item.index;
                       });
                       // Only pop for mobile screens
@@ -489,7 +496,7 @@ class PersistentShellState extends State<PersistentShell> {
       },
       child: KeyedSubtree(
         key: ValueKey<int>(_selectedIndex),
-        child: NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page!,
+        child: currentPage,
       ),
     );
 
