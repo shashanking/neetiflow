@@ -70,9 +70,8 @@ class Lead extends Equatable {
       email: json['email'] as String? ?? '',
       subject: json['subject'] as String? ?? '',
       message: json['message'] as String? ?? '',
-      status: _parseLeadStatus(json['status'] as String? ?? 'cold'),
-      processStatus:
-          _parseProcessStatus(json['processStatus'] as String? ?? 'fresh'),
+      status: _parseLeadStatus(json['status']),
+      processStatus: _parseProcessStatus(json['processStatus']),
       createdAt: parseTimestamp(json['createdAt']),
       updatedAt: json['updatedAt'] != null ? parseTimestamp(json['updatedAt']) : null,
       metadata: json['metadata'] as Map<String, dynamic>?,
@@ -159,16 +158,20 @@ class Lead extends Equatable {
     );
   }
 
-  static LeadStatus _parseLeadStatus(String status) {
+  static LeadStatus _parseLeadStatus(dynamic status) {
+    if (status == null) return LeadStatus.cold;
+    final statusStr = status.toString().toLowerCase();
     return LeadStatus.values.firstWhere(
-      (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
+      (e) => e.toString().split('.').last.toLowerCase() == statusStr,
       orElse: () => LeadStatus.cold,
     );
   }
 
-  static ProcessStatus _parseProcessStatus(String status) {
+  static ProcessStatus _parseProcessStatus(dynamic status) {
+    if (status == null) return ProcessStatus.fresh;
+    final statusStr = status.toString().toLowerCase();
     return ProcessStatus.values.firstWhere(
-      (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
+      (e) => e.toString().split('.').last.toLowerCase() == statusStr,
       orElse: () => ProcessStatus.fresh,
     );
   }
