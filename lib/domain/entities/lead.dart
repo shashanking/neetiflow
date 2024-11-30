@@ -52,12 +52,12 @@ class Lead extends Equatable {
 
   factory Lead.fromJson(Map<String, dynamic> json) {
     // Handle different timestamp formats
-    DateTime parseCreatedAt(dynamic createdAt) {
-      if (createdAt == null) return DateTime.now();
-      if (createdAt is Timestamp) return createdAt.toDate();
-      if (createdAt is String) return DateTime.parse(createdAt);
-      if (createdAt is int) {
-        return DateTime.fromMillisecondsSinceEpoch(createdAt);
+    DateTime parseTimestamp(dynamic timestamp) {
+      if (timestamp == null) return DateTime.now();
+      if (timestamp is Timestamp) return timestamp.toDate();
+      if (timestamp is String) return DateTime.parse(timestamp);
+      if (timestamp is int) {
+        return DateTime.fromMillisecondsSinceEpoch(timestamp);
       }
       return DateTime.now();
     }
@@ -73,10 +73,8 @@ class Lead extends Equatable {
       status: _parseLeadStatus(json['status'] as String? ?? 'cold'),
       processStatus:
           _parseProcessStatus(json['processStatus'] as String? ?? 'fresh'),
-      createdAt: parseCreatedAt(json['createdAt']),
-      updatedAt: json['updatedAt'] == null
-          ? null
-          : DateTime.parse(json['updatedAt'] as String),
+      createdAt: parseTimestamp(json['createdAt']),
+      updatedAt: json['updatedAt'] != null ? parseTimestamp(json['updatedAt']) : null,
       metadata: json['metadata'] as Map<String, dynamic>?,
       segments: json['segments'] != null
           ? List<String>.from(json['segments'] as List)
@@ -130,7 +128,9 @@ class Lead extends Equatable {
   factory Lead.fromCSV(List<String> row,
       {Map<String, int> headers = const {}}) {
     String getValue(String key) {
-      final index = headers[key.toLowerCase().replaceAll(' ', '')];
+      // Try both with and without spaces
+      var index = headers[key.toLowerCase()];
+      index ??= headers[key.toLowerCase().replaceAll(' ', '')];
       if (index == null) throw Exception('Column $key not found in CSV');
       return row[index];
     }

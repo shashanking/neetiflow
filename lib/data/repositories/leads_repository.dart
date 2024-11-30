@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
-import 'package:neetiflow/domain/entities/custom_field_value.dart';
 import 'package:neetiflow/domain/entities/timeline_event.dart';
 
 abstract class LeadsRepository {
@@ -157,49 +156,51 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<List<Lead>> importLeadsFromCSV(Uint8List fileBytes) async {
-    final csvString = utf8.decode(fileBytes);
-    final csvTable = const CsvToListConverter().convert(csvString);
+    print('Starting CSV parsing...');
     
-    if (csvTable.isEmpty) {
+    // Convert bytes to string and split by newlines
+    final csvString = utf8.decode(fileBytes);
+    final lines = csvString.split('\n');
+    print('Number of lines: ${lines.length}');
+    
+    if (lines.isEmpty) {
       throw Exception('CSV file is empty');
     }
 
-    // Convert headers to strings explicitly
+    // Parse header line
+    final headerLine = lines[0];
     final headers = Map<String, int>.fromIterables(
-      (csvTable.first).map((e) => e.toString().toLowerCase().replaceAll(' ', '')),
-      List.generate((csvTable.first).length, (i) => i),
+      headerLine.split(',').map((e) => e.trim().toLowerCase()),
+      List.generate(headerLine.split(',').length, (i) => i),
     );
+    print('Headers: $headers');
 
     final leads = <Lead>[];
-    for (var i = 1; i < csvTable.length; i++) {
-      final row = csvTable[i];
-      if (row.length != headers.length) continue;
-
-      // Extract custom fields from CSV
-      final customFields = <String, CustomFieldValue>{};
-      headers.forEach((key, index) {
-        if (key.startsWith('cf_') && row[index] != null && row[index].toString().isNotEmpty) {
-          final fieldId = key.substring(3); // Remove 'cf_' prefix
-          customFields[fieldId] = CustomFieldValue(
-            fieldId: fieldId,
-            value: row[index],
-            updatedAt: DateTime.now(),
-          );
-        }
-      });
-
-      // Convert row to List<String> for fromCSV method
-      final stringRow = row.map((e) => e?.toString() ?? '').toList();
+    // Start from index 1 to skip header
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+      
+      print('\nProcessing line $i: $line');
+      final values = line.split(',').map((e) => e.trim()).toList();
+      
+      if (values.length != headers.length) {
+        print('Line $i has incorrect number of values: ${values.length} (expected: ${headers.length})');
+        continue;
+      }
 
       try {
-        leads.add(Lead.fromCSV(stringRow, headers: headers)
-            .copyWith(customFields: customFields));
-      } catch (e) {
-        print('Error importing row $i: $e');
+        final lead = Lead.fromCSV(values, headers: headers);
+        print('Successfully created lead: ${lead.firstName} ${lead.lastName}');
+        leads.add(lead);
+      } catch (e, stackTrace) {
+        print('Error importing line $i: $e');
+        print('Stack trace: $stackTrace');
         continue;
       }
     }
 
+    print('Successfully parsed ${leads.length} leads');
     return leads;
   }
 

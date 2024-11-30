@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../domain/entities/timeline_event.dart';
 
@@ -351,22 +352,62 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     Emitter<LeadsState> emit,
   ) async {
     try {
+      print('Starting CSV import process...');
       emit(state.copyWith(status: LeadsStatus.loading));
+      
+      print('Parsing CSV bytes...');
       final leads = await _leadsRepository.importLeadsFromCSV(
         Uint8List.fromList(event.bytes),
       );
-
-      // Create all leads in Firestore
-      for (final lead in leads) {
-        await _leadsRepository.createLead(_organizationId, lead);
+      
+      print('Parsed ${leads.length} leads from CSV');
+      if (leads.isEmpty) {
+        throw Exception('No leads were parsed from the CSV file');
       }
 
-      // Reload leads to reflect the import
+      print('Creating batch write...');
+      final batch = FirebaseFirestore.instance.batch();
+      
+      print('Organization ID: $_organizationId');
+      for (var i = 0; i < leads.length; i++) {
+        final lead = leads[i];
+        print('Processing lead ${i + 1}/${leads.length}: ${lead.firstName} ${lead.lastName}');
+        
+        final leadRef = FirebaseFirestore.instance
+            .collection('organizations')
+            .doc(_organizationId)
+            .collection('leads')
+            .doc(lead.id);
+            
+        final leadData = {
+          ...lead.toJson(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        print('Lead data: $leadData');
+        
+        batch.set(leadRef, leadData);
+      }
+
+      print('Committing batch of ${leads.length} leads...');
+      await batch.commit();
+      print('Batch commit successful');
+
+      print('Reloading leads...');
       add(const LoadLeads());
-    } catch (error) {
-      if (!isClosed) {
-        add(_LeadsErrorEvent(error.toString()));
-      }
+      
+      print('Import completed successfully');
+      emit(state.copyWith(
+        status: LeadsStatus.success,
+        errorMessage: null,
+      ));
+    } catch (error, stackTrace) {
+      print('Error during import: $error');
+      print('Stack trace: $stackTrace');
+      emit(state.copyWith(
+        status: LeadsStatus.failure,
+        errorMessage: 'Import failed: ${error.toString()}',
+      ));
     }
   }
 
@@ -398,7 +439,12 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   }
 
   void _onSelectLead(SelectLead event, Emitter<LeadsState> emit) {
-    emit(state.copyWith(selectedLeadId: event.leadId));
+    // Add the lead ID to the selected set
+    final selectedLeadIds = Set<String>.from(state.selectedLeadIds)..add(event.leadId);
+    emit(state.copyWith(
+      selectedLeadIds: selectedLeadIds,
+      selectedLeadId: event.leadId,
+    ));
     
     // Subscribe to lead updates when selected
     _selectedLeadSubscription?.cancel();
@@ -414,8 +460,13 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   }
 
   void _onDeselectLead(DeselectLead event, Emitter<LeadsState> emit) {
+    // Remove the lead ID from the selected set
+    final selectedLeadIds = Set<String>.from(state.selectedLeadIds)..remove(event.leadId);
     _selectedLeadSubscription?.cancel();
-    emit(state.copyWith(selectedLeadId: null));
+    emit(state.copyWith(
+      selectedLeadIds: selectedLeadIds,
+      selectedLeadId: null,
+    ));
   }
 
   void _onSelectAllLeads(SelectAllLeads event, Emitter<LeadsState> emit) {

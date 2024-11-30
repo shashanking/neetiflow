@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:logger/logger.dart';
+import 'package:uuid/uuid.dart';
+import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 
 class FirebaseEmployeesRepository implements EmployeesRepository {
   final FirebaseFirestore _firestore;
@@ -122,6 +124,33 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
 
       // Update organization employee count
       await _updateOrganizationEmployeeCount(employee.companyId!, 1);
+
+      // Create employee timeline event for the new employee
+      final now = DateTime.now();
+      final employeeTimelineEvent = EmployeeTimelineEvent(
+        id: const Uuid().v4(),
+        employeeId: employeeId,
+        title: 'Account Created',
+        description: 'Employee account was created',
+        timestamp: now,
+        category: 'account_creation',
+        metadata: {
+          'role': employee.role.toString().split('.').last,
+          if (employee.departmentId != null) 'departmentId': employee.departmentId,
+          'joiningDate': employee.joiningDate?.toIso8601String(),
+          'createdAt': now.toIso8601String(),
+        },
+      );
+
+      // Add the timeline event
+      await _firestore
+          .collection('organizations')
+          .doc(employee.companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .collection('timeline')
+          .doc(employeeTimelineEvent.id)
+          .set(employeeTimelineEvent.toJson());
 
       _logger.i('Employee created successfully');
       return employee.copyWith(id: employeeId);

@@ -866,7 +866,6 @@ class _LeadsViewState extends State<LeadsView>
   }
 
   Widget _buildLeadsTableCompact(BuildContext context, List<Lead> leads) {
-    final leadsState = context.watch<LeadsBloc>().state;
     return ConstrainedBox(
       constraints: BoxConstraints(
         minWidth: MediaQuery.of(context).size.width,
@@ -876,32 +875,16 @@ class _LeadsViewState extends State<LeadsView>
         physics: const ClampingScrollPhysics(),
         child: DataTable(
           showCheckboxColumn: true,
-          columns: [
-            DataColumn(
-              label: Checkbox(
-                value: leadsState.selectedLeadIds.length == leads.length,
-                onChanged: (selected) {
-                  final leadsBloc = context.read<LeadsBloc>();
-                  if (selected == true) {
-                    leadsBloc.add(SelectAllLeads(
-                        leadIds: leads.map((l) => l.id).toList()));
-                  } else {
-                    leadsBloc.add(const DeselectAllLeads());
-                  }
-                },
-                tristate: leadsState.selectedLeadIds.isNotEmpty &&
-                    leadsState.selectedLeadIds.length != leads.length,
-              ),
-            ),
-            const DataColumn(label: Text('Name')),
-            const DataColumn(label: Text('Score')),
-            const DataColumn(label: Text('Email')),
-            const DataColumn(label: Text('Phone')),
-            const DataColumn(label: Text('Status')),
-            const DataColumn(label: Text('Process')),
-            const DataColumn(label: Text('Created')),
-            const DataColumn(label: Text('Assignment')),
-            const DataColumn(label: Text('Actions')),
+          columns: const [
+            DataColumn(label: Text('Name')),
+            DataColumn(label: Text('Score')),
+            DataColumn(label: Text('Email')),
+            DataColumn(label: Text('Phone')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Process')),
+            DataColumn(label: Text('Created')),
+            DataColumn(label: Text('Assignment')),
+            DataColumn(label: Text('Actions')),
           ],
           rows:
               leads.map((lead) => _buildCompactDataRow(context, lead)).toList(),
@@ -917,25 +900,12 @@ class _LeadsViewState extends State<LeadsView>
       onSelectChanged: (selected) {
         final leadsBloc = context.read<LeadsBloc>();
         if (selected == true) {
-          leadsBloc.add(SelectAllLeads(leadIds: [lead.id]));
+          leadsBloc.add(SelectLead(leadId: lead.id));
         } else {
-          leadsBloc.add(const DeselectAllLeads());
+          leadsBloc.add(DeselectLead(leadId: lead.id));
         }
       },
       cells: [
-        DataCell(
-          Checkbox(
-            value: leadsState.selectedLeadIds.contains(lead.id),
-            onChanged: (selected) {
-              final leadsBloc = context.read<LeadsBloc>();
-              if (selected == true) {
-                leadsBloc.add(SelectAllLeads(leadIds: [lead.id]));
-              } else {
-                leadsBloc.add(const DeselectAllLeads());
-              }
-            },
-          ),
-        ),
         DataCell(
           Text(_getLeadName(lead)),
           onTap: () => _navigateToLeadDetails(context, lead),

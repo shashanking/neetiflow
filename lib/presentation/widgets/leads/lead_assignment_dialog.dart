@@ -181,7 +181,7 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
       // Create employee timeline event
       final employeeTimelineEvent = EmployeeTimelineEvent(
         id: const Uuid().v4(),
-        employeeId: _selectedEmployee!.id ?? '',
+        employeeId: _selectedEmployee!.id ?? '',  
         title: 'New Lead Assigned',
         description: 'Assigned lead: ${widget.lead.firstName} ${widget.lead.lastName}',
         timestamp: now,
@@ -213,10 +213,10 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
           timelineEvent: leadTimelineEvent,
         ));
 
-        // Create employee timeline event
+        // Create employee timeline event only for the assigned employee
         final employeeTimelineRepo = context.read<EmployeeTimelineRepository>();
         await employeeTimelineRepo.addTimelineEvent(
-          authState.employee.companyId ?? '',
+          _selectedEmployee!.companyId ?? '',  // Use the selected employee's company ID
           employeeTimelineEvent,
         );
       } catch (e) {
