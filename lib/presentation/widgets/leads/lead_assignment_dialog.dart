@@ -163,8 +163,8 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
             ? 'Lead Reassigned' 
             : 'Lead Assigned',
         description: widget.lead.metadata?['assignedEmployeeId'] != null
-            ? 'Lead reassigned to ${_selectedEmployee!.firstName} ${_selectedEmployee!.lastName}'
-            : 'Lead assigned to ${_selectedEmployee!.firstName} ${_selectedEmployee!.lastName}',
+            ? 'Reassigned by ${authState.employee.firstName} ${authState.employee.lastName} to ${_selectedEmployee!.firstName} ${_selectedEmployee!.lastName}'
+            : 'Assigned by ${authState.employee.firstName} ${authState.employee.lastName} to ${_selectedEmployee!.firstName} ${_selectedEmployee!.lastName}',
         timestamp: now,
         category: 'assignment',
         metadata: {
@@ -178,12 +178,12 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
         },
       );
 
-      // Create employee timeline event
-      final employeeTimelineEvent = EmployeeTimelineEvent(
+      // Create timeline event for the employee receiving the lead
+      final assigneeTimelineEvent = EmployeeTimelineEvent(
         id: const Uuid().v4(),
         employeeId: _selectedEmployee!.id ?? '',  
         title: 'New Lead Assigned',
-        description: 'Assigned lead: ${widget.lead.firstName} ${widget.lead.lastName}',
+        description: 'Lead "${widget.lead.firstName} ${widget.lead.lastName}" assigned by ${authState.employee.firstName} ${authState.employee.lastName}',
         timestamp: now,
         category: 'lead_assignment',
         metadata: {
@@ -191,6 +191,24 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
           'leadName': '${widget.lead.firstName} ${widget.lead.lastName}',
           'assignedByEmployeeId': authState.employee.id ?? '',
           'assignedByName': '${authState.employee.firstName} ${authState.employee.lastName}',
+          if (widget.lead.metadata?['assignedEmployeeId'] != null)
+            'isReassignment': true,
+        },
+      );
+
+      // Create timeline event for the employee doing the assignment
+      final assignerTimelineEvent = EmployeeTimelineEvent(
+        id: const Uuid().v4(),
+        employeeId: authState.employee.id ?? '',  
+        title: 'Lead Assigned',
+        description: 'Assigned lead "${widget.lead.firstName} ${widget.lead.lastName}" to ${_selectedEmployee!.firstName} ${_selectedEmployee!.lastName}',
+        timestamp: now,
+        category: 'lead_assignment',
+        metadata: {
+          'leadId': widget.lead.id,
+          'leadName': '${widget.lead.firstName} ${widget.lead.lastName}',
+          'assignedToEmployeeId': _selectedEmployee!.id ?? '',
+          'assignedToName': '${_selectedEmployee!.firstName} ${_selectedEmployee!.lastName}',
           if (widget.lead.metadata?['assignedEmployeeId'] != null)
             'isReassignment': true,
         },
@@ -213,12 +231,18 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
           timelineEvent: leadTimelineEvent,
         ));
 
-        // Create employee timeline event only for the assigned employee
+        // Create employee timeline events for both assigner and assignee
         final employeeTimelineRepo = context.read<EmployeeTimelineRepository>();
-        await employeeTimelineRepo.addTimelineEvent(
-          _selectedEmployee!.companyId ?? '',  // Use the selected employee's company ID
-          employeeTimelineEvent,
-        );
+        await Future.wait([
+          employeeTimelineRepo.addTimelineEvent(
+            _selectedEmployee!.companyId ?? '',
+            assigneeTimelineEvent,
+          ),
+          employeeTimelineRepo.addTimelineEvent(
+            authState.employee.companyId ?? '',
+            assignerTimelineEvent,
+          ),
+        ]);
       } catch (e) {
         debugPrint('Error updating lead: $e');
         rethrow;

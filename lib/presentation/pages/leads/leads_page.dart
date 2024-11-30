@@ -7,8 +7,10 @@ import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
 import 'package:neetiflow/data/repositories/employee_timeline_repository.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/client.dart';
+import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
+import 'package:neetiflow/domain/entities/timeline_event.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
@@ -18,8 +20,11 @@ import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
 import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
+import 'package:neetiflow/presentation/widgets/leads/lead_assignment_dialog.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_form.dart';
+import 'package:neetiflow/presentation/widgets/leads/status_note_dialog.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
+import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../domain/entities/employee.dart';
@@ -27,8 +32,6 @@ import '../../../domain/entities/timeline_event.dart';
 import '../../../infrastructure/repositories/firebase_clients_repository.dart';
 import '../../blocs/custom_fields/custom_fields_bloc.dart';
 import '../../blocs/employees/employees_bloc.dart';
-import '../../widgets/leads/lead_assignment_dialog.dart';
-import '../../widgets/leads/status_note_dialog.dart';
 
 class LeadsPage extends StatelessWidget {
   const LeadsPage({super.key});
@@ -95,11 +98,10 @@ class LeadsView extends StatefulWidget {
   State<LeadsView> createState() => _LeadsViewState();
 }
 
-class _LeadsViewState extends State<LeadsView>
-    with SingleTickerProviderStateMixin {
+class _LeadsViewState extends State<LeadsView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late LeadsRepository _leadsRepository;
-  late Stream<List<TimelineEvent>> _timelineStream;
+  StreamSubscription<List<TimelineEvent>>? _timelineSubscription;
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   Lead? _selectedLead;
@@ -119,19 +121,45 @@ class _LeadsViewState extends State<LeadsView>
     _tabController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
+    _timelineSubscription?.cancel();
     super.dispose();
   }
 
   void _handleTabChange() {
     if (_tabController.index == 1) {
       // Timeline tab selected
-      final authState = context.read<AuthBloc>().state;
-      if (authState is Authenticated && _selectedLead != null) {
-        _timelineStream = _leadsRepository.getTimelineEvents(
-          authState.employee.companyId!,
-          _selectedLead!.id,
-        );
-      }
+      _initializeTimelineStream();
+    }
+  }
+
+  void _initializeTimelineStream() {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated && _selectedLead != null) {
+      _timelineSubscription?.cancel();
+      final stream = _leadsRepository.getTimelineEvents(
+        authState.employee.companyId!,
+        _selectedLead!.id,
+      );
+      
+      _timelineSubscription = stream.listen(
+        (events) {
+          if (mounted) {
+            setState(() {
+              // Update your timeline state here
+            });
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error loading timeline: $error'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+      );
     }
   }
 
@@ -139,16 +167,11 @@ class _LeadsViewState extends State<LeadsView>
     setState(() {
       if (_selectedLead?.id == lead?.id) {
         _selectedLead = null;
+        _timelineSubscription?.cancel();
       } else {
         _selectedLead = lead;
         if (lead != null && _tabController.index == 1) {
-          final authState = context.read<AuthBloc>().state;
-          if (authState is Authenticated) {
-            _timelineStream = _leadsRepository.getTimelineEvents(
-              authState.employee.companyId!,
-              lead.id,
-            );
-          }
+          _initializeTimelineStream();
         }
       }
     });
@@ -178,7 +201,6 @@ class _LeadsViewState extends State<LeadsView>
   void _exportLeads() {
     context.read<LeadsBloc>().add(const ExportLeadsToCSV());
   }
-
 
   void _showLeadCreationDialog(BuildContext context) {
     showDialog(
@@ -394,12 +416,6 @@ class _LeadsViewState extends State<LeadsView>
       ),
     );
   }
-
-
-
-
-
-
 
   String _getLeadName(Lead lead) {
     return '${lead.firstName} ${lead.lastName}'.trim();
@@ -1529,9 +1545,60 @@ class _LeadsViewState extends State<LeadsView>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final isCompact = screenWidth < 600;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leads'),
+        leading: isCompact ? IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            PersistentShell.of(context)?.toggleDrawer();
+          },
+        ) : null,
+        actions: [
+          if (isCompact) ...[
+            // Icon buttons for compact screens
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Add Lead',
+              onPressed: () => _showLeadCreationDialog(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.upload_file),
+              tooltip: 'Import Leads',
+              onPressed: _importLeads,
+            ),
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: 'Export Leads',
+              onPressed: _exportLeads,
+            ),
+          ] else ...[
+            // Text buttons for larger screens
+            TextButton.icon(
+              onPressed: () => _showLeadCreationDialog(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Lead'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _importLeads,
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Import'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _exportLeads,
+              icon: const Icon(Icons.download),
+              label: const Text('Export'),
+            ),
+            const SizedBox(width: 16),
+          ],
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -1539,39 +1606,6 @@ class _LeadsViewState extends State<LeadsView>
             Tab(text: 'Timeline'),
           ],
         ),
-        actions: [
-          if (MediaQuery.of(context).size.width > 400) ...[
-            FilledButton.icon(
-              onPressed: _importLeads,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Import'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: _exportLeads,
-              icon: const Icon(Icons.download),
-              label: const Text('Export'),
-            ),
-          ] else ...[
-            IconButton(
-              onPressed: _importLeads,
-              icon: const Icon(Icons.upload_file),
-              tooltip: 'Import',
-            ),
-            IconButton(
-              onPressed: _exportLeads,
-              icon: const Icon(Icons.download),
-              tooltip: 'Export',
-            ),
-          ],
-          const SizedBox(width: 8),
-          FilledButton.tonalIcon(
-            onPressed: () => _showLeadCreationDialog(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Lead'),
-          ),
-          const SizedBox(width: 16),
-        ],
       ),
       body: TabBarView(
         controller: _tabController,
@@ -1668,9 +1702,15 @@ class _LeadsViewState extends State<LeadsView>
                         child: Text('Please select a lead to view its timeline'),
                       )
                     : StreamBuilder<List<TimelineEvent>>(
-                        stream: _timelineStream,
+                        stream: (context.read<AuthBloc>().state is Authenticated)
+                            ? _leadsRepository.getTimelineEvents(
+                                (context.read<AuthBloc>().state as Authenticated).employee.companyId!,
+                                _selectedLead!.id,
+                              )
+                            : const Stream.empty(),
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {
+                            debugPrint('Timeline error: ${snapshot.error}');
                             return Center(
                               child: Text(
                                 'Error loading timeline: ${snapshot.error}',
@@ -1684,6 +1724,7 @@ class _LeadsViewState extends State<LeadsView>
                           }
 
                           final events = snapshot.data!;
+                          debugPrint('Timeline events loaded: ${events.length}');
                           return TimelineWidget(
                             events: events,
                             isOverview: false,

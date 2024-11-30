@@ -111,7 +111,7 @@ class _TimelineWidgetState extends State<TimelineWidget>
   }
 
   Widget _buildMainTimeline(List<TimelineEvent> events) {
-    final height = widget.height ?? 300;
+    final height = widget.height ?? MediaQuery.of(context).size.height * 0.4;
     return SizedBox(
       height: height,
       child: SingleChildScrollView(
@@ -142,10 +142,10 @@ class _TimelineWidgetState extends State<TimelineWidget>
                     child: SizedBox(
                       height: height,
                       child: Column(
+                        mainAxisAlignment: isUp ? MainAxisAlignment.start : MainAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (!isUp) ...[
-                            const Spacer(),
                             _buildDateLabel(events[index].timestamp),
                             const SizedBox(height: 8),
                             _TimelineEventCard(
@@ -163,7 +163,6 @@ class _TimelineWidgetState extends State<TimelineWidget>
                             ),
                             const SizedBox(height: 8),
                             _buildDateLabel(events[index].timestamp),
-                            const Spacer(),
                           ],
                           if (isLastEvent) ...[
                             const SizedBox(height: 8),
@@ -405,315 +404,141 @@ class _TimelineEventCard extends StatefulWidget {
 }
 
 class _TimelineEventCardState extends State<_TimelineEventCard> {
-  bool _isExpanded = false;
-
   @override
   Widget build(BuildContext context) {
-    final isSystemEvent = widget.event.category == 'system';
-    final color = _getEventColor();
-
-    return InkWell(
-      onTap: () => setState(() => _isExpanded = !_isExpanded),
-      child: Container(
-        width: 280, // Increased width for better readability
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8, // Responsive width
-          minWidth: 200,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
+    
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: isCompact ? 250 : 300,
+        maxHeight: isCompact ? 120 : 150,
+      ),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSystemEvent ? color : Colors.grey[200]!,
-            width: isSystemEvent ? 2 : 1,
+          side: BorderSide(
+            color: widget.event.category == 'system'
+                ? Colors.blue[900]!
+                : Colors.grey[200]!,
+            width: widget.event.category == 'system' ? 2 : 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(),
-            if (_isExpanded) _buildMetadata(),
-            if (widget.isOverview) _buildLeadBadge(),
-          ],
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 8),
+                _buildMetadata(),
+                if (widget.isOverview) ...[
+                  const SizedBox(height: 8),
+                  _buildLeadBadge(),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildMetadata() {
-    final isSystemEvent = widget.event.category == 'system';
-    final color = _getEventColor();
-    final isReassignment = widget.event.metadata?['old_assignedEmployeeId'] != null;
+    final metadata = widget.event.metadata;
+    if (metadata == null || metadata.isEmpty) return const SizedBox.shrink();
 
-    return BlocBuilder<EmployeesBloc, EmployeesState>(
-      builder: (context, state) {
-        String assignedToText = '';
-        String assignedByText = '';
-        String previousAssigneeText = '';
-
-        if (state is EmployeesLoaded && widget.event.metadata != null) {
-          // Current assignee
-          if (widget.event.metadata!['assignedEmployeeId'] != null) {
-            final assignedEmployee = state.employees.firstWhere(
-              (e) => e.id == widget.event.metadata!['assignedEmployeeId'],
-              orElse: () => const Employee(
-                firstName: 'Unknown',
-                lastName: 'Employee',
-                email: '',
-                role: EmployeeRole.employee,
-              ),
-            );
-            assignedToText = '${assignedEmployee.firstName} ${assignedEmployee.lastName}';
-          }
-
-          // Previous assignee for reassignment
-          if (isReassignment && widget.event.metadata!['old_assignedEmployeeId'] != null) {
-            final previousEmployee = state.employees.firstWhere(
-              (e) => e.id == widget.event.metadata!['old_assignedEmployeeId'],
-              orElse: () => const Employee(
-                firstName: 'Unknown',
-                lastName: 'Employee',
-                email: '',
-                role: EmployeeRole.employee,
-              ),
-            );
-            previousAssigneeText = '${previousEmployee.firstName} ${previousEmployee.lastName}';
-          }
-
-          // Assigned by
-          if (widget.event.metadata!['assignedByEmployeeId'] != null) {
-            final assignedByEmployee = state.employees.firstWhere(
-              (e) => e.id == widget.event.metadata!['assignedByEmployeeId'],
-              orElse: () => const Employee(
-                firstName: 'Unknown',
-                lastName: 'Employee',
-                email: '',
-                role: EmployeeRole.employee,
-              ),
-            );
-            assignedByText = '${assignedByEmployee.firstName} ${assignedByEmployee.lastName}';
-          }
-        }
-
-        return Container(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.event.description != null && widget.event.description.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    widget.event.description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isSystemEvent ? color : Colors.grey[600],
-                    ),
-                  ),
-                ),
-              if (isReassignment && previousAssigneeText.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: RichText(
-                    text: TextSpan(
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSystemEvent ? color : Colors.grey[600],
-                      ),
-                      children: [
-                        const TextSpan(text: 'Reassigned from '),
-                        TextSpan(
-                          text: previousAssigneeText,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        const TextSpan(text: ' to '),
-                        TextSpan(
-                          text: assignedToText,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ] else if (assignedToText.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    'Assigned to: $assignedToText',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 12,
-                      color: isSystemEvent ? color : Colors.grey[600],
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-              if (assignedByText.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Assigned by: $assignedByText',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 12,
-                      color: isSystemEvent ? color : Colors.grey[600],
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-              ...widget.event.metadata?.entries.map((entry) {
-                if (entry.key == 'event_type' || 
-                    entry.key.contains('assignedEmployeeId') || 
-                    entry.key == 'assignedByEmployeeId') {
-                  return const SizedBox.shrink();
-                }
-
-                final hasChange = entry.value is Map &&
-                    entry.value.containsKey('old') &&
-                    entry.value.containsKey('new') ||
-                    (entry.key.contains('old_') &&
-                        widget.event.metadata!.containsKey(entry.key.replaceAll('old_', 'new_')));
-
-                if (hasChange && !isSystemEvent) {
-                  final oldValue = entry.value is Map
-                      ? entry.value['old'].toString()
-                      : entry.value.toString();
-                  final newValue = entry.value is Map
-                      ? entry.value['new'].toString()
-                      : widget.event.metadata![entry.key.replaceAll('old_', 'new_')].toString();
-                  final changeType = _getChangeType(oldValue, newValue);
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          entry.key.replaceAll('old_', '').replaceAll('_', ' ').toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 12,
-                              color: _getChangeColor(changeType).withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: RichText(
-                                text: TextSpan(
-                                  style: const TextStyle(fontSize: 10),
-                                  children: [
-                                    TextSpan(
-                                      text: oldValue,
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        decoration: TextDecoration.lineThrough,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: ' → ',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: newValue,
-                                      style: TextStyle(
-                                        color: _getChangeColor(changeType),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                } else if (!entry.key.startsWith('new_')) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${entry.key.replaceAll('_', ' ').toUpperCase()}: ',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isSystemEvent ? color : Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            entry.value.toString(),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isSystemEvent ? color : null,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                } else {
-                  return const SizedBox.shrink();
-                }
-              }).toList() ?? [],
-            ],
-          ),
-        );
-      },
+    return DefaultTextStyle(
+      style: TextStyle(
+        fontSize: 12,
+        color: Colors.grey[600],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (metadata['leadName'] != null) ...[
+            Text(
+              'Lead: ${metadata['leadName']}',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (metadata['status'] != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Status: ${metadata['status']}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   Widget _buildHeader() {
     final color = _getEventColor();
-    final isSystemEvent = widget.event.category == 'system';
-    final isReassignment = widget.event.metadata?['old_assignedEmployeeId'] != null;
+    final isEmployeeEvent = widget.event.metadata?['source'] == 'employee_timeline';
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(isSystemEvent ? 0.15 : 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildCategoryIcon(color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              isReassignment ? 'Lead Reassigned' : widget.event.title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSystemEvent ? FontWeight.w700 : FontWeight.w600,
-                color: isSystemEvent ? color : Colors.grey[800],
-              ),
-            ),
-          ),
-          Text(
-            _formatDate(widget.event.timestamp),
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[600],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.event.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    if (isEmployeeEvent)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Employee',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.event.description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatDate(widget.event.timestamp),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
             ),
           ),
         ],

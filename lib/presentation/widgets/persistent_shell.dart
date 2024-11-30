@@ -91,14 +91,14 @@ class NavigationDrawerConfig {
       icon: Icons.settings_outlined,
       selectedIcon: Icons.settings,
       label: 'Settings',
-      index: 7,
+      index: 0,
       page: SettingsPage(),
     ),
     const NavigationItem(
       icon: Icons.help_outline,
       selectedIcon: Icons.help,
       label: 'Help',
-      index: 8,
+      index: 1,
       page: HelpPage(),
     ),
   ];
@@ -363,7 +363,7 @@ class PersistentShellState extends State<PersistentShell> {
           label: Text(
             item.label,
             style: TextStyle(
-              color: _selectedIndex == item.index
+              color: _selectedIndex == (item.index + NavigationDrawerConfig.mainNavigationItems.length)
                   ? theme.colorScheme.primary
                   : theme.colorScheme.onSurface,
             ),
@@ -392,7 +392,15 @@ class PersistentShellState extends State<PersistentShell> {
     final screenWidth = mediaQuery.size.width;
     final isCompact = screenWidth < 600; // Mobile breakpoint
 
-    final currentPage = _customPage ?? NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page ?? const SizedBox();
+    // Determine the current page based on selected index
+    Widget currentPage;
+    if (_selectedIndex < NavigationDrawerConfig.mainNavigationItems.length) {
+      currentPage = _customPage ?? NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page ?? const SizedBox();
+    } else {
+      // Handle preference items
+      final preferenceIndex = _selectedIndex - NavigationDrawerConfig.mainNavigationItems.length;
+      currentPage = _customPage ?? NavigationDrawerConfig.preferenceItems[preferenceIndex].page ?? const SizedBox();
+    }
 
     // Drawer content that will be used in both mobile and desktop layouts
     final drawerWidget = Drawer(
@@ -444,11 +452,11 @@ class PersistentShellState extends State<PersistentShell> {
                 ...NavigationDrawerConfig.preferenceItems.map((item) => 
                   _NeetiFlowNavigationItem(
                     item: item,
-                    isSelected: _selectedIndex == item.index,
+                    isSelected: _selectedIndex == (item.index + NavigationDrawerConfig.mainNavigationItems.length),
                     onTap: () {
                       setState(() {
                         _customPage = null;  // Clear the custom page
-                        _selectedIndex = item.index;
+                        _selectedIndex = item.index + NavigationDrawerConfig.mainNavigationItems.length;
                       });
                       // Only pop for mobile screens
                       if (isCompact && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {

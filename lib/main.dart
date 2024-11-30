@@ -22,6 +22,7 @@ import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
 import 'package:neetiflow/data/repositories/employee_timeline_repository.dart';
+import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -77,6 +78,9 @@ class MainApp extends StatelessWidget {
               organizationId: authState.employee.companyId ?? '',
             );
           },
+        ),
+        RepositoryProvider<LeadsRepository>(
+          create: (context) => LeadsRepositoryImpl(),
         ),
       ],
       child: MultiBlocProvider(

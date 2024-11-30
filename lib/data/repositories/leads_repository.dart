@@ -28,6 +28,7 @@ abstract class LeadsRepository {
   Future<Uint8List> exportLeadsToCSV(List<Lead> leads);
   Future<void> addTimelineEvent(String organizationId, TimelineEvent event);
   Stream<List<TimelineEvent>> getTimelineEvents(String organizationId, String leadId);
+  Stream<List<TimelineEvent>> getEmployeeTimelineEvents(String organizationId, String employeeId);
 }
 
 class LeadsRepositoryImpl implements LeadsRepository {
@@ -290,5 +291,88 @@ class LeadsRepositoryImpl implements LeadsRepository {
         .map((snapshot) => snapshot.docs
             .map((doc) => TimelineEvent.fromJson({...doc.data(), 'id': doc.id}))
             .toList());
+  }
+
+  @override
+  Stream<List<TimelineEvent>> getEmployeeTimelineEvents(String organizationId, String employeeId) {
+    return _firestore
+        .collection('organizations')
+        .doc(organizationId)
+        .collection('leads')
+        .snapshots()
+        .asyncMap((leadsSnapshot) async {
+          final allEvents = <TimelineEvent>[];
+          final processedLeadIds = <String>{};  // To track processed leads
+          
+          for (final leadDoc in leadsSnapshot.docs) {
+            final leadData = leadDoc.data();
+            final assignedTo = leadData['metadata']?['assignedEmployeeId'];
+            
+            // If this lead is assigned to the current employee, add it as a task
+            if (assignedTo == employeeId && !processedLeadIds.contains(leadDoc.id)) {
+              processedLeadIds.add(leadDoc.id);
+              
+              // Add a lead assignment event if not already processed
+              allEvents.add(TimelineEvent(
+                id: 'assignment_${leadDoc.id}',
+                leadId: leadDoc.id,
+                title: 'New Lead Assigned',
+                description: 'Lead "${leadData['firstName'] ?? ''} ${leadData['lastName'] ?? ''}" has been assigned to you',
+                timestamp: ((leadData['assignedAt'] as Timestamp?) ?? 
+                          (leadData['createdAt'] as Timestamp?) ?? 
+                          Timestamp.now()).toDate(),
+                category: 'lead_assigned',
+                metadata: {
+                  'assignedTo': employeeId,
+                  'status': leadData['status'] ?? 'pending',
+                  'leadName': '${leadData['firstName'] ?? ''} ${leadData['lastName'] ?? ''}',
+                  'leadPhone': leadData['phone'],
+                  'leadEmail': leadData['email'],
+                },
+              ));
+            }
+
+            // Get timeline events for this lead
+            final timelineSnapshot = await _firestore
+                .collection('organizations')
+                .doc(organizationId)
+                .collection('leads')
+                .doc(leadDoc.id)
+                .collection('timeline')
+                .orderBy('timestamp', descending: true)
+                .get();
+
+            final events = timelineSnapshot.docs.map((doc) {
+              final data = doc.data();
+              // Only include events that are specifically assigned to this employee
+              // and are not lead assignments (since we handle those separately)
+              final isAssigned = data['metadata'] != null &&
+                  data['metadata']['assignedTo'] == employeeId &&
+                  data['category'] != 'lead_assigned';
+              
+              if (!isAssigned) return null;
+
+              return TimelineEvent(
+                id: doc.id,
+                leadId: leadDoc.id,
+                title: data['title'] ?? '',
+                description: data['description'] ?? '',
+                timestamp: (data['timestamp'] as Timestamp).toDate(),
+                category: data['category'] ?? '',
+                metadata: {
+                  ...?data['metadata'] as Map<String, dynamic>?,
+                  'leadName': '${leadData['firstName'] ?? ''} ${leadData['lastName'] ?? ''}',
+                  'status': leadData['status'] ?? 'pending',
+                },
+              );
+            }).whereType<TimelineEvent>().toList();
+
+            allEvents.addAll(events);
+          }
+
+          // Sort all events by timestamp
+          allEvents.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return allEvents;
+        });
   }
 }
