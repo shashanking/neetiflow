@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:neetiflow/data/repositories/employee_timeline_repository.dart';
+import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
@@ -152,7 +154,9 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
       }
 
       final now = DateTime.now();
-      final timelineEvent = TimelineEvent(
+      
+      // Create lead timeline event
+      final leadTimelineEvent = TimelineEvent(
         id: const Uuid().v4(),
         leadId: widget.lead.id,
         title: widget.lead.metadata?['assignedEmployeeId'] != null 
@@ -174,6 +178,24 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
         },
       );
 
+      // Create employee timeline event
+      final employeeTimelineEvent = EmployeeTimelineEvent(
+        id: const Uuid().v4(),
+        employeeId: _selectedEmployee!.id ?? '',
+        title: 'New Lead Assigned',
+        description: 'Assigned lead: ${widget.lead.firstName} ${widget.lead.lastName}',
+        timestamp: now,
+        category: 'lead_assignment',
+        metadata: {
+          'leadId': widget.lead.id,
+          'leadName': '${widget.lead.firstName} ${widget.lead.lastName}',
+          'assignedByEmployeeId': authState.employee.id ?? '',
+          'assignedByName': '${authState.employee.firstName} ${authState.employee.lastName}',
+          if (widget.lead.metadata?['assignedEmployeeId'] != null)
+            'isReassignment': true,
+        },
+      );
+
       final updatedLead = widget.lead.copyWith(
         metadata: {
           ...widget.lead.metadata ?? {},
@@ -185,10 +207,18 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog> {
 
       try {
         debugPrint('Updating lead with LeadsBloc');
+        // Update lead and create lead timeline event
         widget.leadsBloc.add(UpdateLead(
           lead: updatedLead,
-          timelineEvent: timelineEvent,
+          timelineEvent: leadTimelineEvent,
         ));
+
+        // Create employee timeline event
+        final employeeTimelineRepo = context.read<EmployeeTimelineRepository>();
+        await employeeTimelineRepo.addTimelineEvent(
+          authState.employee.companyId ?? '',
+          employeeTimelineEvent,
+        );
       } catch (e) {
         debugPrint('Error updating lead: $e');
         rethrow;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:neetiflow/presentation/widgets/employees/employee_timeline_container.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
@@ -100,88 +101,110 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () {
-                final state = PersistentShell.of(context);
-                if (state != null) {
-                  state.clearCustomPage();
-                }
-              },
-              tooltip: 'Back to Employees',
-            ),
-            title: Text('${employee.firstName} ${employee.lastName}'),
-            actions: [
-              BlocBuilder<AuthBloc, AuthState>(
-                builder: (context, authState) {
-                  if (authState is Authenticated) {
-                    final isCurrentUser = authState.employee.id == employee.id;
-                    final isAdmin = authState.employee.role == EmployeeRole.admin;
-                    
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isCurrentUser) ...[
-                          IconButton(
-                            icon: const Icon(Icons.key),
-                            onPressed: () {
-                              _showResetPasswordDialog(context);
-                            },
-                            tooltip: 'Reset Password',
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        if (isAdmin && !isCurrentUser) ...[
-                          IconButton(
-                            icon: Icon(
-                              employee.isActive
-                                  ? Icons.toggle_on_outlined
-                                  : Icons.toggle_off_outlined,
-                            ),
-                            onPressed: () {
-                              _showActivationDialog(context);
-                            },
-                            tooltip: employee.isActive
-                                ? 'Deactivate Employee'
-                                : 'Activate Employee',
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: widget.onEdit,
-                            tooltip: 'Edit Employee',
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: widget.onDelete,
-                            tooltip: 'Delete Employee',
-                            style: IconButton.styleFrom(
-                              foregroundColor: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                        ],
-                      ],
-                    );
+      child: DefaultTabController(
+        length: 2,
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverAppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  final state = PersistentShell.of(context);
+                  if (state != null) {
+                    state.clearCustomPage();
                   }
-                  return const SizedBox.shrink();
                 },
+                tooltip: 'Back to Employees',
+              ),
+              title: Text('${employee.firstName} ${employee.lastName}'),
+              actions: [
+                BlocBuilder<AuthBloc, AuthState>(
+                  builder: (context, authState) {
+                    if (authState is Authenticated) {
+                      final isCurrentUser = authState.employee.id == employee.id;
+                      final isAdmin = authState.employee.role == EmployeeRole.admin;
+ 
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isCurrentUser) ...[
+                            IconButton(
+                              icon: const Icon(Icons.key),
+                              onPressed: () {
+                                _showResetPasswordDialog(context);
+                              },
+                              tooltip: 'Reset Password',
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          if (isAdmin && !isCurrentUser) ...[
+                            IconButton(
+                              icon: Icon(
+                                employee.isActive
+                                    ? Icons.toggle_on_outlined
+                                    : Icons.toggle_off_outlined,
+                              ),
+                              onPressed: () {
+                                _showActivationDialog(context);
+                              },
+                              tooltip: employee.isActive
+                                  ? 'Deactivate Employee'
+                                  : 'Activate Employee',
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: widget.onEdit,
+                              tooltip: 'Edit Employee',
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: widget.onDelete,
+                              tooltip: 'Delete Employee',
+                              style: IconButton.styleFrom(
+                                foregroundColor: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                          ],
+                        ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+              bottom: const TabBar(
+                tabs: [
+                  Tab(text: 'Details'),
+                  Tab(text: 'Timeline'),
+                ],
+              ),
+            ),
+          ],
+          body: TabBarView(
+            children: [
+              // Details Tab
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: _buildDetails(context),
+              ),
+              // Timeline Tab
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: employee.id != null && employee.companyId != null
+                    ? EmployeeTimelineContainer(
+                        employeeId: employee.id!,
+                        companyId: employee.companyId!,
+                      )
+                    : const Center(
+                        child: Text('Employee ID or Company ID not available'),
+                      ),
               ),
             ],
           ),
-          SliverPadding(
-            padding: const EdgeInsets.all(16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildDetails(context),
-              ]),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

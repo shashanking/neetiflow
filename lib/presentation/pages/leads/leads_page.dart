@@ -4,8 +4,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
+import 'package:neetiflow/data/repositories/employee_timeline_repository.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/client.dart';
+import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
@@ -108,7 +110,7 @@ class _LeadsViewState extends State<LeadsView>
     super.initState();
     _loadLeads();
     _leadsRepository = RepositoryProvider.of<LeadsRepository>(context);
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_handleTabChange);
   }
 
@@ -154,7 +156,7 @@ class _LeadsViewState extends State<LeadsView>
   void _loadLeads() {
     final authState = context.read<AuthBloc>().state;
     if (authState is Authenticated) {
-      context.read<LeadsBloc>().add(LoadLeads());
+      context.read<LeadsBloc>().add(const LoadLeads());
     }
   }
 
@@ -1514,7 +1516,10 @@ class _LeadsViewState extends State<LeadsView>
     if (authState is! Authenticated) return;
 
     final now = DateTime.now();
-    final timelineEvent = TimelineEvent(
+    final previousAssigneeId = lead.metadata?['assignedEmployeeId'] as String?;
+
+    // Create lead timeline event
+    final leadTimelineEvent = TimelineEvent(
       id: const Uuid().v4(),
       leadId: lead.id,
       title: 'Lead Unassigned',
@@ -1523,9 +1528,35 @@ class _LeadsViewState extends State<LeadsView>
       category: 'assignment',
       metadata: {
         'unassignedByEmployeeId': authState.employee.id,
+        'previousAssigneeId': previousAssigneeId,
         'type': 'lead_unassignment'
       },
     );
+
+    // Create employee timeline event if there was a previous assignee
+    if (previousAssigneeId != null) {
+      final employeeTimelineEvent = EmployeeTimelineEvent(
+        id: const Uuid().v4(),
+        employeeId: previousAssigneeId,
+        title: 'Lead Unassigned',
+        description: 'Lead removed from assignment: ${lead.firstName} ${lead.lastName}',
+        timestamp: now,
+        category: 'lead_unassignment',
+        metadata: {
+          'leadId': lead.id,
+          'leadName': '${lead.firstName} ${lead.lastName}',
+          'unassignedByEmployeeId': authState.employee.id,
+          'unassignedByName': '${authState.employee.firstName} ${authState.employee.lastName}',
+        },
+      );
+
+      // Add employee timeline event
+      final employeeTimelineRepo = context.read<EmployeeTimelineRepository>();
+      employeeTimelineRepo.addTimelineEvent(
+        authState.employee.companyId ?? '',
+        employeeTimelineEvent,
+      );
+    }
 
     // Create a new metadata map with the assignment fields removed
     final updatedMetadata = Map<String, dynamic>.from(lead.metadata ?? {});
@@ -1537,13 +1568,12 @@ class _LeadsViewState extends State<LeadsView>
 
     final updatedLead = lead.copyWith(
       metadata: updatedMetadata,
-      timelineEvents: [
-        ...lead.timelineEvents,
-        timelineEvent,
-      ],
     );
 
-    context.read<LeadsBloc>().add(UpdateLead(lead: updatedLead));
+    context.read<LeadsBloc>().add(UpdateLead(
+      lead: updatedLead,
+      timelineEvent: leadTimelineEvent,
+    ));
   }
 
   Widget _buildBulkActionsToolbar(BuildContext context) {
@@ -1794,7 +1824,6 @@ class _LeadsViewState extends State<LeadsView>
           tabs: const [
             Tab(text: 'Leads'),
             Tab(text: 'Timeline'),
-            Tab(text: 'Analytics'),
           ],
         ),
         actions: [
@@ -1838,7 +1867,6 @@ class _LeadsViewState extends State<LeadsView>
         children: [
           _buildLeadsTab(),
           _buildTimelineTab(),
-          _buildAnalyticsTab(),
         ],
       ),
     );
@@ -1955,12 +1983,6 @@ class _LeadsViewState extends State<LeadsView>
           ],
         );
       },
-    );
-  }
-
-  Widget _buildAnalyticsTab() {
-    return const Center(
-      child: Text('Analytics Tab'),
     );
   }
 

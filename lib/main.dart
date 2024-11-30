@@ -17,9 +17,11 @@ import 'package:neetiflow/presentation/blocs/employee_status/employee_status_blo
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
+import 'package:neetiflow/presentation/blocs/employee_timeline/employee_timeline_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
+import 'package:neetiflow/data/repositories/employee_timeline_repository.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -61,6 +63,9 @@ class MainApp extends StatelessWidget {
         ),
         RepositoryProvider<ClientsRepository>(
           create: (context) => FirebaseClientsRepository(),
+        ),
+        RepositoryProvider<EmployeeTimelineRepository>(
+          create: (context) => EmployeeTimelineRepositoryImpl(),
         ),
         RepositoryProvider<CustomFieldsRepository>(
           create: (context) {
@@ -113,6 +118,11 @@ class MainApp extends StatelessWidget {
                   entityType: 'leads',
                   organizationId: (context.read<AuthBloc>().state as Authenticated).employee.companyId!,
                 )..add(LoadCustomFields()),
+              ),
+              BlocProvider(
+                create: (context) => EmployeeTimelineBloc(
+                  context.read<EmployeeTimelineRepository>(),
+                ),
               ),
             ],
             child: Container(),
