@@ -98,11 +98,13 @@ class LeadsView extends StatefulWidget {
 
 class _LeadsViewState extends State<LeadsView>
     with SingleTickerProviderStateMixin {
-  late final LeadsRepository _leadsRepository;
-  late Stream<List<TimelineEvent>> _timelineStream;
-  String? _sortColumn;
-  bool _sortAscending = true;
   late TabController _tabController;
+  late LeadsRepository _leadsRepository;
+  late Stream<List<TimelineEvent>> _timelineStream;
+  final _searchController = TextEditingController();
+  String _sortColumn = 'createdAt';
+  bool _sortAscending = false;
+  final _scrollController = ScrollController();
   Lead? _selectedLead;
 
   @override
@@ -118,6 +120,8 @@ class _LeadsViewState extends State<LeadsView>
   void dispose() {
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
+    _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -178,9 +182,6 @@ class _LeadsViewState extends State<LeadsView>
     context.read<LeadsBloc>().add(const ExportLeadsToCSV());
   }
 
-  void _addNewLead() {
-    _showLeadCreationDialog(context);
-  }
 
   void _showLeadCreationDialog(BuildContext context) {
     showDialog(
@@ -397,115 +398,6 @@ class _LeadsViewState extends State<LeadsView>
     );
   }
 
-  Widget _buildLeadsTable(BuildContext context, List<Lead> leads) {
-    return Column(
-      children: [
-        if (context.watch<LeadsBloc>().state.selectedLeadIds.isNotEmpty)
-          _buildBulkActionsToolbar(context),
-        Expanded(
-          child: RawScrollbar(
-            thumbVisibility: true,
-            trackVisibility: true,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: RawScrollbar(
-                thumbVisibility: true,
-                trackVisibility: true,
-                scrollbarOrientation: ScrollbarOrientation.bottom,
-                child: DataTable(
-                  showCheckboxColumn: true,
-                  sortColumnIndex: _sortColumn != null
-                      ? _getColumnIndex(_sortColumn!)
-                      : null,
-                  sortAscending: _sortAscending,
-                  columns: [
-                    const DataColumn(
-                      label: Text(''), // Empty label for checkbox column
-                    ),
-                    DataColumn(
-                      label: const Text('Name'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'name';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Score'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'score';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Email'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'email';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Phone'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'phone';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Status'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'status';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Process'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'processStatus';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Created'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'createdAt';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    const DataColumn(label: Text('Assignment')),
-                    const DataColumn(label: Text('Actions')),
-                  ],
-                  rows: leads
-                      .map((lead) => _buildDataRow(context, lead))
-                      .toList(),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   DataRow _buildDataRow(BuildContext context, Lead lead) {
     final state = context.watch<LeadsBloc>().state;
@@ -1097,15 +989,27 @@ class _LeadsViewState extends State<LeadsView>
                       ),
                     ),
                     Expanded(
-                      child: RawScrollbar(
-                        thumbVisibility: true,
-                        trackVisibility: true,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          child: RawScrollbar(
-                            thumbVisibility: true,
-                            trackVisibility: true,
-                            scrollbarOrientation: ScrollbarOrientation.bottom,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          scrollbarTheme: ScrollbarThemeData(
+                            thumbColor: MaterialStateProperty.all(
+                              Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            ),
+                            trackColor: MaterialStateProperty.all(
+                              Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            ),
+                            trackBorderColor: MaterialStateProperty.all(
+                              Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            ),
+                          ),
+                        ),
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: true,
+                          trackVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
                             child: _buildLeadsTableCompact(
                                 context, state.filteredLeads),
                           ),
