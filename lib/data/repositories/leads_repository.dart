@@ -110,11 +110,29 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<void> createLead(String organizationId, Lead lead) async {
+    final leadJson = lead.toJson()..remove('id');
     await _firestore
         .collection('organizations')
         .doc(organizationId)
         .collection('leads')
-        .add(lead.toJson()..remove('id'));
+        .doc(lead.id)
+        .set(leadJson);
+
+    // Add timeline events if any
+    if (lead.timelineEvents.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final event in lead.timelineEvents) {
+        final eventRef = _firestore
+            .collection('organizations')
+            .doc(organizationId)
+            .collection('leads')
+            .doc(lead.id)
+            .collection('timeline')
+            .doc(event.id);
+        batch.set(eventRef, event.toJson()..remove('id'));
+      }
+      await batch.commit();
+    }
   }
 
   @override

@@ -14,7 +14,6 @@ import 'package:neetiflow/presentation/pages/organization/organization_page.dart
 import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
 
 import '../../domain/entities/employee.dart';
-import '../../domain/repositories/employees_repository.dart';
 
 /// Represents a single navigation item in the drawer
 class NavigationItem {
@@ -386,15 +385,6 @@ class PersistentShellState extends State<PersistentShell> {
     super.dispose();
   }
 
-  void _subscribeToEmployeeUpdates(String companyId, String employeeId) {
-    final employeesRepository = context.read<EmployeesRepository>();
-    _employeeSubscription?.cancel();
-    _employeeSubscription = employeesRepository
-        .employeeStream(companyId, employeeId)
-        .listen((employee) {
-      if (mounted) {}
-    });
-  }
 
   @override
   Widget build(BuildContext context) {

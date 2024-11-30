@@ -29,8 +29,11 @@ class CustomFieldsPageState extends State<CustomFieldsPage> {
 
     // Create repository and bloc
     final repository = CustomFieldsRepository(organizationId: organizationId);
-    _customFieldsBloc = CustomFieldsBloc(repository: repository)
-      ..add(LoadCustomFields());
+    _customFieldsBloc = CustomFieldsBloc(
+      repository: repository,
+      entityType: 'leads',
+      organizationId: organizationId,
+    )..add(LoadCustomFields());
   }
 
   @override

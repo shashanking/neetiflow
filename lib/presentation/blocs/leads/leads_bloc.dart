@@ -18,6 +18,7 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   StreamSubscription<List<Lead>>? _leadsSubscription;
   StreamSubscription<List<TimelineEvent>>? _timelineSubscription;
   StreamSubscription<List<TimelineEvent>>? _allTimelineSubscription;
+  StreamSubscription<Lead>? _selectedLeadSubscription;
 
   LeadsBloc({
     required LeadsRepository leadsRepository,
@@ -55,6 +56,7 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     _leadsSubscription?.cancel();
     _timelineSubscription?.cancel();
     _allTimelineSubscription?.cancel();
+    _selectedLeadSubscription?.cancel();
     return super.close();
   }
 
@@ -90,10 +92,20 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   }
 
   void _handleLeadsLoaded(_LeadsLoadedEvent event, Emitter<LeadsState> emit) {
+    final updatedLeads = List<Lead>.from(state.allLeads);
+    for (final lead in event.allLeads) {
+      final index = updatedLeads.indexWhere((l) => l.id == lead.id);
+      if (index != -1) {
+        updatedLeads[index] = lead;
+      } else {
+        updatedLeads.add(lead);
+      }
+    }
+
     emit(state.copyWith(
       status: LeadsStatus.success,
-      allLeads: event.allLeads,
-      filteredLeads: event.filteredLeads,
+      allLeads: updatedLeads,
+      filteredLeads: _applyFilter(updatedLeads, state.filter),
     ));
   }
 
@@ -386,15 +398,24 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
   }
 
   void _onSelectLead(SelectLead event, Emitter<LeadsState> emit) {
-    final selectedLeadIds = Set<String>.from(state.selectedLeadIds)
-      ..add(event.leadId);
-    emit(state.copyWith(selectedLeadIds: selectedLeadIds));
+    emit(state.copyWith(selectedLeadId: event.leadId));
+    
+    // Subscribe to lead updates when selected
+    _selectedLeadSubscription?.cancel();
+    _selectedLeadSubscription = _leadsRepository
+        .getLeads(_organizationId)
+        .map((leads) => leads.firstWhere(
+              (lead) => lead.id == event.leadId,
+              orElse: () => throw Exception('Lead not found'),
+            ))
+        .listen((lead) {
+          add(_LeadsLoadedEvent(allLeads: [lead], filteredLeads: [lead]));
+        });
   }
 
   void _onDeselectLead(DeselectLead event, Emitter<LeadsState> emit) {
-    final selectedLeadIds = Set<String>.from(state.selectedLeadIds)
-      ..remove(event.leadId);
-    emit(state.copyWith(selectedLeadIds: selectedLeadIds));
+    _selectedLeadSubscription?.cancel();
+    emit(state.copyWith(selectedLeadId: null));
   }
 
   void _onSelectAllLeads(SelectAllLeads event, Emitter<LeadsState> emit) {
@@ -434,8 +455,18 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
 
   Future<void> _onUpdateLead(UpdateLead event, Emitter<LeadsState> emit) async {
     try {
+      // Update lead in database
       await _leadsRepository.updateLead(_organizationId, event.lead);
 
+      // Add timeline event if provided
+      if (event.timelineEvent != null) {
+        await _leadsRepository.addTimelineEvent(
+          _organizationId,
+          event.timelineEvent!,
+        );
+      }
+
+      // Update local state
       final updatedLeads = state.allLeads.map((lead) {
         return lead.id == event.lead.id ? event.lead : lead;
       }).toList();
@@ -572,10 +603,13 @@ class _LeadsLoadedEvent extends LeadsEvent {
   final List<Lead> allLeads;
   final List<Lead> filteredLeads;
 
-  _LeadsLoadedEvent({
+  const _LeadsLoadedEvent({
     required this.allLeads,
     required this.filteredLeads,
   });
+
+  @override
+  List<Object> get props => [allLeads, filteredLeads];
 }
 
 class _LeadsErrorEvent extends LeadsEvent {

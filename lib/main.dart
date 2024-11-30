@@ -62,6 +62,17 @@ class MainApp extends StatelessWidget {
         RepositoryProvider<ClientsRepository>(
           create: (context) => FirebaseClientsRepository(),
         ),
+        RepositoryProvider<CustomFieldsRepository>(
+          create: (context) {
+            final authState = context.read<AuthBloc>().state;
+            if (authState is! Authenticated) {
+              throw Exception('User must be authenticated to access CustomFieldsRepository');
+            }
+            return CustomFieldsRepository(
+              organizationId: authState.employee.companyId ?? '',
+            );
+          },
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -97,7 +108,11 @@ class MainApp extends StatelessWidget {
                 ),
               ),
               BlocProvider(
-                create: (context) => CustomFieldsBloc(repository: context.read<CustomFieldsRepository>()),
+                create: (context) => CustomFieldsBloc(
+                  repository: context.read<CustomFieldsRepository>(),
+                  entityType: 'leads',
+                  organizationId: (context.read<AuthBloc>().state as Authenticated).employee.companyId!,
+                )..add(LoadCustomFields()),
               ),
             ],
             child: Container(),
@@ -174,7 +189,7 @@ class MainApp extends StatelessWidget {
               builder: (context, constraints) {
                 return MediaQuery(
                   data: MediaQuery.of(context).copyWith(
-                    textScaler: TextScaler.linear(_getTextScaleFactor(constraints.maxWidth)),
+                    textScaleFactor: _getTextScaleFactor(constraints.maxWidth),
                   ),
                   child: child!,
                 );

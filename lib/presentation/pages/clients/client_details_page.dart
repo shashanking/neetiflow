@@ -72,8 +72,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
               length: 2,
               child: Column(
                 children: [
-                  TabBar(
-                    tabs: const [
+                  const TabBar(
+                    tabs: [
                       Tab(text: 'Details'),
                       Tab(text: 'Timeline'),
                     ],

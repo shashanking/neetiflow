@@ -174,9 +174,19 @@ class _LeadFormState extends State<LeadForm> {
         ProxyProvider<CustomFieldsRepository, CustomFieldsBloc>(
           create: (context) => CustomFieldsBloc(
             repository: context.read<CustomFieldsRepository>(),
+            entityType: 'leads',
+            organizationId: context.read<AuthBloc>().state is Authenticated
+                ? (context.read<AuthBloc>().state as Authenticated).employee.companyId ?? ''
+                : '',
           ),
           update: (context, repository, bloc) =>
-              bloc ?? CustomFieldsBloc(repository: repository),
+              bloc ?? CustomFieldsBloc(
+                repository: repository,
+                entityType: 'leads',
+                organizationId: context.read<AuthBloc>().state is Authenticated
+                    ? (context.read<AuthBloc>().state as Authenticated).employee.companyId ?? ''
+                    : '',
+              ),
           lazy: false, // Ensure the bloc is created immediately
         ),
       ],

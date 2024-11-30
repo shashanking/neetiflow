@@ -75,8 +75,14 @@ class CustomFieldsError extends CustomFieldsState {
 // Bloc
 class CustomFieldsBloc extends Bloc<CustomFieldsEvent, CustomFieldsState> {
   final CustomFieldsRepository repository;
+  final String entityType;
+  final String organizationId;
 
-  CustomFieldsBloc({required this.repository}) : super(CustomFieldsInitial()) {
+  CustomFieldsBloc({
+    required this.repository,
+    required this.entityType,
+    required this.organizationId,
+  }) : super(CustomFieldsInitial()) {
     on<LoadCustomFields>(_onLoadCustomFields);
     on<AddCustomField>(_onAddCustomField);
     on<UpdateCustomField>(_onUpdateCustomField);
