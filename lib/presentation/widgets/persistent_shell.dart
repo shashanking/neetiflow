@@ -385,7 +385,6 @@ class PersistentShellState extends State<PersistentShell> {
     super.dispose();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -491,23 +490,30 @@ class PersistentShellState extends State<PersistentShell> {
     );
 
     // Responsive layout
-    return Scaffold(
-      key: _scaffoldKey,
-      // Drawer only for mobile
-      drawer: isCompact ? drawerWidget : null,
-      body: isCompact
-          ? pageContent
-          : Row(
-              children: [
-                // Permanent drawer for larger screens
-                SizedBox(
-                  width: 280,
-                  child: drawerWidget,
-                ),
-                // Expanded content area
-                Expanded(child: pageContent),
-              ],
-            ),
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthInitial) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        // Drawer only for mobile
+        drawer: isCompact ? drawerWidget : null,
+        body: isCompact
+            ? pageContent
+            : Row(
+                children: [
+                  // Permanent drawer for larger screens
+                  SizedBox(
+                    width: 280,
+                    child: drawerWidget,
+                  ),
+                  // Expanded content area
+                  Expanded(child: pageContent),
+                ],
+              ),
+      ),
     );
   }
 
