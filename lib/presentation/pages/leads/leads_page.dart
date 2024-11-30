@@ -19,7 +19,6 @@ import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_form.dart';
-import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 import 'package:uuid/uuid.dart';
 
@@ -102,8 +101,6 @@ class _LeadsViewState extends State<LeadsView>
   late LeadsRepository _leadsRepository;
   late Stream<List<TimelineEvent>> _timelineStream;
   final _searchController = TextEditingController();
-  String _sortColumn = 'createdAt';
-  bool _sortAscending = false;
   final _scrollController = ScrollController();
   Lead? _selectedLead;
 
@@ -399,168 +396,10 @@ class _LeadsViewState extends State<LeadsView>
   }
 
 
-  DataRow _buildDataRow(BuildContext context, Lead lead) {
-    final state = context.watch<LeadsBloc>().state;
-    final isSelected = state.selectedLeadIds.contains(lead.id);
 
-    return DataRow(
-      selected: isSelected,
-      onSelectChanged: (selected) {
-        if (selected ?? false) {
-          context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
-        } else {
-          context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
-        }
-        setState(() {});
-      },
-      cells: [
-        const DataCell(SizedBox.shrink()), // Checkbox column
-        DataCell(
-          Text(_getLeadName(lead)),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          LeadScoreBadge(lead: lead),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          Text(lead.email),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          Text(lead.phone),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          _buildStatusChip(context, lead),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          _buildProcessChip(context, lead),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          Text(_formatDate(lead.createdAt)),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(_buildAssignmentCell(context, lead)),
-        DataCell(Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () => _editLead(lead),
-              tooltip: 'Edit Lead',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteLead(lead),
-              tooltip: 'Delete Lead',
-            ),
-            IconButton(
-              icon: const Icon(Icons.info_outline, color: Colors.blue),
-              onPressed: () => _navigateToLeadDetails(context, lead),
-              tooltip: 'View Details',
-            ),
-          ],
-        )),
-      ],
-    );
-  }
 
-  int _getColumnIndex(String column) {
-    switch (column) {
-      case 'name':
-        return 1;
-      case 'score':
-        return 2;
-      case 'email':
-        return 3;
-      case 'phone':
-        return 4;
-      case 'status':
-        return 5;
-      case 'processStatus':
-        return 6;
-      case 'createdAt':
-        return 7;
-      default:
-        return 0;
-    }
-  }
 
-  void _onSort(int columnIndex, bool ascending) {
-    final leadsBloc = context.read<LeadsBloc>();
-    final state = leadsBloc.state;
 
-    final column = _getColumnName(columnIndex);
-    final sortedLeads = _getSortedLeads(state.filteredLeads, column, ascending);
-
-    leadsBloc.add(SortLeads(
-      leads: sortedLeads,
-      column: column,
-      ascending: ascending,
-    ));
-  }
-
-  String _getColumnName(int index) {
-    switch (index) {
-      case 1:
-        return 'name';
-      case 2:
-        return 'score';
-      case 3:
-        return 'email';
-      case 4:
-        return 'phone';
-      case 5:
-        return 'status';
-      case 6:
-        return 'processStatus';
-      case 7:
-        return 'createdAt';
-      default:
-        return '';
-    }
-  }
-
-  List<Lead> _getSortedLeads(List<Lead> leads, String? column, bool ascending) {
-    if (leads.isEmpty) return leads;
-
-    final sortedLeads = List<Lead>.from(leads);
-    sortedLeads.sort((a, b) {
-      int compare;
-      switch (column) {
-        case 'name':
-          compare = _getLeadName(a).compareTo(_getLeadName(b));
-          break;
-        case 'score':
-          compare = a.score.compareTo(b.score);
-          break;
-        case 'email':
-          compare = a.email.compareTo(b.email);
-          break;
-        case 'phone':
-          compare = a.phone.compareTo(b.phone);
-          break;
-        case 'status':
-          compare = a.status.toString().compareTo(b.status.toString());
-          break;
-        case 'processStatus':
-          compare =
-              a.processStatus.toString().compareTo(b.processStatus.toString());
-          break;
-        case 'createdAt':
-          compare = a.createdAt.compareTo(b.createdAt);
-          break;
-        default:
-          compare = 0;
-      }
-      return ascending ? compare : -compare;
-    });
-
-    return sortedLeads;
-  }
 
   String _getLeadName(Lead lead) {
     return '${lead.firstName} ${lead.lastName}'.trim();

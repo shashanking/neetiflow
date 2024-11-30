@@ -520,6 +520,7 @@ class PersistentShellState extends State<PersistentShell> {
   GlobalKey<ScaffoldState> get scaffoldKey => _scaffoldKey;
 }
 
+// ignore: unused_element
 class _AnimatedListTile extends StatelessWidget {
   final IconData leading;
   final String title;
