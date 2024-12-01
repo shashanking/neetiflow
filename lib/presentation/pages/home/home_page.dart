@@ -12,7 +12,6 @@ import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
-import 'package:neetiflow/data/repositories/leads_repository.dart';
 import '../../../domain/entities/timeline_event.dart';
 import '../clients/clients_page.dart';
 import '../employees/employees_page.dart';

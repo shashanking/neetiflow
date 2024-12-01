@@ -27,8 +27,6 @@ import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../domain/entities/employee.dart';
-import '../../../domain/entities/timeline_event.dart';
 import '../../../infrastructure/repositories/firebase_clients_repository.dart';
 import '../../blocs/custom_fields/custom_fields_bloc.dart';
 import '../../blocs/employees/employees_bloc.dart';
@@ -1545,7 +1543,7 @@ class _LeadsViewState extends State<LeadsView> with SingleTickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     final isCompact = screenWidth < 600;

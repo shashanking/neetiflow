@@ -1,12 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/timeline_event.dart';
-import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 
-import '../../../domain/entities/employee.dart';
 
 enum ChangeType {
   increase,
@@ -563,49 +560,7 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
     );
   }
 
-  ChangeType _getChangeType(String oldValue, String newValue) {
-    try {
-      final oldNum = double.parse(oldValue);
-      final newNum = double.parse(newValue);
-      if (newNum > oldNum) return ChangeType.increase;
-      if (newNum < oldNum) return ChangeType.decrease;
-      return ChangeType.neutral;
-    } catch (_) {
-      final statusPriority = {
-        'new': 0,
-        'open': 1,
-        'in_progress': 2,
-        'pending': 3,
-        'completed': 4,
-        'closed': 5,
-      };
 
-      final oldStatus = statusPriority[oldValue.toLowerCase()] ?? -1;
-      final newStatus = statusPriority[newValue.toLowerCase()] ?? -1;
-
-      if (oldStatus != -1 && newStatus != -1) {
-        if (newStatus > oldStatus) return ChangeType.increase;
-        if (newStatus < oldStatus) return ChangeType.decrease;
-        return ChangeType.neutral;
-      }
-
-      if (oldValue == newValue) return ChangeType.neutral;
-      return ChangeType.modified;
-    }
-  }
-
-  Color _getChangeColor(ChangeType type) {
-    switch (type) {
-      case ChangeType.increase:
-        return Colors.green[700]!;
-      case ChangeType.decrease:
-        return Colors.red[700]!;
-      case ChangeType.modified:
-        return Colors.blue[700]!;
-      case ChangeType.neutral:
-        return Colors.grey[700]!;
-    }
-  }
 
   Color _getEventColor() {
     if (widget.event.category == 'system') {
