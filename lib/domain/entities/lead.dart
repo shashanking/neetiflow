@@ -2,6 +2,7 @@ import 'dart:convert'; // added import for jsonDecode
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+
 import 'custom_field_value.dart';
 import 'timeline_event.dart';
 
@@ -93,8 +94,8 @@ class Lead extends Equatable {
           ) ??
           {},
       timelineEvents: (json['timelineEvents'] as List<dynamic>?)
-          ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
-          .toList() ??
+              ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
+              .toList() ??
           [],
     );
   }

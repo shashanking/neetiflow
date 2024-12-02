@@ -13,4 +13,7 @@ abstract class ClientsRepository {
   Future<void> updateClientStatus(String organizationId, String clientId, ClientStatus status);
   Future<void> assignClientToEmployee(String organizationId, String clientId, String employeeId);
   Future<void> updateClientValue(String organizationId, String clientId, double value);
+
+  /// Watch a stream of clients for a given organization
+  Stream<List<Client>> watchClients(String organizationId);
 }

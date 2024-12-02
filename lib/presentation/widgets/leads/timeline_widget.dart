@@ -205,7 +205,8 @@ class _TimelineWidgetState extends State<TimelineWidget>
       final weeks = (difference.inDays / 7).floor();
       timeDiffText = '$weeks ${weeks == 1 ? 'week' : 'weeks'}';
     } else if (difference.inDays >= 1) {
-      timeDiffText = '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'}';
+      timeDiffText =
+          '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'}';
     } else if (difference.inHours >= 1) {
       final hours = difference.inHours;
       timeDiffText = '$hours ${hours == 1 ? 'hour' : 'hours'}';
@@ -569,7 +570,8 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
 
     if (widget.event.metadata != null) {
       if (widget.event.metadata!.containsKey('new_status')) {
-        final newStatus = widget.event.metadata!['new_status'].toString().toLowerCase();
+        final newStatus =
+            widget.event.metadata!['new_status'].toString().toLowerCase();
         switch (newStatus) {
           case 'new':
             return Colors.blue[400]!;
@@ -589,7 +591,8 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
             return Colors.blueGrey[600]!;
         }
       } else if (widget.event.metadata!.containsKey('new_value')) {
-        final newValue = widget.event.metadata!['new_value'].toString().toLowerCase();
+        final newValue =
+            widget.event.metadata!['new_value'].toString().toLowerCase();
         switch (newValue) {
           case 'new':
             return Colors.blue[400]!;

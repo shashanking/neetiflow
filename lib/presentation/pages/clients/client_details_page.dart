@@ -164,7 +164,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           clientId: client.id,
           title: 'Project Added',
           description: 'New project: ${project.name}',
-          timestamp: project.startDate,
+          timestamp: project.startDate!,
           category: 'project',
           metadata: {
             'projectId': project.id,
@@ -403,7 +403,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                 final project = client.projects[index];
                 return ListTile(
                   title: Text(project.name),
-                  subtitle: Text(project.description),
+                  subtitle: Text(project.description ?? ''),
                   trailing: Text(
                     '₹${NumberFormat('#,##,###').format(project.value)}',
                     style: theme.textTheme.titleMedium?.copyWith(

@@ -27,9 +27,12 @@ import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../domain/entities/timeline_event.dart';
 import '../../../infrastructure/repositories/firebase_clients_repository.dart';
 import '../../blocs/custom_fields/custom_fields_bloc.dart';
 import '../../blocs/employees/employees_bloc.dart';
+
+import 'package:get_it/get_it.dart';
 
 class LeadsPage extends StatelessWidget {
   const LeadsPage({super.key});
@@ -65,22 +68,14 @@ class LeadsPage extends StatelessWidget {
             )..add(const LoadLeads()),
           ),
           BlocProvider<ClientsBloc>(
-            create: (context) => ClientsBloc(
-              authRepository: context.read<AuthRepository>(),
-              employeesRepository: context.read<EmployeesRepository>(),
-            )..add(LoadClients()),
+            create: (context) => GetIt.instance<ClientsBloc>()..add(LoadClients()),
           ),
           BlocProvider<EmployeesBloc>(
-            create: (context) => EmployeesBloc(
-              employeesRepository: context.read<EmployeesRepository>(),
-            )..add(LoadEmployees(organizationId)),
+            create: (context) => GetIt.instance<EmployeesBloc>()
+              ..add(LoadEmployees(organizationId)),
           ),
           BlocProvider<CustomFieldsBloc>(
-            create: (context) => CustomFieldsBloc(
-              repository: customFieldsRepository,
-              entityType: 'leads',
-              organizationId: organizationId,
-            )..add(LoadCustomFields()),
+            create: (context) => GetIt.instance<CustomFieldsBloc>()..add(LoadCustomFields()),
           ),
         ],
         child: const LeadsView(),
@@ -983,13 +978,8 @@ class _LeadsViewState extends State<LeadsView> with SingleTickerProviderStateMix
         builder: (context) => MultiBlocProvider(
           providers: [
             BlocProvider<CustomFieldsBloc>(
-              create: (context) => CustomFieldsBloc(
-                repository: CustomFieldsRepository(
-                  organizationId: authState.employee.companyId!,
-                ),
-                entityType: 'leads',
-                organizationId: authState.employee.companyId!,
-              )..add(LoadCustomFields()),
+              create: (context) => GetIt.instance<CustomFieldsBloc>()
+                ..add(LoadCustomFields()),
             ),
             RepositoryProvider<LeadsRepository>(
               create: (context) => LeadsRepositoryImpl(),

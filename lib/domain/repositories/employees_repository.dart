@@ -11,4 +11,13 @@ abstract class EmployeesRepository {
   Future<bool> isEmailAvailable(String email);
   Future<Employee?> getEmployeeByUid(String uid);
   Future<Employee?> getEmployeeByEmail(String email);
+  
+  // Search functionality
+  Future<List<Employee>> searchEmployees(String query, {int limit = 10});
+  Future<List<Employee>> getEmployeesByIds(List<String> employeeIds);
+
+  // Additional functionality
+  Future<List<Employee>> getActiveEmployees({int limit = 20});
+  Future<Employee?> getEmployee(String employeeId);
+  Future<List<Employee>> getEmployeesByDepartment(String departmentId);
 }

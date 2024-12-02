@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
+import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
+import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/pages/clients/clients_page.dart';
 import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/finances/finances_page.dart';
@@ -319,6 +323,9 @@ class PersistentShellState extends State<PersistentShell> {
   StreamSubscription<Employee>? _employeeSubscription;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Widget? _customPage;
+  late final DepartmentsBloc _departmentsBloc;
+  late final ClientsBloc _clientsBloc;
+  late final EmployeesBloc _employeesBloc;
 
   void setCustomPage(Widget page) {
     setState(() {
@@ -377,11 +384,24 @@ class PersistentShellState extends State<PersistentShell> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _departmentsBloc = GetIt.I<DepartmentsBloc>();
+    _clientsBloc = GetIt.I<ClientsBloc>();
+    _employeesBloc = GetIt.I<EmployeesBloc>();
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated && authState.employee.companyId != null) {
+      final companyId = authState.employee.companyId!;
+      _departmentsBloc.add(LoadDepartments(companyId));
+      _clientsBloc.add(LoadClients());
+      _employeesBloc.add(LoadEmployees(companyId));
+    }
   }
 
   @override
   void dispose() {
     _employeeSubscription?.cancel();
+    _departmentsBloc.close();
+    _clientsBloc.close();
+    _employeesBloc.close();
     super.dispose();
   }
 
@@ -477,6 +497,82 @@ class PersistentShellState extends State<PersistentShell> {
     );
 
     // Animated page content
+    
+    Widget getPage() {
+      final isLargeScreen = MediaQuery.of(context).size.width >= 1200;
+
+      if (_customPage != null) {
+        return MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: _departmentsBloc),
+            BlocProvider.value(value: _clientsBloc),
+            BlocProvider.value(value: _employeesBloc),
+          ],
+          child: _customPage!,
+        );
+      }
+
+      switch (_selectedIndex) {
+        case 0:
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppBar(
+                  title: const Text('Dashboard'),
+                  automaticallyImplyLeading: !isLargeScreen,
+                ),
+                const Expanded(child: HomePage()),
+              ],
+            ),
+          );
+        case 1:
+          return const LeadsPage();
+        case 2:
+          return BlocProvider.value(
+            value: _clientsBloc,
+            child: const ClientsPage(),
+          );
+        case 3:
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: _departmentsBloc),
+              BlocProvider.value(value: _clientsBloc),
+              BlocProvider.value(value: _employeesBloc),
+            ],
+            child: const OperationsPage(),
+          );
+        case 4:
+          return const FinancesPage();
+        case 5:
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: _departmentsBloc),
+              BlocProvider.value(value: _employeesBloc),
+            ],
+            child: const EmployeesPage(),
+          );
+        case 6:
+          return const OrganizationPage();
+        case 7:
+          return const SettingsPage();
+        case 8:
+          return const HelpPage();
+        default:
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppBar(
+                  title: const Text('Dashboard'),
+                  automaticallyImplyLeading: !isLargeScreen,
+                ),
+                const Expanded(child: HomePage()),
+              ],
+            ),
+          );
+      }
+    }
     final pageContent = AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, animation) {

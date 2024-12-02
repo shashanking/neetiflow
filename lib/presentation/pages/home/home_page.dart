@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
-import 'package:neetiflow/domain/repositories/auth_repository.dart';
-import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
@@ -52,15 +51,10 @@ class HomePage extends StatelessWidget {
             )..add(const LoadLeads()),
           ),
           BlocProvider<ClientsBloc>(
-            create: (context) => ClientsBloc(
-              authRepository: context.read<AuthRepository>(),
-              employeesRepository: context.read<EmployeesRepository>(),
-            )..add(LoadClients()),
+            create: (context) => ClientsBloc()..add(LoadClients()),
           ),
           BlocProvider<EmployeesBloc>(
-            create: (context) => EmployeesBloc(
-              employeesRepository: context.read<EmployeesRepository>(),
-            )..add(LoadEmployees(organizationId)),
+            create: (context) => GetIt.I.get<EmployeesBloc>()..add(LoadEmployees(organizationId)),
           ),
         ],
         child: _HomePageContent(),

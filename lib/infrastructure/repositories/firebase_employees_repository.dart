@@ -3,9 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:logger/logger.dart';
+import 'package:injectable/injectable.dart';
 import 'package:uuid/uuid.dart';
-import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 
+import '../../domain/entities/employee_timeline_event.dart';
+
+@LazySingleton(as: EmployeesRepository)
+@Environment(Environment.prod)
 class FirebaseEmployeesRepository implements EmployeesRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -19,11 +23,10 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     ),
   );
 
-  FirebaseEmployeesRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  FirebaseEmployeesRepository(
+    @Named('firestore') this._firestore,
+    @Named('firebaseAuth') this._auth,
+  );
 
   @override
   Future<List<Employee>> getEmployees(String companyId) async {
@@ -252,22 +255,24 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
       // Update organization employee count
       await _updateOrganizationEmployeeCount(companyId, -1);
 
-      // Delete Firebase Auth user
-      final methods = await _auth.fetchSignInMethodsForEmail(email);
-      if (methods.isNotEmpty) {
-        try {
-          // Sign in with custom token or admin SDK to get user
-          final user = (await _auth.signInWithEmailAndPassword(
-            email: email,
-            // Use a temporary password or implement proper admin SDK
-            password: 'temporary_password',
-          )).user;
-          
-          if (user != null) {
-            await user.delete();
+      if (_auth != null) {
+        // Delete Firebase Auth user
+        final methods = await _auth.fetchSignInMethodsForEmail(email);
+        if (methods.isNotEmpty) {
+          try {
+            // Sign in with custom token or admin SDK to get user
+            final user = (await _auth.signInWithEmailAndPassword(
+              email: email,
+              // Use a temporary password or implement proper admin SDK
+              password: 'temporary_password',
+            )).user;
+            
+            if (user != null) {
+              await user.delete();
+            }
+          } catch (e) {
+            _logger.w('Could not delete auth user: $e');
           }
-        } catch (e) {
-          _logger.w('Could not delete auth user: $e');
         }
       }
 
@@ -369,6 +374,63 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     }
   }
 
+  @override
+  Future<List<Employee>> searchEmployees(String query, {int limit = 10}) async {
+    try {
+      _logger.i('Searching employees with query: $query');
+      
+      // Create a list of keywords from the query
+      final keywords = query.toLowerCase().split(' ');
+      
+      // Search by first name, last name, and email
+      final querySnapshot = await _firestore
+          .collection('organizations')
+          .doc(_auth.currentUser?.uid)
+          .collection('employees')
+          .where('searchTerms', arrayContainsAny: keywords)
+          .limit(limit)
+          .get();
+
+      final employees = querySnapshot.docs
+          .map((doc) => Employee.fromJson(doc.data()))
+          .toList();
+
+      _logger.i('Found ${employees.length} employees matching query: $query');
+      return employees;
+    } catch (e, stackTrace) {
+      _logger.e('Failed to search employees', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to search employees: $e');
+    }
+  }
+
+  @override
+  Future<List<Employee>> getEmployeesByIds(List<String> employeeIds) async {
+    try {
+      _logger.i('Fetching employees by IDs: $employeeIds');
+      
+      if (employeeIds.isEmpty) {
+        return [];
+      }
+
+      final querySnapshot = await _firestore
+          .collection('organizations')
+          .doc(_auth.currentUser?.uid)
+          .collection('employees')
+          .where(FieldPath.documentId, whereIn: employeeIds)
+          .get();
+
+      final employees = querySnapshot.docs
+          .map((doc) => Employee.fromJson(doc.data()))
+          .toList();
+
+      _logger.i('Found ${employees.length} employees by IDs');
+      return employees;
+    } catch (e, stackTrace) {
+      _logger.e('Failed to get employees by IDs', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get employees by IDs: $e');
+    }
+  }
+
   Future<void> _updateOrganizationEmployeeCount(String companyId, int change) async {
     try {
       await _firestore.runTransaction((transaction) async {
@@ -393,6 +455,95 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
     } catch (e, stackTrace) {
       _logger.e('Error updating organization employee count', error: e, stackTrace: stackTrace);
       throw Exception('Failed to update organization employee count: $e');
+    }
+  }
+
+  @override
+  Future<List<Employee>> getActiveEmployees({int limit = 20}) async {
+    try {
+      _logger.i('Getting active employees with limit: $limit');
+      
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final userMapping = await _firestore
+          .collection('user_mappings')
+          .doc(currentUser.email)
+          .get();
+
+      if (!userMapping.exists) {
+        throw Exception('No organization mapping found for current user');
+      }
+
+      final companyId = userMapping.data()!['companyId'] as String;
+      
+      final querySnapshot = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .where('isActive', isEqualTo: true)
+          .limit(limit)
+          .get();
+
+      final employees = querySnapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return Employee.fromJson(data);
+          })
+          .toList();
+
+      _logger.i('Found ${employees.length} active employees');
+      return employees;
+    } catch (e, stackTrace) {
+      _logger.e('Failed to get active employees', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get active employees: $e');
+    }
+  }
+
+  @override
+  Future<Employee?> getEmployee(String employeeId) async {
+    try {
+      _logger.i('Getting employee with ID: $employeeId');
+      
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final userMapping = await _firestore
+          .collection('user_mappings')
+          .doc(currentUser.email)
+          .get();
+
+      if (!userMapping.exists) {
+        throw Exception('No organization mapping found for current user');
+      }
+
+      final companyId = userMapping.data()!['companyId'] as String;
+      
+      final employeeDoc = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .doc(employeeId)
+          .get();
+
+      if (!employeeDoc.exists) {
+        _logger.w('No employee found with ID: $employeeId');
+        return null;
+      }
+
+      final data = employeeDoc.data()!;
+      data['id'] = employeeDoc.id;
+      
+      _logger.i('Successfully retrieved employee');
+      return Employee.fromJson(data);
+    } catch (e, stackTrace) {
+      _logger.e('Failed to get employee', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get employee: $e');
     }
   }
 
@@ -441,6 +592,50 @@ class FirebaseEmployeesRepository implements EmployeesRepository {
         throw Exception('Authentication error: ${e.message}');
       }
       throw Exception('Failed to check email availability: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<List<Employee>> getEmployeesByDepartment(String departmentId) async {
+    try {
+      _logger.i('Getting employees for department: $departmentId');
+      
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final userMapping = await _firestore
+          .collection('user_mappings')
+          .doc(currentUser.email)
+          .get();
+
+      if (!userMapping.exists) {
+        throw Exception('No organization mapping found for current user');
+      }
+
+      final companyId = userMapping.data()!['companyId'] as String;
+      
+      final querySnapshot = await _firestore
+          .collection('organizations')
+          .doc(companyId)
+          .collection('employees')
+          .where('departmentId', isEqualTo: departmentId)
+          .get();
+
+      final employees = querySnapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return Employee.fromJson(data);
+          })
+          .toList();
+
+      _logger.i('Found ${employees.length} employees in department: $departmentId');
+      return employees;
+    } catch (e, stackTrace) {
+      _logger.e('Failed to get employees by department', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get employees by department: $e');
     }
   }
 }

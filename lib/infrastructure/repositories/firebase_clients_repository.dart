@@ -1,8 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/client.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/repositories/clients_repository.dart';
+
+import '../../domain/entities/operations/project.dart';
 
 class FirebaseClientsException implements Exception {
   final String message;
@@ -12,6 +16,9 @@ class FirebaseClientsException implements Exception {
   String toString() => message;
 }
 
+@injectable
+@LazySingleton(as: ClientsRepository)
+@Environment(Environment.prod)
 class FirebaseClientsRepository implements ClientsRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   late final Logger _logger;

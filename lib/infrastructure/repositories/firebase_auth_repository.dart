@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
@@ -7,9 +8,12 @@ import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
 import 'package:uuid/uuid.dart';
 
-class FirebaseAuthRepositoryImpl implements AuthRepository {
+@LazySingleton(as: AuthRepository)
+@Environment(Environment.prod)
+class FirebaseAuthRepository implements AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
+  final SecureStorageService _secureStorage;
   final _uuid = const Uuid();
   final Logger _logger = Logger(
     printer: PrettyPrinter(
@@ -21,11 +25,11 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
     ),
   );
 
-  FirebaseAuthRepositoryImpl({
-    FirebaseAuth? firebaseAuth,
-    FirebaseFirestore? firestore,
-  })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+  FirebaseAuthRepository(
+    @Named('firebaseAuth') this._firebaseAuth,
+    @Named('firestore') this._firestore,
+    this._secureStorage,
+  );
 
   @override
   Future<User?> getCurrentUser() async {
@@ -110,7 +114,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
       }
 
       await _firebaseAuth.signOut();
-      await SecureStorageService.clearCredentials();
+      await _secureStorage.clearCredentials();
       _logger.i('Sign out successful');
     } catch (e, stackTrace) {
       _logger.e('Error signing out', error: e, stackTrace: stackTrace);

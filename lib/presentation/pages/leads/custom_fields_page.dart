@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/domain/entities/custom_field.dart';
-import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
 import 'package:neetiflow/presentation/widgets/custom_fields/custom_field_form.dart';
 import 'package:neetiflow/presentation/widgets/custom_fields/custom_fields_list.dart';
+
+import '../../blocs/auth/auth_bloc.dart';
 
 class CustomFieldsPage extends StatefulWidget {
   const CustomFieldsPage({super.key});
@@ -29,11 +31,9 @@ class CustomFieldsPageState extends State<CustomFieldsPage> {
 
     // Create repository and bloc
     final repository = CustomFieldsRepository(organizationId: organizationId);
-    _customFieldsBloc = CustomFieldsBloc(
-      repository: repository,
-      entityType: 'leads',
-      organizationId: organizationId,
-    )..add(LoadCustomFields());
+
+    _customFieldsBloc = GetIt.instance<CustomFieldsBloc>()
+      ..add(LoadCustomFields());
   }
 
   @override
