@@ -42,7 +42,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
       _logger.d('- ID: ${project.id}');
       _logger.d('- Name: ${project.name}');
       _logger.d('- Type: ${project.type}');
-      _logger.d('- Client: ${project.client.name}');
+      _logger.d('- Client: ${project.clientId}');
       _logger.d('- Status: ${project.status}');
 
       await _firestore

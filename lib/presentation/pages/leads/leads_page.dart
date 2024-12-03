@@ -12,8 +12,6 @@ import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/entities/timeline_event.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
-import 'package:neetiflow/domain/repositories/auth_repository.dart';
-import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
@@ -27,7 +25,6 @@ import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../domain/entities/timeline_event.dart';
 import '../../../infrastructure/repositories/firebase_clients_repository.dart';
 import '../../blocs/custom_fields/custom_fields_bloc.dart';
 import '../../blocs/employees/employees_bloc.dart';

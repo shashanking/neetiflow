@@ -6,12 +6,12 @@ import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:neetiflow/core/providers/auth_provider.dart';
 import 'package:neetiflow/domain/entities/client.dart';
-import 'package:neetiflow/domain/entities/operations/project.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/domain/repositories/operations_repository.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:uuid/uuid.dart';
 
+import '../../../domain/entities/operations/project.dart';
 import '../../../domain/entities/operations/project_template.dart';
 
 @LazySingleton(as: OperationsRepository)
@@ -47,7 +47,8 @@ class OperationsRepositoryImpl implements OperationsRepository {
       _logger.d('Got organization ID: $organizationId');
       return organizationId;
     } catch (e, stackTrace) {
-      _logger.e('Error getting organization ID', error: e, stackTrace: stackTrace);
+      _logger.e('Error getting organization ID',
+          error: e, stackTrace: stackTrace);
       throw Exception('Failed to get organization ID: $e');
     }
   }
@@ -110,29 +111,33 @@ class OperationsRepositoryImpl implements OperationsRepository {
           .collection('project_templates');
 
       final snapshot = await templatesRef.get();
-      
+
       // Log the number of templates found
       _logger.d('Found ${snapshot.docs.length} project templates');
 
       // Add null checks and error handling
-      final templates = snapshot.docs.map((doc) {
-        final data = doc.data();
-        // Ensure the document has an ID
-        data['id'] = doc.id;
-        
-        try {
-          return ProjectTemplate.fromJson(data);
-        } catch (e) {
-          _logger.e('Error parsing project template: $e');
-          _logger.e('Problematic template data: $data');
-          return null;
-        }
-      }).whereType<ProjectTemplate>().toList();
+      final templates = snapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            // Ensure the document has an ID
+            data['id'] = doc.id;
+
+            try {
+              return ProjectTemplate.fromJson(data);
+            } catch (e) {
+              _logger.e('Error parsing project template: $e');
+              _logger.e('Problematic template data: $data');
+              return null;
+            }
+          })
+          .whereType<ProjectTemplate>()
+          .toList();
 
       // If no templates found, return an empty list instead of null
       return templates.isEmpty ? [] : templates;
     } catch (e, stackTrace) {
-      _logger.e('Error getting project templates', error: e, stackTrace: stackTrace);
+      _logger.e('Error getting project templates',
+          error: e, stackTrace: stackTrace);
       return []; // Return an empty list instead of throwing an exception
     }
   }
@@ -148,16 +153,24 @@ class OperationsRepositoryImpl implements OperationsRepository {
           .doc(organizationId)
           .collection('clients');
 
-      final snapshot = await clientsRef
-          .orderBy('createdAt', descending: true)
-          .get();
+      // Fetch all clients and filter/sort in memory to avoid index complexity
+      final snapshot = await clientsRef.get();
 
       _logger.d('Retrieved ${snapshot.docs.length} clients');
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return Client.fromJson(data);
-      }).toList();
+      return snapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return Client.fromJson(data);
+          })
+          .where((client) => client.status == ClientStatus.active)
+          .toList()
+        ..sort((a, b) {
+          // Use earliest possible date if lastInteractionDate is null
+          final dateA = a.lastInteractionDate ?? DateTime(1900);
+          final dateB = b.lastInteractionDate ?? DateTime(1900);
+          return dateB.compareTo(dateA);
+        });
     } catch (e, stackTrace) {
       _logger.e('Error getting clients', error: e, stackTrace: stackTrace);
       throw Exception('Failed to get clients: $e');
@@ -169,7 +182,7 @@ class OperationsRepositoryImpl implements OperationsRepository {
     required String name,
     required String description,
     required ProjectType type,
-    required Client client,
+    Client? client,
     required DateTime startDate,
     required DateTime expectedEndDate,
     String? parentId,
@@ -194,22 +207,28 @@ class OperationsRepositoryImpl implements OperationsRepository {
       final newProject = Project(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: name,
-        clientId: client.id,
-        client: client,
-        type: type,
-        status: ProjectStatus.planning,
-        phases: [],
-        milestones: [],
-        members: [],
-        typeSpecificFields: {},
-        workflows: [],
-        startDate: startDate,
-        expectedEndDate: expectedEndDate,
         description: description,
+        status: ProjectStatus.planning,
+        startDate: startDate,
+        endDate: expectedEndDate,
+        members: [], // Use memberIds, not members
+        createdBy: user.uid,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        createdBy: user.uid, organizationId: '',
+
+        // Optional fields
+        clientId: client?.id ?? '', // Use empty string if no client
+        type: type,
+        phases: [],
+        milestones: [],
+        typeSpecificFields: {},
+        workflows: [],
+        organizationId: organizationId,
+        value: 0.0,
       );
+
+      // Log the project data before setting
+      _logger.d('Project to be created: ${newProject.toJson()}');
 
       await projectsRef.doc(newProject.id).set(newProject.toJson());
       return newProject;

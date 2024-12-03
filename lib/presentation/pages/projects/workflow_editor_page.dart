@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:neetiflow/domain/entities/operations/project_template.dart';
 
 import '../../../domain/entities/operations/workflow_template.dart';
 
@@ -271,7 +270,7 @@ class _WorkflowEditorPageState extends State<WorkflowEditorPage> {
                         final transition = _transitions[index];
                         final fromState = _states.firstWhere(
                           (s) => s.id == transition.fromStateId,
-                          orElse: () => WorkflowState(
+                          orElse: () => const WorkflowState(
                             id: '',
                             name: 'Unknown',
                             color: '#808080',
@@ -281,7 +280,7 @@ class _WorkflowEditorPageState extends State<WorkflowEditorPage> {
                         );
                         final toState = _states.firstWhere(
                           (s) => s.id == transition.toStateId,
-                          orElse: () => WorkflowState(
+                          orElse: () => const WorkflowState(
                             id: '',
                             name: 'Unknown',
                             color: '#808080',

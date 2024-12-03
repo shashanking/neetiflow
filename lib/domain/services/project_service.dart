@@ -65,7 +65,6 @@ class ProjectService {
         template: template,
         name: name,
         clientId: clientId,
-        client: client,
         createdBy: createdBy,
         description: description,
         members: projectMembers,

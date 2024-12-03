@@ -3,7 +3,6 @@ import 'package:neetiflow/domain/entities/operations/project.dart';
 
 import '../../../domain/entities/client.dart';
 import '../../../domain/entities/operations/project_template.dart';
-import 'package:neetiflow/domain/entities/operations/project.dart';
 
 part 'project_event.freezed.dart';
 
@@ -21,7 +20,7 @@ abstract class ProjectEvent with _$ProjectEvent {
     required String name,
     required String description,
     required ProjectType type,
-    required Client client,
+    required Client? client,
     required DateTime startDate,
     required DateTime endDate,
   }) = CreateProject;

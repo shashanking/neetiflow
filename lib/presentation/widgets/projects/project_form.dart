@@ -104,7 +104,6 @@ class _ProjectFormState extends State<ProjectForm> {
       type: _selectedType ?? ProjectType.custom,
       status: _selectedStatus ?? ProjectStatus.planning,
       clientId: client.id,
-      client: client,
       phases: [],  
       milestones: [],  
       members: _selectedMembers.map((member) => ProjectMember(

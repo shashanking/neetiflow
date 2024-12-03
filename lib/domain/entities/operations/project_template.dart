@@ -1,6 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:neetiflow/domain/entities/operations/workflow_template.dart';
 import 'package:neetiflow/domain/entities/operations/milestone.dart';
+import 'package:neetiflow/domain/entities/operations/workflow_template.dart';
 
 part 'project_template.freezed.dart';
 part 'project_template.g.dart';
@@ -62,12 +62,7 @@ enum ProjectType {
   other
 }
 
-enum Complexity {
-  low,
-  medium,
-  high,
-  complex
-}
+enum Complexity { low, medium, high, complex }
 
 @freezed
 class TemplateMilestone with _$TemplateMilestone {
@@ -182,108 +177,120 @@ class ProjectTemplateConfig with _$ProjectTemplateConfig {
 
   factory ProjectTemplateConfig.fromJson(Map<String, dynamic> json) {
     // Determine the project type, defaulting to custom
-    final typeString = json['type'] is String 
-      ? json['type'] as String 
-      : 'custom';
+    final typeString =
+        json['type'] is String ? json['type'] as String : 'custom';
     final type = ProjectType.values.firstWhere(
-      (e) => e.toString().split('.').last == typeString, 
+      (e) => e.toString().split('.').last == typeString,
       orElse: () => ProjectType.custom,
     );
 
     // Handle default workflow
     final defaultWorkflow = json['defaultWorkflow'] is Map<String, dynamic>
-      ? WorkflowTemplate.fromJson(json['defaultWorkflow'] as Map<String, dynamic>)
-      : WorkflowTemplate(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: 'Default Workflow',
-          states: [
-            WorkflowState(
-              id: 'todo', 
-              name: 'To Do', 
-              isInitial: true, 
-              isFinal: false,
-              color: '#808080',
-            ),
-            WorkflowState(
-              id: 'in_progress', 
-              name: 'In Progress', 
-              isInitial: false, 
-              isFinal: false,
-              color: '#0088cc',
-            ),
-            WorkflowState(
-              id: 'done', 
-              name: 'Done', 
-              isInitial: false, 
-              isFinal: true,
-              color: '#00cc00',
-            ),
-          ],
-          transitions: [
-            WorkflowTransition(
-              id: 'start', 
-              name: 'Start', 
-              fromStateId: 'todo', 
-              toStateId: 'in_progress',
-            ),
-            WorkflowTransition(
-              id: 'complete', 
-              name: 'Complete', 
-              fromStateId: 'in_progress', 
-              toStateId: 'done',
-            ),
-          ],
-        );
+        ? WorkflowTemplate.fromJson(
+            json['defaultWorkflow'] as Map<String, dynamic>)
+        : WorkflowTemplate(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: 'Default Workflow',
+            states: [
+              const WorkflowState(
+                id: 'todo',
+                name: 'To Do',
+                isInitial: true,
+                isFinal: false,
+                color: '#808080',
+              ),
+              const WorkflowState(
+                id: 'in_progress',
+                name: 'In Progress',
+                isInitial: false,
+                isFinal: false,
+                color: '#0088cc',
+              ),
+              const WorkflowState(
+                id: 'done',
+                name: 'Done',
+                isInitial: false,
+                isFinal: true,
+                color: '#00cc00',
+              ),
+            ],
+            transitions: [
+              const WorkflowTransition(
+                id: 'start',
+                name: 'Start',
+                fromStateId: 'todo',
+                toStateId: 'in_progress',
+              ),
+              const WorkflowTransition(
+                id: 'complete',
+                name: 'Complete',
+                fromStateId: 'in_progress',
+                toStateId: 'done',
+              ),
+            ],
+          );
 
     // Handle default phases
     final defaultPhases = (json['defaultPhases'] as List?)?.map((phaseJson) {
-      try {
-        return TemplatePhase.fromJson(phaseJson as Map<String, dynamic>);
-      } catch (e) {
-        // If parsing fails, create a default phase
-        return TemplatePhase(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: 'Default Phase',
-          defaultDuration: const Duration(days: 7),
-        );
-      }
-    }).toList() ?? [
-      TemplatePhase(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: 'Default Phase',
-        defaultDuration: const Duration(days: 7),
-      )
-    ];
+          try {
+            return TemplatePhase.fromJson(phaseJson as Map<String, dynamic>);
+          } catch (e) {
+            // If parsing fails, create a default phase
+            return TemplatePhase(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              name: 'Default Phase',
+              defaultDuration: const Duration(days: 7),
+            );
+          }
+        }).toList() ??
+        [
+          TemplatePhase(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: 'Default Phase',
+            defaultDuration: const Duration(days: 7),
+          )
+        ];
 
     // Handle default milestones
-    final defaultMilestones = (json['defaultMilestones'] as List?)?.map((milestoneJson) {
-      try {
-        return TemplateMilestone.fromJson(milestoneJson as Map<String, dynamic>);
-      } catch (e) {
-        // If parsing fails, create a default milestone
-        return TemplateMilestone(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: 'Default Milestone',
-          description: 'Default milestone description',
-          dueDate: DateTime.now().add(const Duration(days: 30)),
-          isCompleted: false,
-        );
-      }
-    }).toList() ?? [];
+    final defaultMilestones =
+        (json['defaultMilestones'] as List?)?.map((milestoneJson) {
+              try {
+                return TemplateMilestone.fromJson(
+                    milestoneJson as Map<String, dynamic>);
+              } catch (e) {
+                // If parsing fails, create a default milestone
+                return TemplateMilestone(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  name: 'Default Milestone',
+                  description: 'Default milestone description',
+                  dueDate: DateTime.now().add(const Duration(days: 30)),
+                  isCompleted: false,
+                );
+              }
+            }).toList() ??
+            [];
 
     return ProjectTemplateConfig(
-      id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: json['id'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       type: type,
       defaultWorkflow: defaultWorkflow,
       defaultPhases: defaultPhases,
       defaultMilestones: defaultMilestones,
-      customFields: (json['customFields'] as List?)?.map((e) => 
-        TemplateField.fromJson(e as Map<String, dynamic>)
-      ).toList() ?? [],
-      requiredRoles: (json['requiredRoles'] as Map?)?.cast<String, List<String>>() ?? {},
-      deliverableTypes: (json['deliverableTypes'] as Map?)?.cast<String, List<String>>() ?? {},
-      defaultTags: (json['defaultTags'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      typeSpecificSettings: (json['typeSpecificSettings'] as Map?)?.cast<String, dynamic>() ?? {},
+      customFields: (json['customFields'] as List?)
+              ?.map((e) => TemplateField.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      requiredRoles:
+          (json['requiredRoles'] as Map?)?.cast<String, List<String>>() ?? {},
+      deliverableTypes:
+          (json['deliverableTypes'] as Map?)?.cast<String, List<String>>() ??
+              {},
+      defaultTags:
+          (json['defaultTags'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
+      typeSpecificSettings:
+          (json['typeSpecificSettings'] as Map?)?.cast<String, dynamic>() ?? {},
     );
   }
 
@@ -338,7 +345,9 @@ class ProjectTemplate with _$ProjectTemplate {
       .toList();
   List<WorkflowTemplate> get workflows => [config.defaultWorkflow];
   List<TemplatePhase> get phases => config.defaultPhases;
-  String get organizationId => config.defaultWorkflow.metadata['organizationId'] ?? '';
+  @override
+  String get organizationId =>
+      config.defaultWorkflow.metadata['organizationId'] ?? '';
 
   Duration get estimatedDuration {
     if (config.defaultPhases.isEmpty) {
@@ -346,7 +355,8 @@ class ProjectTemplate with _$ProjectTemplate {
     }
     return config.defaultPhases.fold(
       Duration.zero,
-      (total, phase) => total + (phase.defaultDuration ?? const Duration(days: 7)),
+      (total, phase) =>
+          total + (phase.defaultDuration ?? const Duration(days: 7)),
     );
   }
 
@@ -372,113 +382,129 @@ class ProjectTemplate with _$ProjectTemplate {
 
   factory ProjectTemplate.fromJson(Map<String, dynamic> json) {
     // Ensure config is a map
-    final configMap = json['config'] is Map<String, dynamic> 
-      ? json['config'] as Map<String, dynamic>
-      : <String, dynamic>{};
+    final configMap = json['config'] is Map<String, dynamic>
+        ? json['config'] as Map<String, dynamic>
+        : <String, dynamic>{};
 
     // Determine the project type, defaulting to custom
-    final typeString = configMap['type'] is String 
-      ? configMap['type'] as String 
-      : 'custom';
+    final typeString =
+        configMap['type'] is String ? configMap['type'] as String : 'custom';
     final type = ProjectType.values.firstWhere(
-      (e) => e.toString().split('.').last == typeString, 
+      (e) => e.toString().split('.').last == typeString,
       orElse: () => ProjectType.custom,
     );
 
     // Handle default workflow
     final defaultWorkflow = configMap['defaultWorkflow'] is Map<String, dynamic>
-      ? WorkflowTemplate.fromJson(configMap['defaultWorkflow'] as Map<String, dynamic>)
-      : WorkflowTemplate(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: 'Default Workflow',
-          states: [
-            WorkflowState(
-              id: 'todo', 
-              name: 'To Do', 
-              isInitial: true, 
-              isFinal: false,
-              color: '#808080',
-            ),
-            WorkflowState(
-              id: 'in_progress', 
-              name: 'In Progress', 
-              isInitial: false, 
-              isFinal: false,
-              color: '#0088cc',
-            ),
-            WorkflowState(
-              id: 'done', 
-              name: 'Done', 
-              isInitial: false, 
-              isFinal: true,
-              color: '#00cc00',
-            ),
-          ],
-          transitions: [
-            WorkflowTransition(
-              id: 'start', 
-              name: 'Start', 
-              fromStateId: 'todo', 
-              toStateId: 'in_progress',
-            ),
-            WorkflowTransition(
-              id: 'complete', 
-              name: 'Complete', 
-              fromStateId: 'in_progress', 
-              toStateId: 'done',
-            ),
-          ],
-        );
+        ? WorkflowTemplate.fromJson(
+            configMap['defaultWorkflow'] as Map<String, dynamic>)
+        : WorkflowTemplate(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: 'Default Workflow',
+            states: [
+              const WorkflowState(
+                id: 'todo',
+                name: 'To Do',
+                isInitial: true,
+                isFinal: false,
+                color: '#808080',
+              ),
+              const WorkflowState(
+                id: 'in_progress',
+                name: 'In Progress',
+                isInitial: false,
+                isFinal: false,
+                color: '#0088cc',
+              ),
+              const WorkflowState(
+                id: 'done',
+                name: 'Done',
+                isInitial: false,
+                isFinal: true,
+                color: '#00cc00',
+              ),
+            ],
+            transitions: [
+              const WorkflowTransition(
+                id: 'start',
+                name: 'Start',
+                fromStateId: 'todo',
+                toStateId: 'in_progress',
+              ),
+              const WorkflowTransition(
+                id: 'complete',
+                name: 'Complete',
+                fromStateId: 'in_progress',
+                toStateId: 'done',
+              ),
+            ],
+          );
 
     // Handle default phases
-    final defaultPhases = (configMap['defaultPhases'] as List?)?.map((phaseJson) {
-      try {
-        return TemplatePhase.fromJson(phaseJson as Map<String, dynamic>);
-      } catch (e) {
-        // If parsing fails, create a default phase
-        return TemplatePhase(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: 'Default Phase',
-          defaultDuration: const Duration(days: 7),
-        );
-      }
-    }).toList() ?? [
-      TemplatePhase(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: 'Default Phase',
-        defaultDuration: const Duration(days: 7),
-      )
-    ];
+    final defaultPhases = (configMap['defaultPhases'] as List?)
+            ?.map((phaseJson) {
+          try {
+            return TemplatePhase.fromJson(phaseJson as Map<String, dynamic>);
+          } catch (e) {
+            // If parsing fails, create a default phase
+            return TemplatePhase(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              name: 'Default Phase',
+              defaultDuration: const Duration(days: 7),
+            );
+          }
+        }).toList() ??
+        [
+          TemplatePhase(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: 'Default Phase',
+            defaultDuration: const Duration(days: 7),
+          )
+        ];
 
     // Handle default milestones
-    final defaultMilestones = (configMap['defaultMilestones'] as List?)?.map((milestoneJson) {
-      try {
-        return TemplateMilestone.fromJson(milestoneJson as Map<String, dynamic>);
-      } catch (e) {
-        // If parsing fails, create a default milestone
-        return TemplateMilestone(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: 'Default Milestone',
-          description: 'Default milestone description',
-          dueDate: DateTime.now().add(const Duration(days: 30)),
-          isCompleted: false,
-        );
-      }
-    }).toList() ?? [];
+    final defaultMilestones =
+        (configMap['defaultMilestones'] as List?)?.map((milestoneJson) {
+              try {
+                return TemplateMilestone.fromJson(
+                    milestoneJson as Map<String, dynamic>);
+              } catch (e) {
+                // If parsing fails, create a default milestone
+                return TemplateMilestone(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  name: 'Default Milestone',
+                  description: 'Default milestone description',
+                  dueDate: DateTime.now().add(const Duration(days: 30)),
+                  isCompleted: false,
+                );
+              }
+            }).toList() ??
+            [];
 
     final config = ProjectTemplateConfig(
-      id: configMap['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: configMap['id'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       type: type,
       defaultWorkflow: defaultWorkflow,
       defaultPhases: defaultPhases,
       defaultMilestones: defaultMilestones,
-      customFields: (configMap['customFields'] as List?)?.map((e) => 
-        TemplateField.fromJson(e as Map<String, dynamic>)
-      ).toList() ?? [],
-      requiredRoles: (configMap['requiredRoles'] as Map?)?.cast<String, List<String>>() ?? {},
-      deliverableTypes: (configMap['deliverableTypes'] as Map?)?.cast<String, List<String>>() ?? {},
-      defaultTags: (configMap['defaultTags'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      typeSpecificSettings: (configMap['typeSpecificSettings'] as Map?)?.cast<String, dynamic>() ?? {},
+      customFields: (configMap['customFields'] as List?)
+              ?.map((e) => TemplateField.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      requiredRoles:
+          (configMap['requiredRoles'] as Map?)?.cast<String, List<String>>() ??
+              {},
+      deliverableTypes: (configMap['deliverableTypes'] as Map?)
+              ?.cast<String, List<String>>() ??
+          {},
+      defaultTags: (configMap['defaultTags'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      typeSpecificSettings: (configMap['typeSpecificSettings'] as Map?)
+              ?.cast<String, dynamic>() ??
+          {},
     );
 
     return ProjectTemplate(
@@ -491,16 +517,17 @@ class ProjectTemplate with _$ProjectTemplate {
       isDerived: json['isDerived'] as bool? ?? false,
       organizationId: json['organizationId'] as String? ?? '',
       createdBy: json['createdBy'] as String? ?? '',
-      createdAt: json['createdAt'] is String 
-        ? DateTime.tryParse(json['createdAt'] as String) 
-        : null,
-      updatedAt: json['updatedAt'] is String 
-        ? DateTime.tryParse(json['updatedAt'] as String) 
-        : null,
+      createdAt: json['createdAt'] is String
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      updatedAt: json['updatedAt'] is String
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
       config: config,
       version: json['version'] as int? ?? 1,
       parentTemplateId: json['parentTemplateId'] as String?,
-      typeSpecificFields: (json['typeSpecificFields'] as Map?)?.cast<String, dynamic>() ?? {},
+      typeSpecificFields:
+          (json['typeSpecificFields'] as Map?)?.cast<String, dynamic>() ?? {},
     );
   }
 }

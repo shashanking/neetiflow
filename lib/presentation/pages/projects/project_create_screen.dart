@@ -53,7 +53,12 @@ class ProjectCreateScreen extends StatelessWidget {
                             name: project.name,
                             description: project.description ?? '',
                             type: project.type,
-                            client: project.client,
+                            client: project.clientId.isNotEmpty 
+                              ? clients.firstWhere(
+                                  (element) => element.id == project.clientId, 
+                                  orElse: () => clients.first
+                                )
+                              : null,
                             startDate: project.startDate ?? DateTime.now(),
                             endDate: project.endDate ??
                                 DateTime.now().add(const Duration(days: 30)),

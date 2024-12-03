@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:neetiflow/domain/entities/operations/project.dart';
+import 'package:neetiflow/domain/entities/client.dart';
 
 class ProjectList extends StatelessWidget {
   final List<Project> projects;
@@ -77,7 +78,7 @@ class ProjectList extends StatelessWidget {
                           ),
                         ),
                       ),
-                      _buildStatusChip(context, project.status as String),
+                      _buildStatusChip(context, project.status),
                     ],
                   ),
                   if (project.description != null) ...[
@@ -94,18 +95,39 @@ class ProjectList extends StatelessWidget {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      if (project.client != null) ...[
+                      if (project.clientId.isNotEmpty) ...[
                         Icon(
                           Icons.business_outlined,
                           size: 16,
                           color: theme.colorScheme.onSurface.withOpacity(0.7),
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          project.client!.name,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
-                          ),
+                        FutureBuilder<Client?>(
+                          future: _fetchClientName(project.clientId),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return Text(
+                                'Loading...',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                ),
+                              );
+                            }
+                            if (snapshot.hasData && snapshot.data != null) {
+                              return Text(
+                                snapshot.data!.name,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                ),
+                              );
+                            }
+                            return Text(
+                              'Unknown Client',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(width: 16),
                       ],
@@ -123,45 +145,47 @@ class ProjectList extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip(BuildContext context, String status) {
+  Widget _buildStatusChip(BuildContext context, ProjectStatus status) {
     final theme = Theme.of(context);
     Color? chipColor;
     Color? textColor;
 
-    switch (status.toLowerCase()) {
-      case 'active':
-        chipColor = theme.colorScheme.primary;
-        textColor = theme.colorScheme.onPrimary;
+    switch (status) {
+      case ProjectStatus.planning:
+        chipColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
         break;
-      case 'completed':
-        chipColor = theme.colorScheme.secondary;
-        textColor = theme.colorScheme.onSecondary;
+      case ProjectStatus.inProgress:
+        chipColor = Colors.green.shade100;
+        textColor = Colors.green.shade800;
         break;
-      case 'on hold':
-        chipColor = theme.colorScheme.error;
-        textColor = theme.colorScheme.onError;
+      case ProjectStatus.completed:
+        chipColor = Colors.grey.shade300;
+        textColor = Colors.black87;
+        break;
+      case ProjectStatus.onHold:
+        chipColor = Colors.orange.shade100;
+        textColor = Colors.orange.shade800;
+        break;
+      case ProjectStatus.cancelled:
+        chipColor = Colors.red.shade100;
+        textColor = Colors.red.shade800;
         break;
       default:
-        chipColor = theme.colorScheme.surfaceVariant;
-        textColor = theme.colorScheme.onSurfaceVariant;
+        chipColor = Colors.grey.shade200;
+        textColor = Colors.black54;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: chipColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: chipColor.withOpacity(0.2),
-        ),
-      ),
-      child: Text(
-        status,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: chipColor,
+    return Chip(
+      label: Text(
+        status.toString().split('.').last.toUpperCase(),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: textColor,
           fontWeight: FontWeight.bold,
         ),
       ),
+      backgroundColor: chipColor,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }
 
@@ -170,4 +194,16 @@ class ProjectList extends StatelessWidget {
     if (end == null) return 'From $startStr';
     return '$startStr - ${end.month}/${end.day}/${end.year}';
   }
+
+  Future<Client?> _fetchClientName(String clientId) async {
+    // implement your logic to fetch client name here
+    // for now, just return a dummy client
+    return Client(name: 'Dummy Client');
+  }
+}
+
+class Client {
+  final String name;
+
+  Client({required this.name});
 }

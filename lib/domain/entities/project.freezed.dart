@@ -281,6 +281,7 @@ mixin _$Project {
   String get id => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
   String get clientId => throw _privateConstructorUsedError;
+  Client get client => throw _privateConstructorUsedError;
   ProjectType get type => throw _privateConstructorUsedError;
   ProjectStatus get status => throw _privateConstructorUsedError;
   List<Phase> get phases => throw _privateConstructorUsedError;
@@ -320,6 +321,7 @@ abstract class $ProjectCopyWith<$Res> {
       {String id,
       String name,
       String clientId,
+      Client client,
       ProjectType type,
       ProjectStatus status,
       List<Phase> phases,
@@ -359,6 +361,7 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? id = null,
     Object? name = null,
     Object? clientId = null,
+    Object? client = null,
     Object? type = null,
     Object? status = null,
     Object? phases = null,
@@ -392,6 +395,10 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
           ? _value.clientId
           : clientId // ignore: cast_nullable_to_non_nullable
               as String,
+      client: null == client
+          ? _value.client
+          : client // ignore: cast_nullable_to_non_nullable
+              as Client,
       type: null == type
           ? _value.type
           : type // ignore: cast_nullable_to_non_nullable
@@ -483,6 +490,7 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
       {String id,
       String name,
       String clientId,
+      Client client,
       ProjectType type,
       ProjectStatus status,
       List<Phase> phases,
@@ -520,6 +528,7 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? id = null,
     Object? name = null,
     Object? clientId = null,
+    Object? client = null,
     Object? type = null,
     Object? status = null,
     Object? phases = null,
@@ -553,6 +562,10 @@ class __$$ProjectImplCopyWithImpl<$Res>
           ? _value.clientId
           : clientId // ignore: cast_nullable_to_non_nullable
               as String,
+      client: null == client
+          ? _value.client
+          : client // ignore: cast_nullable_to_non_nullable
+              as Client,
       type: null == type
           ? _value.type
           : type // ignore: cast_nullable_to_non_nullable
@@ -640,6 +653,7 @@ class _$ProjectImpl extends _Project {
       {required this.id,
       required this.name,
       required this.clientId,
+      required this.client,
       required this.type,
       required this.status,
       required final List<Phase> phases,
@@ -676,6 +690,8 @@ class _$ProjectImpl extends _Project {
   final String name;
   @override
   final String clientId;
+  @override
+  final Client client;
   @override
   final ProjectType type;
   @override
@@ -757,7 +773,7 @@ class _$ProjectImpl extends _Project {
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, clientId: $clientId, type: $type, status: $status, phases: $phases, milestones: $milestones, members: $members, workflows: $workflows, organizationId: $organizationId, value: $value, description: $description, startDate: $startDate, endDate: $endDate, expectedEndDate: $expectedEndDate, completedAt: $completedAt, templateId: $templateId, createdBy: $createdBy, metadata: $metadata, typeSpecificFields: $typeSpecificFields, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Project(id: $id, name: $name, clientId: $clientId, client: $client, type: $type, status: $status, phases: $phases, milestones: $milestones, members: $members, workflows: $workflows, organizationId: $organizationId, value: $value, description: $description, startDate: $startDate, endDate: $endDate, expectedEndDate: $expectedEndDate, completedAt: $completedAt, templateId: $templateId, createdBy: $createdBy, metadata: $metadata, typeSpecificFields: $typeSpecificFields, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -769,6 +785,7 @@ class _$ProjectImpl extends _Project {
             (identical(other.name, name) || other.name == name) &&
             (identical(other.clientId, clientId) ||
                 other.clientId == clientId) &&
+            (identical(other.client, client) || other.client == client) &&
             (identical(other.type, type) || other.type == type) &&
             (identical(other.status, status) || other.status == status) &&
             const DeepCollectionEquality().equals(other._phases, _phases) &&
@@ -809,6 +826,7 @@ class _$ProjectImpl extends _Project {
         id,
         name,
         clientId,
+        client,
         type,
         status,
         const DeepCollectionEquality().hash(_phases),
@@ -851,6 +869,7 @@ abstract class _Project extends Project {
       {required final String id,
       required final String name,
       required final String clientId,
+      required final Client client,
       required final ProjectType type,
       required final ProjectStatus status,
       required final List<Phase> phases,
@@ -880,6 +899,8 @@ abstract class _Project extends Project {
   String get name;
   @override
   String get clientId;
+  @override
+  Client get client;
   @override
   ProjectType get type;
   @override

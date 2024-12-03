@@ -91,8 +91,7 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
               name: event.name,
               description: event.description,
               type: event.type,
-              clientId: event.client.id,
-              client: event.client,
+              clientId: event.client?.id ?? '',
               status: ProjectStatus.planning,
               phases: const [],
               milestones: const [],
@@ -142,7 +141,15 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
           if (e.project != null) {
             emit(ProjectState.form(
               name: e.project!.name,
-              client: e.project!.client,
+              client: state.maybeMap(
+                loaded: (loadedState) => loadedState.clients.isNotEmpty
+                  ? loadedState.clients.firstWhere(
+                      (client) => client.id == e.project!.clientId,
+                      orElse: () => loadedState.clients.first // Use first client as fallback
+                    )
+                  : null,
+                orElse: () => null,
+              ),
               template: null, // Set appropriate template
               startDate: e.project!.startDate,
               expectedEndDate: e.project!.expectedEndDate,
@@ -227,7 +234,6 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
                   description: formState.description ?? '',
                   type: formState.template?.type ?? ProjectType.software,
                   clientId: formState.client!.id,
-                  client: formState.client!,
                   status: ProjectStatus.planning,
                   phases: const [],
                   milestones: const [],

@@ -25,7 +25,7 @@ mixin _$ProjectEvent {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -51,7 +51,7 @@ mixin _$ProjectEvent {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -75,7 +75,7 @@ mixin _$ProjectEvent {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -227,7 +227,7 @@ class _$StartedImpl implements _Started {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -256,7 +256,7 @@ class _$StartedImpl implements _Started {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -283,7 +283,7 @@ class _$StartedImpl implements _Started {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -434,7 +434,7 @@ class _$RefreshedImpl implements _Refreshed {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -463,7 +463,7 @@ class _$RefreshedImpl implements _Refreshed {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -490,7 +490,7 @@ class _$RefreshedImpl implements _Refreshed {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -706,7 +706,7 @@ class _$FilteredImpl implements Filtered {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -735,7 +735,7 @@ class _$FilteredImpl implements Filtered {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -762,7 +762,7 @@ class _$FilteredImpl implements Filtered {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -954,7 +954,7 @@ class _$DeleteProjectImpl implements DeleteProject {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -983,7 +983,7 @@ class _$DeleteProjectImpl implements DeleteProject {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -1010,7 +1010,7 @@ class _$DeleteProjectImpl implements DeleteProject {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -1131,7 +1131,7 @@ abstract class _$$CreateProjectImplCopyWith<$Res> {
       {String name,
       String description,
       ProjectType type,
-      Client client,
+      Client? client,
       DateTime startDate,
       DateTime endDate});
 }
@@ -1152,7 +1152,7 @@ class __$$CreateProjectImplCopyWithImpl<$Res>
     Object? name = null,
     Object? description = null,
     Object? type = null,
-    Object? client = null,
+    Object? client = freezed,
     Object? startDate = null,
     Object? endDate = null,
   }) {
@@ -1169,10 +1169,10 @@ class __$$CreateProjectImplCopyWithImpl<$Res>
           ? _value.type
           : type // ignore: cast_nullable_to_non_nullable
               as ProjectType,
-      client: null == client
+      client: freezed == client
           ? _value.client
           : client // ignore: cast_nullable_to_non_nullable
-              as Client,
+              as Client?,
       startDate: null == startDate
           ? _value.startDate
           : startDate // ignore: cast_nullable_to_non_nullable
@@ -1203,7 +1203,7 @@ class _$CreateProjectImpl implements CreateProject {
   @override
   final ProjectType type;
   @override
-  final Client client;
+  final Client? client;
   @override
   final DateTime startDate;
   @override
@@ -1251,7 +1251,7 @@ class _$CreateProjectImpl implements CreateProject {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -1280,7 +1280,7 @@ class _$CreateProjectImpl implements CreateProject {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -1308,7 +1308,7 @@ class _$CreateProjectImpl implements CreateProject {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -1412,14 +1412,14 @@ abstract class CreateProject implements ProjectEvent {
       {required final String name,
       required final String description,
       required final ProjectType type,
-      required final Client client,
+      required final Client? client,
       required final DateTime startDate,
       required final DateTime endDate}) = _$CreateProjectImpl;
 
   String get name;
   String get description;
   ProjectType get type;
-  Client get client;
+  Client? get client;
   DateTime get startDate;
   DateTime get endDate;
 
@@ -1526,7 +1526,7 @@ class _$AddTeamMemberImpl implements AddTeamMember {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -1555,7 +1555,7 @@ class _$AddTeamMemberImpl implements AddTeamMember {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -1582,7 +1582,7 @@ class _$AddTeamMemberImpl implements AddTeamMember {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -1781,7 +1781,7 @@ class _$FileUploadedImpl implements FileUploaded {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -1810,7 +1810,7 @@ class _$FileUploadedImpl implements FileUploaded {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -1837,7 +1837,7 @@ class _$FileUploadedImpl implements FileUploaded {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -2035,7 +2035,7 @@ class _$FileDeletedImpl implements FileDeleted {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -2064,7 +2064,7 @@ class _$FileDeletedImpl implements FileDeleted {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -2091,7 +2091,7 @@ class _$FileDeletedImpl implements FileDeleted {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -2282,7 +2282,7 @@ class _$ProjectSelectedImpl implements ProjectSelected {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -2311,7 +2311,7 @@ class _$ProjectSelectedImpl implements ProjectSelected {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -2338,7 +2338,7 @@ class _$ProjectSelectedImpl implements ProjectSelected {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -2540,7 +2540,7 @@ class _$InitializedImpl implements _Initialized {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -2569,7 +2569,7 @@ class _$InitializedImpl implements _Initialized {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -2596,7 +2596,7 @@ class _$InitializedImpl implements _Initialized {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -2782,7 +2782,7 @@ class _$NameChangedImpl implements _NameChanged {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -2811,7 +2811,7 @@ class _$NameChangedImpl implements _NameChanged {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -2838,7 +2838,7 @@ class _$NameChangedImpl implements _NameChanged {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -3024,7 +3024,7 @@ class _$ClientChangedImpl implements _ClientChanged {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -3053,7 +3053,7 @@ class _$ClientChangedImpl implements _ClientChanged {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -3080,7 +3080,7 @@ class _$ClientChangedImpl implements _ClientChanged {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -3280,7 +3280,7 @@ class _$TemplateChangedImpl implements _TemplateChanged {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -3309,7 +3309,7 @@ class _$TemplateChangedImpl implements _TemplateChanged {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -3336,7 +3336,7 @@ class _$TemplateChangedImpl implements _TemplateChanged {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -3524,7 +3524,7 @@ class _$StartDateChangedImpl implements _StartDateChanged {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -3553,7 +3553,7 @@ class _$StartDateChangedImpl implements _StartDateChanged {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -3580,7 +3580,7 @@ class _$StartDateChangedImpl implements _StartDateChanged {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -3767,7 +3767,7 @@ class _$EndDateChangedImpl implements _EndDateChanged {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -3796,7 +3796,7 @@ class _$EndDateChangedImpl implements _EndDateChanged {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -3823,7 +3823,7 @@ class _$EndDateChangedImpl implements _EndDateChanged {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -4011,7 +4011,7 @@ class _$DescriptionChangedImpl implements _DescriptionChanged {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -4040,7 +4040,7 @@ class _$DescriptionChangedImpl implements _DescriptionChanged {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -4067,7 +4067,7 @@ class _$DescriptionChangedImpl implements _DescriptionChanged {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,
@@ -4227,7 +4227,7 @@ class _$SavedImpl implements _Saved {
         filtered,
     required TResult Function(String projectId) deleteProject,
     required TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)
+            Client? client, DateTime startDate, DateTime endDate)
         createProject,
     required TResult Function(String projectId, ProjectMember member)
         addTeamMember,
@@ -4256,7 +4256,7 @@ class _$SavedImpl implements _Saved {
         filtered,
     TResult? Function(String projectId)? deleteProject,
     TResult? Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult? Function(String projectId, ProjectMember member)? addTeamMember,
     TResult? Function(String projectId, String fileData)? fileUploaded,
@@ -4283,7 +4283,7 @@ class _$SavedImpl implements _Saved {
         filtered,
     TResult Function(String projectId)? deleteProject,
     TResult Function(String name, String description, ProjectType type,
-            Client client, DateTime startDate, DateTime endDate)?
+            Client? client, DateTime startDate, DateTime endDate)?
         createProject,
     TResult Function(String projectId, ProjectMember member)? addTeamMember,
     TResult Function(String projectId, String fileData)? fileUploaded,

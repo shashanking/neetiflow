@@ -16,6 +16,7 @@ import 'package:injectable/injectable.dart' as _i526;
 import 'package:logger/logger.dart' as _i974;
 
 import 'core/providers/auth_provider.dart' as _i992;
+import 'data/repositories/custom_fields_repository.dart' as _i446;
 import 'domain/repositories/auth_repository.dart' as _i716;
 import 'domain/repositories/clients_repository.dart' as _i743;
 import 'domain/repositories/departments_repository.dart' as _i821;
@@ -52,6 +53,7 @@ import 'injection.dart' as _i464;
 import 'presentation/blocs/auth/auth_bloc.dart' as _i34;
 import 'presentation/blocs/client/client_bloc.dart' as _i744;
 import 'presentation/blocs/clients/clients_bloc.dart' as _i532;
+import 'presentation/blocs/custom_fields/custom_fields_bloc.dart' as _i374;
 import 'presentation/blocs/departments/departments_bloc.dart' as _i281;
 import 'presentation/blocs/employees/employees_bloc.dart' as _i958;
 import 'presentation/blocs/project/project_bloc.dart' as _i324;
@@ -73,17 +75,26 @@ extension GetItInjectableX on _i174.GetIt {
     );
     final loggerInjectableModule = _$LoggerInjectableModule();
     final firebaseModule = _$FirebaseModule();
+    final firestoreModule = _$FirestoreModule();
     final firebaseInjectableModule = _$FirebaseInjectableModule();
+    final repositoryModule = _$RepositoryModule();
+    final blocModule = _$BlocModule();
     final repositoryInjectableModule = _$RepositoryInjectableModule();
     gh.factory<_i532.ClientsBloc>(() => _i532.ClientsBloc());
     gh.singleton<_i974.Logger>(() => loggerInjectableModule.logger);
     gh.lazySingleton<_i59.FirebaseAuth>(() => firebaseModule.firebaseAuth);
+    gh.lazySingleton<_i974.FirebaseFirestore>(
+        () => firestoreModule.firebaseFirestore);
     gh.lazySingleton<_i696.SecureStorageService>(
         () => _i696.SecureStorageService());
     gh.singleton<_i457.FirebaseStorage>(
       () => firebaseInjectableModule.firebaseStorage,
       instanceName: 'firebaseStorage',
     );
+    gh.factory<_i446.CustomFieldsRepository>(() =>
+        repositoryModule.customFieldsRepository(gh<_i974.FirebaseFirestore>()));
+    gh.factory<_i374.CustomFieldsBloc>(
+        () => blocModule.customFieldsBloc(gh<_i446.CustomFieldsRepository>()));
     gh.singleton<_i59.FirebaseAuth>(
       () => firebaseInjectableModule.firebaseAuth,
       instanceName: 'firebaseAuth',
@@ -195,6 +206,12 @@ class _$LoggerInjectableModule extends _i1005.LoggerInjectableModule {}
 
 class _$FirebaseModule extends _i464.FirebaseModule {}
 
+class _$FirestoreModule extends _i464.FirestoreModule {}
+
 class _$FirebaseInjectableModule extends _i462.FirebaseInjectableModule {}
+
+class _$RepositoryModule extends _i464.RepositoryModule {}
+
+class _$BlocModule extends _i464.BlocModule {}
 
 class _$RepositoryInjectableModule extends _i1023.RepositoryInjectableModule {}

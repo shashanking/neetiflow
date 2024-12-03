@@ -1,100 +1,141 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:neetiflow/domain/entities/operations/phase.dart';
+import 'package:neetiflow/domain/entities/operations/project_template.dart';
+import 'package:neetiflow/domain/entities/operations/workflow_template.dart';
+import 'package:neetiflow/domain/entities/operations/task.dart';
+import 'package:neetiflow/domain/entities/operations/milestone.dart';
+import 'package:neetiflow/domain/entities/client.dart';
+import 'package:uuid/uuid.dart';
 
-class Project extends Equatable {
-  final String id;
-  final String name;
-  final String description;
-  final String status;
-  final DateTime startDate;
-  final DateTime? endDate;
-  final List<String> memberIds;
-  final String createdBy;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+part 'project.freezed.dart';
+part 'project.g.dart';
 
-  const Project({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.status,
-    required this.startDate,
-    this.endDate,
-    required this.memberIds,
-    required this.createdBy,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+enum ProjectStatus {
+  planning,
+  active,
+  inProgress,
+  onHold,
+  completed,
+  cancelled
+}
 
-  @override
-  List<Object?> get props => [
-        id,
-        name,
-        description,
-        status,
-        startDate,
-        endDate,
-        memberIds,
-        createdBy,
-        createdAt,
-        updatedAt,
-      ];
+enum ProjectAccess {
+  view,
+  edit,
+  admin
+}
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'status': status,
-      'startDate': Timestamp.fromDate(startDate),
-      'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
-      'memberIds': memberIds,
-      'createdBy': createdBy,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-    };
-  }
+@freezed
+class ProjectMember with _$ProjectMember {
+  const factory ProjectMember({
+    required String employeeId,
+    required String employeeName,
+    required String role,
+    required ProjectAccess access,
+    required DateTime joinedAt,
+    String? department,
+  }) = _ProjectMember;
 
-  factory Project.fromJson(Map<String, dynamic> json) {
-    return Project(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      status: json['status'] as String,
-      startDate: (json['startDate'] as Timestamp).toDate(),
-      endDate: json['endDate'] != null
-          ? (json['endDate'] as Timestamp).toDate()
-          : null,
-      memberIds: List<String>.from(json['memberIds']),
-      createdBy: json['createdBy'] as String,
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
-      updatedAt: (json['updatedAt'] as Timestamp).toDate(),
-    );
-  }
+  factory ProjectMember.fromJson(Map<String, dynamic> json) =>
+      _$ProjectMemberFromJson(json);
+}
 
-  Project copyWith({
-    String? id,
-    String? name,
+@freezed
+class Project with _$Project {
+  const Project._();
+
+  const factory Project({
+    required String id,
+    required String name,
+    required String clientId,
+    required Client client,
+    required ProjectType type,
+    required ProjectStatus status,
+    required List<Phase> phases,
+    required List<Milestone> milestones,
+    required List<ProjectMember> members,
+    required List<WorkflowTemplate> workflows,
+    required String organizationId,
+    @Default(0.0) double value,
     String? description,
-    String? status,
     DateTime? startDate,
     DateTime? endDate,
-    List<String>? memberIds,
+    DateTime? expectedEndDate,
+    DateTime? completedAt,
+    String? templateId,
     String? createdBy,
+    @Default({}) Map<String, dynamic> metadata,
+    @Default({}) Map<String, dynamic> typeSpecificFields,
     DateTime? createdAt,
     DateTime? updatedAt,
+  }) = _Project;
+
+  factory Project.fromJson(Map<String, dynamic> json) =>
+      _$ProjectFromJson(json);
+
+  factory Project.fromTemplate({
+    required ProjectTemplate template,
+    required List<ProjectMember> members,
+    required String name,
+    required String clientId,
+    required Client client,
+    required String createdBy,
+    double? value,
+    String? description,
+    Map<String, dynamic>? typeSpecificFields,
   }) {
+    final now = DateTime.now();
+    final expectedEndDate = now.add(template.estimatedDuration);
+    
     return Project(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      status: status ?? this.status,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      memberIds: memberIds ?? this.memberIds,
-      createdBy: createdBy ?? this.createdBy,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      id: const Uuid().v4(),
+      name: name,
+      description: description ?? template.description ?? '',
+      type: template.type,
+      templateId: template.id,
+      clientId: clientId,
+      client: client,
+      status: ProjectStatus.planning,
+      phases: template.phases.map((phase) => Phase(
+        id: phase.id,
+        name: phase.name,
+        description: phase.description,
+        startDate: phase.startDate ?? now,
+        endDate: phase.endDate ?? now.add(phase.defaultDuration ?? const Duration(days: 7)),
+        taskIds: [],
+        isCompleted: false,
+        order: 0,
+        estimatedDuration: phase.estimatedDuration ?? const Duration(days: 7),
+        createdAt: now,
+        updatedAt: now,
+        defaultTasks: phase.defaultTasks.map((taskData) => Task(
+          id: const Uuid().v4(),
+          name: taskData['name'] as String? ?? '',
+          description: taskData['description'] as String? ?? '',
+          status: TaskStatus.todo,
+          assigneeId: '',
+          dueDate: now.add(const Duration(days: 7)),
+          priority: Priority.low,
+          labels: const [],
+          createdAt: now,
+          updatedAt: now,
+          metadata: const {},
+        )).toList(),
+      )).toList(),
+      milestones: template.defaultMilestones,
+      members: members,
+      workflows: template.workflows,
+      startDate: now,
+      endDate: now.add(const Duration(days: 30)),
+      expectedEndDate: expectedEndDate,
+      completedAt: null,
+      createdBy: createdBy,
+      metadata: const {},
+      typeSpecificFields: typeSpecificFields ?? const {},
+      createdAt: now,
+      updatedAt: now, 
+      organizationId: '',
+      value: value ?? 0.0,
     );
   }
 }

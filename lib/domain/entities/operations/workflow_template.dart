@@ -50,4 +50,27 @@ class WorkflowTemplate with _$WorkflowTemplate {
 
   factory WorkflowTemplate.fromJson(Map<String, dynamic> json) =>
       _$WorkflowTemplateFromJson(json);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'description': description,
+    'states': states.map((state) => {
+      'id': state.id,
+      'name': state.name,
+      'color': state.color,
+      'description': state.description,
+      'isInitial': state.isInitial,
+      'isFinal': state.isFinal,
+      'metadata': state.metadata,
+    }).toList(),
+    'transitions': transitions.map((transition) => {
+      'id': transition.id,
+      'name': transition.name,
+      'fromStateId': transition.fromStateId,
+      'toStateId': transition.toStateId,
+      'metadata': transition.metadata,
+    }).toList(),
+    'metadata': metadata,
+  };
 }

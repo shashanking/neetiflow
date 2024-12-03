@@ -181,7 +181,7 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> with SingleTick
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Client: ${widget.project.client.name}',
+                        'Client: ${widget.project.clientId.isNotEmpty ? 'Client ID: ${widget.project.clientId}' : 'No Client'}',
                         style: theme.textTheme.titleMedium,
                       ),
                     ],

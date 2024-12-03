@@ -152,7 +152,7 @@ class ProjectTimeline extends StatelessWidget {
       events.add(
         TimelineEvent(
           type: TimelineEventType.phase,
-          date: phase.startDate ?? DateTime.now(),
+          date: phase.startDate,
           title: phase.name,
           description: phase.description,
         ),
@@ -164,7 +164,7 @@ class ProjectTimeline extends StatelessWidget {
       events.add(
         TimelineEvent(
           type: TimelineEventType.milestone,
-          date: milestone.dueDate ?? DateTime.now(),
+          date: milestone.dueDate,
           title: milestone.name,
           description: milestone.description,
         ),

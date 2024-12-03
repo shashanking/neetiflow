@@ -4,7 +4,6 @@ import 'package:neetiflow/domain/entities/operations/project_template.dart';
 import 'package:neetiflow/domain/entities/operations/workflow_template.dart';
 import 'package:neetiflow/domain/entities/operations/task.dart';
 import 'package:neetiflow/domain/entities/operations/milestone.dart';
-import 'package:neetiflow/domain/entities/client.dart';
 import 'package:uuid/uuid.dart';
 
 part 'project.freezed.dart';
@@ -48,7 +47,6 @@ class Project with _$Project {
     required String id,
     required String name,
     required String clientId,
-    required Client client,
     required ProjectType type,
     required ProjectStatus status,
     required List<Phase> phases,
@@ -78,7 +76,6 @@ class Project with _$Project {
     required List<ProjectMember> members,
     required String name,
     required String clientId,
-    required Client client,
     required String createdBy,
     double? value,
     String? description,
@@ -94,7 +91,6 @@ class Project with _$Project {
       type: template.type,
       templateId: template.id,
       clientId: clientId,
-      client: client,
       status: ProjectStatus.planning,
       phases: template.phases.map((phase) => Phase(
         id: phase.id,
@@ -124,17 +120,14 @@ class Project with _$Project {
       )).toList(),
       milestones: template.defaultMilestones,
       members: members,
-      workflows: template.workflows,
       startDate: now,
-      endDate: now.add(const Duration(days: 30)),
-      expectedEndDate: expectedEndDate,
-      completedAt: null,
+      endDate: expectedEndDate,
       createdBy: createdBy,
-      metadata: const {},
-      typeSpecificFields: typeSpecificFields ?? const {},
       createdAt: now,
-      updatedAt: now, 
-      organizationId: '',
+      updatedAt: now,
+      typeSpecificFields: typeSpecificFields ?? {},
+      workflows: template.workflows,
+      organizationId: template.organizationId,
       value: value ?? 0.0,
     );
   }

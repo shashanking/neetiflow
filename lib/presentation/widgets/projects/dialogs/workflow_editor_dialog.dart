@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:neetiflow/domain/entities/operations/project_template.dart';
 import 'package:neetiflow/utils/validators.dart';
 
 import '../../../../domain/entities/operations/workflow_template.dart';

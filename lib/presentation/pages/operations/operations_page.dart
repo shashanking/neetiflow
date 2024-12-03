@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:neetiflow/domain/entities/client.dart';
+import 'package:neetiflow/domain/entities/client.dart' as domain_client;
 import 'package:neetiflow/domain/entities/operations/project_template.dart';
 import 'package:neetiflow/injection.dart';
 import 'package:neetiflow/presentation/blocs/project/project_bloc.dart';
-import 'package:neetiflow/presentation/pages/projects/project_list_screen.dart';
 import 'package:neetiflow/presentation/widgets/projects/project_template_list.dart';
 
 import '../../blocs/project/project_event.dart';
@@ -42,7 +41,7 @@ class _OperationsPageState extends State<OperationsPage> {
     super.dispose();
   }
 
-  void _showCreateProjectDialog(BuildContext context, List<Client> clients,
+  void _showCreateProjectDialog(BuildContext context, List<domain_client.Client> clients,
       List<ProjectTemplate> templates) {
     showDialog(
       context: context,
@@ -192,8 +191,6 @@ class _OperationsPageState extends State<OperationsPage> {
                               ),
                             );
                           },
-                          
-                          
                         );
                       } else if (_selectedTab == OperationsTab.templates) {
                         return const ProjectTemplateList();
@@ -231,7 +228,7 @@ class _OperationsPageState extends State<OperationsPage> {
                     ),
                     deleted: (_) => const Center(
                         child: Text('Project deleted successfully')),
-                    form: (form) => Text('form')
+                    form: (form) => const Text('form')
                   );
                 },
               ),

@@ -4,6 +4,7 @@ import 'package:neetiflow/domain/entities/operations/project_template.dart';
 import 'package:neetiflow/domain/repositories/operations/project_template_repository.dart';
 import 'package:logger/logger.dart';
 
+import '../../../domain/entities/operations/workflow_template.dart';
 import '../../services/organization_service.dart';
 
 @LazySingleton(as: ProjectTemplateRepository)
@@ -105,6 +106,38 @@ class ProjectTemplateRepositoryImpl implements ProjectTemplateRepository {
       
       if (config['type'] == null) {
         throw Exception('Template type is required');
+      }
+
+      // Convert complex objects to JSON-serializable format
+      if (json.containsKey('config') && json['config'] is Map) {
+        final config = json['config'] as Map<String, dynamic>;
+        
+        // Convert workflow to a JSON-serializable representation
+        if (config.containsKey('defaultWorkflow')) {
+          final workflow = config['defaultWorkflow'];
+          if (workflow is WorkflowTemplate) {
+            config['defaultWorkflow'] = workflow.toJson();
+          } else if (workflow is Map) {
+            // Ensure basic structure
+            config['defaultWorkflow'] = {
+              'id': workflow['id'] ?? 'default_workflow',
+              'name': workflow['name'] ?? 'Default Workflow',
+              'states': (workflow['states'] as List?)?.map((state) => {
+                'id': state['id'] ?? '',
+                'name': state['name'] ?? '',
+                'color': state['color'] ?? '#808080',
+                'isInitial': state['isInitial'] ?? false,
+                'isFinal': state['isFinal'] ?? false,
+              }).toList() ?? [],
+              'transitions': (workflow['transitions'] as List?)?.map((transition) => {
+                'id': transition['id'] ?? '',
+                'name': transition['name'] ?? '',
+                'fromStateId': transition['fromStateId'] ?? '',
+                'toStateId': transition['toStateId'] ?? '',
+              }).toList() ?? [],
+            };
+          }
+        }
       }
 
       // Detailed logging of default phases

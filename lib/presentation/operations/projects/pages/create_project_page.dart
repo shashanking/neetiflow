@@ -48,7 +48,6 @@ class CreateProjectPage extends StatelessWidget {
                   description: formState.description ?? '',
                   type: formState.template?.type ?? ProjectType.software,
                   clientId: formState.client!.id,
-                  client: formState.client!,
                   status: ProjectStatus.planning,
                   phases: const [],
                   milestones: const [],

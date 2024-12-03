@@ -12,7 +12,6 @@ import 'package:neetiflow/injection.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
-import 'package:neetiflow/presentation/blocs/employee_timeline/employee_timeline_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
@@ -23,8 +22,6 @@ import 'package:neetiflow/presentation/blocs/employee_status/employee_status_blo
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/blocs/project/project_bloc.dart';
-import 'package:neetiflow/presentation/pages/auth/login_page.dart';
-import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';

@@ -37,6 +37,7 @@ _$ProjectImpl _$$ProjectImplFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       name: json['name'] as String,
       clientId: json['clientId'] as String,
+      client: Client.fromJson(json['client'] as Map<String, dynamic>),
       type: $enumDecode(_$ProjectTypeEnumMap, json['type']),
       status: $enumDecode(_$ProjectStatusEnumMap, json['status']),
       phases: (json['phases'] as List<dynamic>)
@@ -84,6 +85,7 @@ Map<String, dynamic> _$$ProjectImplToJson(_$ProjectImpl instance) =>
       'id': instance.id,
       'name': instance.name,
       'clientId': instance.clientId,
+      'client': instance.client,
       'type': _$ProjectTypeEnumMap[instance.type]!,
       'status': _$ProjectStatusEnumMap[instance.status]!,
       'phases': instance.phases,

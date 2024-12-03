@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:neetiflow/infrastructure/services/organization_service.dart';
 import 'package:neetiflow/presentation/pages/projects/milestone_editor_page.dart';
 import 'package:neetiflow/presentation/pages/projects/phase_editor_page.dart';
 import 'package:neetiflow/presentation/pages/projects/workflow_editor_page.dart';
 import 'package:neetiflow/utils/validators.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../domain/entities/operations/milestone.dart';
 import '../../../domain/entities/operations/phase.dart';
@@ -142,7 +142,7 @@ class _ProjectTemplateFormState extends State<ProjectTemplateForm> {
         // Get organization ID using the repository
         final organizationId = await _authRepository.getCurrentUser().then((user) => 
           user != null 
-            ? _authRepository.getEmployeeData(user.uid).then((employee) => employee?.companyId)
+            ? _authRepository.getEmployeeData(user.uid).then((employee) => employee.companyId)
             : null
         );
 
@@ -154,8 +154,8 @@ class _ProjectTemplateFormState extends State<ProjectTemplateForm> {
           return;
         }
 
-        // Generate a more predictable ID
-        final templateId = 'tmpl_${DateTime.now().millisecondsSinceEpoch.toString()}';
+        // Generate a UUID for the template
+        final templateId = 'tmpl_${const Uuid().v4()}';
 
         final template = ProjectTemplate(
           id: templateId,
@@ -182,35 +182,54 @@ class _ProjectTemplateFormState extends State<ProjectTemplateForm> {
                     ))
                 .toList(),
             defaultWorkflow: _workflows.isNotEmpty
-                ? _workflows.first
-                : WorkflowTemplate.fromJson({
-                    'id': 'default_workflow',
-                    'name': 'Default Workflow',
-                    'states': [
-                      {
-                        'id': 'todo',
-                        'name': 'To Do',
-                        'color': '#808080',
-                        'isInitial': true,
-                        'isFinal': false,
-                      },
-                      {
-                        'id': 'done',
-                        'name': 'Done',
-                        'color': '#00FF00',
-                        'isInitial': false,
-                        'isFinal': true,
-                      },
-                    ],
-                    'transitions': [
-                      {
-                        'id': 'todo_to_done',
-                        'name': 'Complete',
-                        'fromStateId': 'todo',
-                        'toStateId': 'done',
-                      }
-                    ]
-                  }),
+              ? _workflows.first.copyWith(
+                  states: _workflows.first.states
+                      .map((state) => WorkflowState(
+                            id: state.id,
+                            name: state.name,
+                            color: state.color,
+                            description: state.description,
+                            isInitial: state.isInitial,
+                            isFinal: state.isFinal,
+                          ))
+                      .toList(),
+                  transitions: _workflows.first.transitions
+                      .map((transition) => WorkflowTransition(
+                            id: transition.id,
+                            name: transition.name,
+                            fromStateId: transition.fromStateId,
+                            toStateId: transition.toStateId,
+                          ))
+                      .toList(),
+                )
+              : WorkflowTemplate(
+                  id: 'default_workflow',
+                  name: 'Default Workflow',
+                  states: [
+                    WorkflowState(
+                      id: 'todo',
+                      name: 'To Do',
+                      color: '#808080',
+                      isInitial: true,
+                      isFinal: false,
+                    ),
+                    WorkflowState(
+                      id: 'done',
+                      name: 'Done',
+                      color: '#00FF00',
+                      isInitial: false,
+                      isFinal: true,
+                    ),
+                  ],
+                  transitions: [
+                    WorkflowTransition(
+                      id: 'todo_to_done',
+                      name: 'Complete',
+                      fromStateId: 'todo',
+                      toStateId: 'done',
+                    )
+                  ]
+                ),
             defaultMilestones: _milestones
                 .map((m) => TemplateMilestone(
                       id: m.id,
