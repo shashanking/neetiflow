@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
-import 'package:neetiflow/domain/entities/custom_field_value.dart';
 import 'package:neetiflow/domain/entities/timeline_event.dart';
 
 abstract class LeadsRepository {
@@ -29,6 +28,7 @@ abstract class LeadsRepository {
   Future<Uint8List> exportLeadsToCSV(List<Lead> leads);
   Future<void> addTimelineEvent(String organizationId, TimelineEvent event);
   Stream<List<TimelineEvent>> getTimelineEvents(String organizationId, String leadId);
+  Stream<List<TimelineEvent>> getEmployeeTimelineEvents(String organizationId, String employeeId);
 }
 
 class LeadsRepositoryImpl implements LeadsRepository {
@@ -110,11 +110,29 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<void> createLead(String organizationId, Lead lead) async {
+    final leadJson = lead.toJson()..remove('id');
     await _firestore
         .collection('organizations')
         .doc(organizationId)
         .collection('leads')
-        .add(lead.toJson()..remove('id'));
+        .doc(lead.id)
+        .set(leadJson);
+
+    // Add timeline events if any
+    if (lead.timelineEvents.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final event in lead.timelineEvents) {
+        final eventRef = _firestore
+            .collection('organizations')
+            .doc(organizationId)
+            .collection('leads')
+            .doc(lead.id)
+            .collection('timeline')
+            .doc(event.id);
+        batch.set(eventRef, event.toJson()..remove('id'));
+      }
+      await batch.commit();
+    }
   }
 
   @override
@@ -139,49 +157,51 @@ class LeadsRepositoryImpl implements LeadsRepository {
 
   @override
   Future<List<Lead>> importLeadsFromCSV(Uint8List fileBytes) async {
-    final csvString = utf8.decode(fileBytes);
-    final csvTable = const CsvToListConverter().convert(csvString);
+    print('Starting CSV parsing...');
     
-    if (csvTable.isEmpty) {
+    // Convert bytes to string and split by newlines
+    final csvString = utf8.decode(fileBytes);
+    final lines = csvString.split('\n');
+    print('Number of lines: ${lines.length}');
+    
+    if (lines.isEmpty) {
       throw Exception('CSV file is empty');
     }
 
-    // Convert headers to strings explicitly
+    // Parse header line
+    final headerLine = lines[0];
     final headers = Map<String, int>.fromIterables(
-      (csvTable.first).map((e) => e.toString().toLowerCase().replaceAll(' ', '')),
-      List.generate((csvTable.first).length, (i) => i),
+      headerLine.split(',').map((e) => e.trim().toLowerCase()),
+      List.generate(headerLine.split(',').length, (i) => i),
     );
+    print('Headers: $headers');
 
     final leads = <Lead>[];
-    for (var i = 1; i < csvTable.length; i++) {
-      final row = csvTable[i];
-      if (row.length != headers.length) continue;
-
-      // Extract custom fields from CSV
-      final customFields = <String, CustomFieldValue>{};
-      headers.forEach((key, index) {
-        if (key.startsWith('cf_') && row[index] != null && row[index].toString().isNotEmpty) {
-          final fieldId = key.substring(3); // Remove 'cf_' prefix
-          customFields[fieldId] = CustomFieldValue(
-            fieldId: fieldId,
-            value: row[index],
-            updatedAt: DateTime.now(),
-          );
-        }
-      });
-
-      // Convert row to List<String> for fromCSV method
-      final stringRow = row.map((e) => e?.toString() ?? '').toList();
+    // Start from index 1 to skip header
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+      
+      print('\nProcessing line $i: $line');
+      final values = line.split(',').map((e) => e.trim()).toList();
+      
+      if (values.length != headers.length) {
+        print('Line $i has incorrect number of values: ${values.length} (expected: ${headers.length})');
+        continue;
+      }
 
       try {
-        leads.add(Lead.fromCSV(stringRow, headers: headers)
-            .copyWith(customFields: customFields));
-      } catch (e) {
-        print('Error importing row $i: $e');
+        final lead = Lead.fromCSV(values, headers: headers);
+        print('Successfully created lead: ${lead.firstName} ${lead.lastName}');
+        leads.add(lead);
+      } catch (e, stackTrace) {
+        print('Error importing line $i: $e');
+        print('Stack trace: $stackTrace');
         continue;
       }
     }
 
+    print('Successfully parsed ${leads.length} leads');
     return leads;
   }
 
@@ -271,5 +291,88 @@ class LeadsRepositoryImpl implements LeadsRepository {
         .map((snapshot) => snapshot.docs
             .map((doc) => TimelineEvent.fromJson({...doc.data(), 'id': doc.id}))
             .toList());
+  }
+
+  @override
+  Stream<List<TimelineEvent>> getEmployeeTimelineEvents(String organizationId, String employeeId) {
+    return _firestore
+        .collection('organizations')
+        .doc(organizationId)
+        .collection('leads')
+        .snapshots()
+        .asyncMap((leadsSnapshot) async {
+          final allEvents = <TimelineEvent>[];
+          final processedLeadIds = <String>{};  // To track processed leads
+          
+          for (final leadDoc in leadsSnapshot.docs) {
+            final leadData = leadDoc.data();
+            final assignedTo = leadData['metadata']?['assignedEmployeeId'];
+            
+            // If this lead is assigned to the current employee, add it as a task
+            if (assignedTo == employeeId && !processedLeadIds.contains(leadDoc.id)) {
+              processedLeadIds.add(leadDoc.id);
+              
+              // Add a lead assignment event if not already processed
+              allEvents.add(TimelineEvent(
+                id: 'assignment_${leadDoc.id}',
+                leadId: leadDoc.id,
+                title: 'New Lead Assigned',
+                description: 'Lead "${leadData['firstName'] ?? ''} ${leadData['lastName'] ?? ''}" has been assigned to you',
+                timestamp: ((leadData['assignedAt'] as Timestamp?) ?? 
+                          (leadData['createdAt'] as Timestamp?) ?? 
+                          Timestamp.now()).toDate(),
+                category: 'lead_assigned',
+                metadata: {
+                  'assignedTo': employeeId,
+                  'status': leadData['status'] ?? 'pending',
+                  'leadName': '${leadData['firstName'] ?? ''} ${leadData['lastName'] ?? ''}',
+                  'leadPhone': leadData['phone'],
+                  'leadEmail': leadData['email'],
+                },
+              ));
+            }
+
+            // Get timeline events for this lead
+            final timelineSnapshot = await _firestore
+                .collection('organizations')
+                .doc(organizationId)
+                .collection('leads')
+                .doc(leadDoc.id)
+                .collection('timeline')
+                .orderBy('timestamp', descending: true)
+                .get();
+
+            final events = timelineSnapshot.docs.map((doc) {
+              final data = doc.data();
+              // Only include events that are specifically assigned to this employee
+              // and are not lead assignments (since we handle those separately)
+              final isAssigned = data['metadata'] != null &&
+                  data['metadata']['assignedTo'] == employeeId &&
+                  data['category'] != 'lead_assigned';
+              
+              if (!isAssigned) return null;
+
+              return TimelineEvent(
+                id: doc.id,
+                leadId: leadDoc.id,
+                title: data['title'] ?? '',
+                description: data['description'] ?? '',
+                timestamp: (data['timestamp'] as Timestamp).toDate(),
+                category: data['category'] ?? '',
+                metadata: {
+                  ...?data['metadata'] as Map<String, dynamic>?,
+                  'leadName': '${leadData['firstName'] ?? ''} ${leadData['lastName'] ?? ''}',
+                  'status': leadData['status'] ?? 'pending',
+                },
+              );
+            }).whereType<TimelineEvent>().toList();
+
+            allEvents.addAll(events);
+          }
+
+          // Sort all events by timestamp
+          allEvents.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return allEvents;
+        });
   }
 }

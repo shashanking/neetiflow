@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/domain/entities/client.dart';
-import 'package:neetiflow/domain/repositories/auth_repository.dart';
-import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_list_item.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
@@ -18,10 +17,7 @@ class ClientsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) {
-        final bloc = ClientsBloc(
-          authRepository: context.read<AuthRepository>(),
-          employeesRepository: context.read<EmployeesRepository>(),
-        );
+        final bloc = GetIt.instance<ClientsBloc>();
         // Delay loading clients to avoid UI freeze
         Future.microtask(() => bloc.add(LoadClients()));
         return bloc;

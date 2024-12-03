@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
@@ -172,11 +173,11 @@ class _LeadFormState extends State<LeadForm> {
           },
         ),
         ProxyProvider<CustomFieldsRepository, CustomFieldsBloc>(
-          create: (context) => CustomFieldsBloc(
-            repository: context.read<CustomFieldsRepository>(),
-          ),
+          create: (context) => GetIt.instance<CustomFieldsBloc>(),
           update: (context, repository, bloc) =>
-              bloc ?? CustomFieldsBloc(repository: repository),
+              bloc ?? GetIt.instance<CustomFieldsBloc>(
+                
+              ),
           lazy: false, // Ensure the bloc is created immediately
         ),
       ],

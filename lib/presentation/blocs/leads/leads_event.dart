@@ -91,11 +91,15 @@ class AddLead extends LeadsEvent {
 /// Event to update an existing lead
 class UpdateLead extends LeadsEvent {
   final Lead lead;
+  final TimelineEvent? timelineEvent;
 
-  const UpdateLead({required this.lead});
+  const UpdateLead({
+    required this.lead,
+    this.timelineEvent,
+  });
 
   @override
-  List<Object> get props => [lead];
+  List<Object?> get props => [lead, timelineEvent];
 }
 
 /// Event to update the process status of multiple leads.

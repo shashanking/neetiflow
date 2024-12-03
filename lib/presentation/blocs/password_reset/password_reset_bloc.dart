@@ -60,7 +60,7 @@ class PasswordResetBloc extends Bloc<PasswordResetEvent, PasswordResetState> {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
-  PasswordResetBloc({FirebaseAuth? auth, FirebaseFirestore? firestore})
+  PasswordResetBloc(Object object, {FirebaseAuth? auth, FirebaseFirestore? firestore})
       : _auth = auth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
         super(PasswordResetInitial()) {

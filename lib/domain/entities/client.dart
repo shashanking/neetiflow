@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:neetiflow/domain/entities/operations/project.dart' as projectt;
 
 enum ClientStatus {
   active,
@@ -26,52 +27,6 @@ enum ClientDomain {
   other
 }
 
-class Project {
-  final String id;
-  final String name;
-  final String description;
-  final double value;
-  final DateTime startDate;
-  final DateTime? endDate;
-  final String status;
-
-  Project({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.value,
-    required this.startDate,
-    this.endDate,
-    required this.status,
-  });
-
-  factory Project.fromJson(Map<String, dynamic> json) {
-    return Project(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      value: (json['value'] as num).toDouble(),
-      startDate: (json['startDate'] as Timestamp).toDate(),
-      endDate: json['endDate'] != null 
-          ? (json['endDate'] as Timestamp).toDate() 
-          : null,
-      status: json['status'] as String,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'value': value,
-      'startDate': Timestamp.fromDate(startDate),
-      'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
-      'status': status,
-    };
-  }
-}
-
 class Client {
   final String id;
   final String firstName;
@@ -97,7 +52,7 @@ class Client {
   final Map<String, dynamic>? metadata;
   final List<String>? tags;
   final String? assignedEmployeeId;
-  final List<Project> projects;    // List of projects
+  final List<projectt.Project> projects;    // List of projects
   final double lifetimeValue;      // Calculated from projects
 
   Client({
@@ -127,6 +82,18 @@ class Client {
   });
 
   String get fullName => '$firstName $lastName';
+
+  String get name {
+    switch (type) {
+      case ClientType.company:
+        return organizationName ?? '$firstName $lastName';
+      case ClientType.government:
+        return governmentType ?? '$firstName $lastName';
+      case ClientType.individual:
+      default:
+        return '$firstName $lastName';
+    }
+  }
 
   factory Client.fromJson(Map<String, dynamic> json) {
     return Client(
@@ -164,9 +131,11 @@ class Client {
       metadata: json['metadata'] as Map<String, dynamic>?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>(),
       assignedEmployeeId: json['assignedEmployeeId'] as String?,
-      projects: (json['projects'] as List<dynamic>?)
-          ?.map((e) => Project.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [],
+      projects: json['projects'] != null
+          ? (json['projects'] as List)
+              .map((projectJson) => projectt.Project.fromJson(projectJson))
+              .toList()
+          : [],
       lifetimeValue: (json['lifetimeValue'] as num?)?.toDouble() ?? 0.0,
     );
   }
@@ -196,7 +165,7 @@ class Client {
       'metadata': metadata,
       'tags': tags,
       'assignedEmployeeId': assignedEmployeeId,
-      'projects': projects.map((p) => p.toJson()).toList(),
+      'projects': projects.map((project) => project.toJson()).toList(),
       'lifetimeValue': lifetimeValue,
     };
   }
@@ -223,7 +192,7 @@ class Client {
     Map<String, dynamic>? metadata,
     List<String>? tags,
     String? assignedEmployeeId,
-    List<Project>? projects,
+    List<projectt.Project>? projects,
     double? lifetimeValue,
   }) {
     return Client(

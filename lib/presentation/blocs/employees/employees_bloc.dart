@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:injectable/injectable.dart';
 
 // Events
 abstract class EmployeesEvent extends Equatable {
@@ -141,14 +142,12 @@ class EmployeesEmailError extends EmployeesState {
 }
 
 // Bloc
+@injectable
 class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
   final EmployeesRepository _employeesRepository;
   StreamSubscription<List<Employee>>? _employeesSubscription;
 
-  EmployeesBloc({
-    required EmployeesRepository employeesRepository,
-  })  : _employeesRepository = employeesRepository,
-        super(EmployeesInitial()) {
+  EmployeesBloc(this._employeesRepository) : super(EmployeesInitial()) {
     on<LoadEmployees>(_onLoadEmployees);
     on<AddEmployee>(_onAddEmployee);
     on<UpdateEmployee>(_onUpdateEmployee);

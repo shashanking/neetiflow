@@ -64,11 +64,11 @@ class LeadFilter extends Equatable {
       }
     }
 
-    if (status != null && lead.status != status) {
+    if (status != null && lead.status.toString() != status) {
       return false;
     }
 
-    if (processStatus != null && lead.processStatus != processStatus) {
+    if (processStatus != null && lead.processStatus.toString() != processStatus) {
       return false;
     }
 

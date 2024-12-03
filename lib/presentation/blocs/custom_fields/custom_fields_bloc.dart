@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
@@ -75,8 +76,10 @@ class CustomFieldsError extends CustomFieldsState {
 // Bloc
 class CustomFieldsBloc extends Bloc<CustomFieldsEvent, CustomFieldsState> {
   final CustomFieldsRepository repository;
+  final String entityType;
+  final String organizationId;
 
-  CustomFieldsBloc({required this.repository}) : super(CustomFieldsInitial()) {
+  CustomFieldsBloc(Object object, this.entityType, this.organizationId, {required this.repository}) : super(CustomFieldsInitial()) {
     on<LoadCustomFields>(_onLoadCustomFields);
     on<AddCustomField>(_onAddCustomField);
     on<UpdateCustomField>(_onUpdateCustomField);
@@ -92,15 +95,15 @@ class CustomFieldsBloc extends Bloc<CustomFieldsEvent, CustomFieldsState> {
       debugPrint('[CustomFieldsBloc] Attempting to load custom fields');
 
       final fields = await repository.getCustomFields();
-      
+
       debugPrint('[CustomFieldsBloc] Map (${fields.length} items)');
-      
+
       if (fields.isEmpty) {
         emit(const CustomFieldsLoaded(fields: []));
       } else {
         emit(CustomFieldsLoaded(fields: fields));
       }
-      
+
       debugPrint('[CustomFieldsBloc] Loaded custom fields');
       debugPrint('[CustomFieldsBloc] Map (${fields.length} items)');
     } catch (e, stackTrace) {

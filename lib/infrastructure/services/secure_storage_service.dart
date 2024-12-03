@@ -1,17 +1,19 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:injectable/injectable.dart';
 
+@lazySingleton
 class SecureStorageService {
-  static const _storage = FlutterSecureStorage();
-  static const _keyEmail = 'remembered_email';
-  static const _keyPassword = 'remembered_password';
-  static const _keyRememberMe = 'remember_me';
+  final _storage = const FlutterSecureStorage();
+  final _keyEmail = 'remembered_email';
+  final _keyPassword = 'remembered_password';
+  final _keyRememberMe = 'remember_me';
 
   // Web storage fallback
-  static final Map<String, String> _webStorage = {};
+  final Map<String, String> _webStorage = {};
 
   // Save credentials
-  static Future<void> saveCredentials({
+  Future<void> saveCredentials({
     required String email,
     required String password,
     required bool rememberMe,
@@ -36,7 +38,7 @@ class SecureStorageService {
   }
 
   // Get saved email
-  static Future<String?> getSavedEmail() async {
+  Future<String?> getSavedEmail() async {
     if (kIsWeb) {
       return _webStorage[_keyEmail];
     }
@@ -44,7 +46,7 @@ class SecureStorageService {
   }
 
   // Get saved password
-  static Future<String?> getSavedPassword() async {
+  Future<String?> getSavedPassword() async {
     if (kIsWeb) {
       return _webStorage[_keyPassword];
     }
@@ -52,17 +54,16 @@ class SecureStorageService {
   }
 
   // Get remember me status
-  static Future<bool> getRememberMe() async {
+  Future<bool> getRememberMe() async {
     if (kIsWeb) {
-      final value = _webStorage[_keyRememberMe];
-      return value == 'true';
+      return _webStorage[_keyRememberMe]?.toLowerCase() == 'true';
     }
     final value = await _storage.read(key: _keyRememberMe);
-    return value == 'true';
+    return value?.toLowerCase() == 'true';
   }
 
   // Clear saved credentials
-  static Future<void> clearCredentials() async {
+  Future<void> clearCredentials() async {
     if (kIsWeb) {
       _webStorage.clear();
     } else {

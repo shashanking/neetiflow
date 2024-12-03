@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
+import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
+import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
 import 'package:neetiflow/presentation/widgets/custom_fields/custom_field_widget.dart';
+import 'package:neetiflow/presentation/widgets/leads/lead_assignment_dialog.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 
@@ -36,41 +40,69 @@ class _LeadDetailsPageState extends State<LeadDetailsPage> {
       widget.lead.id,
     );
     context.read<CustomFieldsBloc>().add(LoadCustomFields());
+    context.read<EmployeesBloc>().add(LoadEmployees(widget.organizationId));
+  }
+
+  @override
+  void dispose() {
+    if (mounted) {
+      context.read<LeadsBloc>().add(DeselectLead(leadId: widget.lead.id));
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.lead.firstName} ${widget.lead.lastName}'),
-        actions: [
-          LeadScoreBadge(lead: widget.lead),
-          const SizedBox(width: 16),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              // Navigate to edit page
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildBasicInfo(),
-            const SizedBox(height: 24),
-            _buildCustomFields(),
-            const SizedBox(height: 24),
-            _buildTimelineSection(context),
-          ],
-        ),
+    return BlocProvider(
+      create: (context) {
+        final bloc = LeadsBloc(
+          leadsRepository: _leadsRepository,
+          organizationId: widget.organizationId,
+        );
+        bloc.add(const LoadLeads());
+        bloc.add(SelectLead(leadId: widget.lead.id));
+        return bloc;
+      },
+      child: BlocBuilder<LeadsBloc, LeadsState>(
+        builder: (context, state) {
+          final currentLead = state.status == LeadsStatus.success && state.selectedLeadId == widget.lead.id
+              ? state.allLeads.firstWhere((l) => l.id == widget.lead.id, orElse: () => widget.lead)
+              : widget.lead;
+
+          return Scaffold(
+            appBar: AppBar(
+              title: Text('${currentLead.firstName} ${currentLead.lastName}'),
+              actions: [
+                LeadScoreBadge(lead: currentLead),
+                const SizedBox(width: 16),
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () {
+                    // Navigate to edit page
+                  },
+                ),
+              ],
+            ),
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBasicInfo(currentLead),
+                  const SizedBox(height: 24),
+                  _buildCustomFields(currentLead),
+                  const SizedBox(height: 24),
+                  _buildTimelineSection(context),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBasicInfo() {
+  Widget _buildBasicInfo(Lead lead) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -85,27 +117,149 @@ class _LeadDetailsPageState extends State<LeadDetailsPage> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('Name', '${widget.lead.firstName} ${widget.lead.lastName}'),
-            _buildInfoRow('Email', widget.lead.email),
-            _buildInfoRow('Phone', widget.lead.phone),
-            _buildInfoRow('Subject', widget.lead.subject),
-            _buildInfoRow('Message', widget.lead.message),
-            _buildInfoRow(
-                'Status', widget.lead.status.toString().split('.').last),
-            _buildInfoRow('Process Status',
-                widget.lead.processStatus.toString().split('.').last),
-            _buildInfoRow(
-                'Created At', widget.lead.createdAt.toLocal().toString()),
-            if (widget.lead.updatedAt != null)
-              _buildInfoRow(
-                  'Updated At', widget.lead.updatedAt!.toLocal().toString()),
+            _buildInfoRow('Name', '${lead.firstName} ${lead.lastName}'),
+            _buildInfoRow('Email', lead.email),
+            _buildInfoRow('Phone', lead.phone),
+            _buildInfoRow('Subject', lead.subject),
+            _buildInfoRow('Message', lead.message),
+            _buildInfoRow('Status', lead.status.toString().split('.').last),
+            _buildInfoRow('Process Status', lead.processStatus.toString().split('.').last),
+            _buildInfoRow('Created At', lead.createdAt.toLocal().toString()),
+            if (lead.updatedAt != null)
+              _buildInfoRow('Updated At', lead.updatedAt!.toLocal().toString()),
+            if (lead.metadata?['assignedEmployeeId'] != null) ...[
+              const Divider(height: 32),
+              const Text(
+                'Assignment Information',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              BlocBuilder<EmployeesBloc, EmployeesState>(
+                builder: (context, state) {
+                  if (state is EmployeesLoading) {
+                    return const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  }
+
+                  if (state is EmployeesLoaded) {
+                    final assignedEmployee = state.employees.firstWhere(
+                      (e) => e.id == lead.metadata!['assignedEmployeeId'],
+                      orElse: () => const Employee(
+                        firstName: 'Unknown',
+                        lastName: 'Employee',
+                        email: '',
+                        role: EmployeeRole.employee,
+                      ),
+                    );
+
+                    final assignedByEmployee = state.employees.firstWhere(
+                      (e) => e.id == lead.metadata!['assignedByEmployeeId'],
+                      orElse: () => const Employee(
+                        firstName: 'Unknown',
+                        lastName: 'Employee',
+                        email: '',
+                        role: EmployeeRole.employee,
+                      ),
+                    );
+
+                    final assignedAt = DateTime.tryParse(
+                      lead.metadata!['assignedAt'] ?? '',
+                    );
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                              child: Text(
+                                '${assignedEmployee.firstName[0]}${assignedEmployee.lastName[0]}',
+                                style: TextStyle(
+                                  color: Theme.of(context).primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${assignedEmployee.firstName} ${assignedEmployee.lastName}',
+                                    style: Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    assignedEmployee.email,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => _showAssignmentDialog(context, lead),
+                              tooltip: 'Reassign Lead',
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Assigned by: ${assignedByEmployee.firstName} ${assignedByEmployee.lastName}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            if (assignedAt != null)
+                              Text(
+                                assignedAt.toString(),
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    );
+                  }
+
+                  return const SizedBox.shrink();
+                },
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCustomFields() {
+  void _showAssignmentDialog(BuildContext context, Lead lead) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => LeadAssignmentDialog(
+        lead: lead,
+        leadsBloc: context.read<LeadsBloc>(),
+      ),
+    );
+  }
+
+  Widget _buildCustomFields(Lead lead) {
     return BlocBuilder<CustomFieldsBloc, CustomFieldsState>(
       builder: (context, state) {
         if (state is CustomFieldsLoading) {
@@ -142,7 +296,7 @@ class _LeadDetailsPageState extends State<LeadDetailsPage> {
                   ),
                   const SizedBox(height: 16),
                   ...activeFields.map((field) {
-                    final value = widget.lead.customFields[field.name];
+                    final value = lead.customFields[field.name];
                     if (value == null) return const SizedBox.shrink();
 
                     return Padding(

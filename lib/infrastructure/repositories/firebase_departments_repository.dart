@@ -1,8 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/department.dart';
 import 'package:neetiflow/domain/repositories/departments_repository.dart';
 
+@injectable
+@LazySingleton(as: DepartmentsRepository)
+@Environment(Environment.prod)
 class FirebaseDepartmentsRepository implements DepartmentsRepository {
   final FirebaseFirestore _firestore;
   final Logger _logger = Logger(
@@ -15,8 +19,9 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
     ),
   );
 
-  FirebaseDepartmentsRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirebaseDepartmentsRepository(
+    @Named('firestore') this._firestore,
+  );
 
   @override
   Future<List<Department>> getDepartments(String organizationId) async {

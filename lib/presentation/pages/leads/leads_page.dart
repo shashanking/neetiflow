@@ -3,30 +3,33 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
+import 'package:neetiflow/data/repositories/employee_timeline_repository.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
+import 'package:neetiflow/domain/entities/client.dart';
+import 'package:neetiflow/domain/entities/employee.dart';
+import 'package:neetiflow/domain/entities/employee_timeline_event.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
+import 'package:neetiflow/domain/entities/timeline_event.dart';
 import 'package:neetiflow/domain/models/lead_filter.dart';
-import 'package:neetiflow/domain/repositories/auth_repository.dart';
-import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/blocs/leads/leads_bloc.dart';
 import 'package:neetiflow/presentation/pages/leads/lead_details_page.dart';
 import 'package:neetiflow/presentation/theme/lead_status_colors.dart';
-import 'package:neetiflow/presentation/widgets/leads/lead_filter_widget.dart';
+import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
+import 'package:neetiflow/presentation/widgets/leads/lead_assignment_dialog.dart';
 import 'package:neetiflow/presentation/widgets/leads/lead_form.dart';
-import 'package:neetiflow/presentation/widgets/leads/lead_score_badge.dart';
+import 'package:neetiflow/presentation/widgets/leads/status_note_dialog.dart';
 import 'package:neetiflow/presentation/widgets/leads/timeline_widget.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:uuid/uuid.dart';
-import 'package:neetiflow/domain/entities/client.dart';
-import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
-import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
 
-import '../../../data/repositories/custom_fields_repository.dart';
-import '../../../domain/entities/timeline_event.dart';
 import '../../../infrastructure/repositories/firebase_clients_repository.dart';
 import '../../blocs/custom_fields/custom_fields_bloc.dart';
-import '../../widgets/leads/status_note_dialog.dart';
+import '../../blocs/employees/employees_bloc.dart';
+
+import 'package:get_it/get_it.dart';
 
 class LeadsPage extends StatelessWidget {
   const LeadsPage({super.key});
@@ -38,22 +41,42 @@ class LeadsPage extends StatelessWidget {
       return const Center(child: Text('Please login to view leads'));
     }
 
-    return MultiBlocProvider(
+    final organizationId = authState.employee.companyId!;
+    final leadsRepository = LeadsRepositoryImpl();
+    final customFieldsRepository = CustomFieldsRepository(
+      organizationId: organizationId,
+    );
+    
+    return MultiRepositoryProvider(
       providers: [
-        BlocProvider(
-          create: (context) => LeadsBloc(
-            leadsRepository: LeadsRepositoryImpl(),
-            organizationId: authState.employee.companyId!,
-          ),
+        RepositoryProvider<LeadsRepository>.value(
+          value: leadsRepository,
         ),
-        BlocProvider(
-          create: (context) => ClientsBloc(
-            authRepository: context.read<AuthRepository>(),
-            employeesRepository: context.read<EmployeesRepository>(),
-          )..add(LoadClients()),
+        RepositoryProvider<CustomFieldsRepository>.value(
+          value: customFieldsRepository,
         ),
       ],
-      child: const LeadsView(),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<LeadsBloc>(
+            create: (context) => LeadsBloc(
+              leadsRepository: leadsRepository,
+              organizationId: organizationId,
+            )..add(const LoadLeads()),
+          ),
+          BlocProvider<ClientsBloc>(
+            create: (context) => GetIt.instance<ClientsBloc>()..add(LoadClients()),
+          ),
+          BlocProvider<EmployeesBloc>(
+            create: (context) => GetIt.instance<EmployeesBloc>()
+              ..add(LoadEmployees(organizationId)),
+          ),
+          BlocProvider<CustomFieldsBloc>(
+            create: (context) => GetIt.instance<CustomFieldsBloc>()..add(LoadCustomFields()),
+          ),
+        ],
+        child: const LeadsView(),
+      ),
     );
   }
 }
@@ -65,21 +88,20 @@ class LeadsView extends StatefulWidget {
   State<LeadsView> createState() => _LeadsViewState();
 }
 
-class _LeadsViewState extends State<LeadsView>
-    with SingleTickerProviderStateMixin {
-  String? _sortColumn;
-  bool _sortAscending = true;
+class _LeadsViewState extends State<LeadsView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late LeadsRepository _leadsRepository;
+  StreamSubscription<List<TimelineEvent>>? _timelineSubscription;
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   Lead? _selectedLead;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadLeads();
-    _loadSegments();
-
-    // Listen to tab changes to manage timeline subscription
+    _leadsRepository = RepositoryProvider.of<LeadsRepository>(context);
+    _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_handleTabChange);
   }
 
@@ -87,20 +109,47 @@ class _LeadsViewState extends State<LeadsView>
   void dispose() {
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
+    _searchController.dispose();
+    _scrollController.dispose();
+    _timelineSubscription?.cancel();
     super.dispose();
   }
 
   void _handleTabChange() {
     if (_tabController.index == 1) {
       // Timeline tab selected
-      if (_selectedLead != null) {
-        context.read<LeadsBloc>().add(SubscribeToTimelineEvents(
-          leadId: _selectedLead!.id,
-        ));
-      }
-    } else {
-      // Other tab selected
-      context.read<LeadsBloc>().add(const UnsubscribeFromTimelineEvents());
+      _initializeTimelineStream();
+    }
+  }
+
+  void _initializeTimelineStream() {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated && _selectedLead != null) {
+      _timelineSubscription?.cancel();
+      final stream = _leadsRepository.getTimelineEvents(
+        authState.employee.companyId!,
+        _selectedLead!.id,
+      );
+      
+      _timelineSubscription = stream.listen(
+        (events) {
+          if (mounted) {
+            setState(() {
+              // Update your timeline state here
+            });
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error loading timeline: $error'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+      );
     }
   }
 
@@ -108,26 +157,21 @@ class _LeadsViewState extends State<LeadsView>
     setState(() {
       if (_selectedLead?.id == lead?.id) {
         _selectedLead = null;
-        context.read<LeadsBloc>().add(const UnsubscribeFromTimelineEvents());
+        _timelineSubscription?.cancel();
       } else {
         _selectedLead = lead;
-        if (lead != null) {
-          context.read<LeadsBloc>().add(SubscribeToTimelineEvents(
-            leadId: lead.id,
-          ));
+        if (lead != null && _tabController.index == 1) {
+          _initializeTimelineStream();
         }
       }
     });
   }
 
   void _loadLeads() {
-    context.read<LeadsBloc>().add(const LoadLeads());
-  }
-
-  void _loadSegments() {
-    // TODO: Load segments from repository
-    final segments = ['High Value', 'New Lead', 'Follow Up', 'Hot Deal'];
-    context.read<LeadsBloc>().add(LoadSegments(segments: segments));
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated) {
+      context.read<LeadsBloc>().add(const LoadLeads());
+    }
   }
 
   Future<void> _importLeads() async {
@@ -148,19 +192,59 @@ class _LeadsViewState extends State<LeadsView>
     context.read<LeadsBloc>().add(const ExportLeadsToCSV());
   }
 
-  void _addNewLead() {
-    _showLeadCreationDialog(context);
-  }
-
   void _showLeadCreationDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        child: LeadForm(
-          onSave: (lead) {
-            context.read<LeadsBloc>().add(AddLead(lead: lead));
-            Navigator.pop(context);
-          },
+      builder: (dialogContext) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(
+            value: context.read<LeadsBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<AuthBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<EmployeesBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<CustomFieldsBloc>(),
+          ),
+        ],
+        child: Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.8,
+            height: MediaQuery.of(context).size.height * 0.9,
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Create New Lead',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: LeadForm(
+                    onSave: (lead) {
+                      context.read<LeadsBloc>().add(AddLead(lead: lead));
+                      Navigator.of(dialogContext).pop();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -169,12 +253,56 @@ class _LeadsViewState extends State<LeadsView>
   Future<void> _editLead(Lead lead) async {
     final result = await showDialog<Lead>(
       context: context,
-      builder: (context) => Dialog(
-        child: LeadForm(
-          lead: lead,
-          onSave: (updatedLead) {
-            Navigator.of(context).pop(updatedLead);
-          },
+      builder: (dialogContext) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(
+            value: context.read<LeadsBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<AuthBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<EmployeesBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<CustomFieldsBloc>(),
+          ),
+        ],
+        child: Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.8,
+            height: MediaQuery.of(context).size.height * 0.9,
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Edit Lead',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: LeadForm(
+                    lead: lead,
+                    onSave: (updatedLead) {
+                      Navigator.of(dialogContext).pop(updatedLead);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -221,441 +349,66 @@ class _LeadsViewState extends State<LeadsView>
   Widget _buildStatCard(
     BuildContext context,
     String title,
-    String value,
+    int count,
     IconData icon,
-    Color color,
-  ) {
+    Color color, {
+    double? width,
+    VoidCallback? onTap,
+  }) {
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 20),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: width ?? 200,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withOpacity(0.1),
+                color.withOpacity(0.05),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Icon(icon, color: color, size: 24),
                   Text(
-                    value,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                    count.toString(),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           color: color,
-                        ),
-                  ),
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).textTheme.bodySmall?.color,
+                          fontWeight: FontWeight.bold,
                         ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsGrid(BuildContext context, LeadsState state) {
-    if (state.status != LeadsStatus.success) return const SizedBox.shrink();
-
-    // Helper function to count leads with a specific status
-    int countLeadsByStatus(List<Lead> leads, LeadStatus status) {
-      return leads.where((lead) => lead.status == status).length;
-    }
-
-    // Helper function to count leads with a specific process status
-    int countLeadsByProcessStatus(
-        List<Lead> leads, ProcessStatus processStatus) {
-      return leads.where((lead) => lead.processStatus == processStatus).length;
-    }
-
-    final stats = [
-      {
-        'title': 'Total Leads',
-        'value': state.filteredLeads.length.toString(),
-        'icon': Icons.people_outline,
-        'color': Theme.of(context).colorScheme.primary,
-      },
-      {
-        'title': 'Hot Leads',
-        'value':
-            countLeadsByStatus(state.filteredLeads, LeadStatus.hot).toString(),
-        'icon': Icons.local_fire_department_outlined,
-        'color': Colors.red,
-      },
-      {
-        'title': 'Warm Leads',
-        'value':
-            countLeadsByStatus(state.filteredLeads, LeadStatus.warm).toString(),
-        'icon': Icons.trending_up_outlined,
-        'color': Colors.orange,
-      },
-      {
-        'title': 'Cold Leads',
-        'value':
-            countLeadsByStatus(state.filteredLeads, LeadStatus.cold).toString(),
-        'icon': Icons.ac_unit_outlined,
-        'color': Colors.blue,
-      },
-      {
-        'title': 'Fresh Leads',
-        'value':
-            countLeadsByProcessStatus(state.filteredLeads, ProcessStatus.fresh)
-                .toString(),
-        'icon': Icons.fiber_new_outlined,
-        'color': Colors.green,
-      },
-      {
-        'title': 'In Progress Leads',
-        'value': countLeadsByProcessStatus(
-                state.filteredLeads, ProcessStatus.inProgress)
-            .toString(),
-        'icon': Icons.pending_outlined,
-        'color': Colors.amber,
-      },
-    ];
-
-    return SizedBox(
-      height: 120, // Fixed height for the stats cards
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        itemCount: stats.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final stat = stats[index];
-          return SizedBox(
-            width: 200,
-            child: _buildStatCard(
-              context,
-              stat['title'] as String,
-              stat['value'] as String,
-              stat['icon'] as IconData,
-              stat['color'] as Color,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildLeadsTable(BuildContext context, List<Lead> leads) {
-    return Column(
-      children: [
-        if (context.watch<LeadsBloc>().state.selectedLeadIds.isNotEmpty)
-          _buildBulkActionsToolbar(context),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: MediaQuery.of(context).size.width,
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              child: SingleChildScrollView(
-                child: DataTable(
-                  showCheckboxColumn: true,
-                  sortColumnIndex: _sortColumn != null
-                      ? _getColumnIndex(_sortColumn!)
-                      : null,
-                  sortAscending: _sortAscending,
-                  columns: [
-                    const DataColumn(
-                      label: Text(''), // Empty label for checkbox column
-                    ),
-                    DataColumn(
-                      label: const Text('Name'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'name';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Score'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'score';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Email'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'email';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Phone'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'phone';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Status'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'status';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Process'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'processStatus';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    DataColumn(
-                      label: const Text('Created'),
-                      onSort: (columnIndex, ascending) {
-                        setState(() {
-                          _sortColumn = 'createdAt';
-                          _sortAscending = ascending;
-                        });
-                        _onSort(columnIndex, ascending);
-                      },
-                    ),
-                    const DataColumn(label: Text('Actions')),
-                  ],
-                  rows: leads
-                      .map((lead) => _buildDataRow(context, lead))
-                      .toList(),
-                ),
-              ),
-            ),
+            ],
           ),
         ),
-      ],
+      ),
     );
-  }
-
-  DataRow _buildDataRow(BuildContext context, Lead lead) {
-    final state = context.watch<LeadsBloc>().state;
-    final isSelected = state.selectedLeadIds.contains(lead.id);
-
-    return DataRow(
-      selected: isSelected,
-      onSelectChanged: (selected) {
-        if (selected ?? false) {
-          context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
-        } else {
-          context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
-        }
-        setState(() {
-        });
-      },
-      cells: [
-        const DataCell(SizedBox.shrink()), // Checkbox column
-        DataCell(
-          Text(_getLeadName(lead)),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          LeadScoreBadge(lead: lead),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          Text(lead.email),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          Text(lead.phone),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          _buildStatusChip(context, lead),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          _buildProcessChip(context, lead),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(
-          Text(_formatDate(lead.createdAt)),
-          onTap: () => _navigateToLeadDetails(context, lead),
-        ),
-        DataCell(Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () => _editLead(lead),
-              tooltip: 'Edit Lead',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteLead(lead),
-              tooltip: 'Delete Lead',
-            ),
-            IconButton(
-              icon: const Icon(Icons.info_outline, color: Colors.blue),
-              onPressed: () => _navigateToLeadDetails(context, lead),
-              tooltip: 'View Details',
-            ),
-          ],
-        )),
-      ],
-    );
-  }
-
-  int _getColumnIndex(String column) {
-    switch (column) {
-      case 'name':
-        return 1;
-      case 'score':
-        return 2;
-      case 'email':
-        return 3;
-      case 'phone':
-        return 4;
-      case 'status':
-        return 5;
-      case 'processStatus':
-        return 6;
-      case 'createdAt':
-        return 7;
-      default:
-        return 0;
-    }
-  }
-
-  void _onSort(int columnIndex, bool ascending) {
-    final leadsBloc = context.read<LeadsBloc>();
-    final state = leadsBloc.state;
-
-    final column = _getColumnName(columnIndex);
-    final sortedLeads = _getSortedLeads(state.filteredLeads, column, ascending);
-
-    leadsBloc.add(SortLeads(
-      leads: sortedLeads,
-      column: column,
-      ascending: ascending,
-    ));
-  }
-
-  String _getColumnName(int index) {
-    switch (index) {
-      case 1:
-        return 'name';
-      case 2:
-        return 'score';
-      case 3:
-        return 'email';
-      case 4:
-        return 'phone';
-      case 5:
-        return 'status';
-      case 6:
-        return 'processStatus';
-      case 7:
-        return 'createdAt';
-      default:
-        return '';
-    }
-  }
-
-  List<Lead> _getSortedLeads(List<Lead> leads, String? column, bool ascending) {
-    if (leads.isEmpty) return leads;
-
-    final sortedLeads = List<Lead>.from(leads);
-    sortedLeads.sort((a, b) {
-      int compare;
-      switch (column) {
-        case 'name':
-          compare = _getLeadName(a).compareTo(_getLeadName(b));
-          break;
-        case 'score':
-          compare = a.score.compareTo(b.score);
-          break;
-        case 'email':
-          compare = a.email.compareTo(b.email);
-          break;
-        case 'phone':
-          compare = a.phone.compareTo(b.phone);
-          break;
-        case 'status':
-          compare = a.status.toString().compareTo(b.status.toString());
-          break;
-        case 'processStatus':
-          compare =
-              a.processStatus.toString().compareTo(b.processStatus.toString());
-          break;
-        case 'createdAt':
-          compare = a.createdAt.compareTo(b.createdAt);
-          break;
-        default:
-          compare = 0;
-      }
-      return ascending ? compare : -compare;
-    });
-
-    return sortedLeads;
   }
 
   String _getLeadName(Lead lead) {
     return '${lead.firstName} ${lead.lastName}'.trim();
-  }
-
-  Future<void> _bulkDeleteLeads(List<String> leadIds) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Selected Leads'),
-        content: Text(
-            'Are you sure you want to delete ${leadIds.length} selected leads?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      context.read<LeadsBloc>().add(
-            BulkDeleteLeads(
-              leadIds: leadIds.toList(),
-            ),
-          );
-    }
   }
 
   void _bulkUpdateLeadsStatus(List<String> leadIds, String status) {
@@ -835,7 +588,6 @@ class _LeadsViewState extends State<LeadsView>
 
     if (note == null) return; // User cancelled
 
-    // Create timeline event
     final timelineEvent = TimelineEvent(
       id: const Uuid().v4(),
       leadId: lead.id,
@@ -850,14 +602,19 @@ class _LeadsViewState extends State<LeadsView>
       },
     );
 
-    context.read<LeadsBloc>().add(UpdateLeadStatus(
-          lead: lead,
-          status: newStatus.toString().split('.').last,
-          timelineEvent: timelineEvent,
-        ));
+    final updatedLead = lead.copyWith(
+      status: newStatus,
+      timelineEvents: [
+        ...lead.timelineEvents,
+        timelineEvent,
+      ],
+    );
+
+    context.read<LeadsBloc>().add(UpdateLead(lead: updatedLead));
   }
 
-  Future<void> _updateLeadProcessStatus(Lead lead, ProcessStatus newStatus) async {
+  Future<void> _updateLeadProcessStatus(
+      Lead lead, ProcessStatus newStatus) async {
     try {
       // Create timeline event
       final timelineEvent = TimelineEvent(
@@ -876,10 +633,10 @@ class _LeadsViewState extends State<LeadsView>
 
       // Update lead status
       context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
-        lead: lead,
-        status: newStatus,
-        timelineEvent: timelineEvent,
-      ));
+            lead: lead,
+            status: newStatus,
+            timelineEvent: timelineEvent,
+          ));
 
       // If completed, trigger conversion
       if (newStatus == ProcessStatus.completed) {
@@ -888,7 +645,8 @@ class _LeadsViewState extends State<LeadsView>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lead process status updated successfully')),
+          const SnackBar(
+              content: Text('Lead process status updated successfully')),
         );
       }
     } catch (e) {
@@ -906,168 +664,283 @@ class _LeadsViewState extends State<LeadsView>
   }
 
   Widget _buildHeader(BuildContext context) {
-    final isSmallScreen = MediaQuery.of(context).size.width < 900;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: isSmallScreen
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Leads Management',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildActionButtons(context),
-                ],
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Leads Management',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                  ),
-                  _buildActionButtons(context),
-                ],
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: BlocBuilder<LeadsBloc, LeadsState>(
+          builder: (context, state) {
+            return Row(
+              children: [
+                const SizedBox(width: 16),
+                _buildStatCard(
+                  context,
+                  'Total Leads',
+                  state.allLeads.length,
+                  Icons.people_outline,
+                  Theme.of(context).colorScheme.primary,
+                  width: 180,
+                  onTap: () => context.read<LeadsBloc>().add(
+                        const FilterLeads(filter: LeadFilter()),
+                      ),
+                ),
+                const SizedBox(width: 8),
+                ...LeadStatus.values.map((status) {
+                  final count = state.allLeads
+                      .where((lead) => lead.status == status)
+                      .length;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: _buildStatCard(
+                      context,
+                      '${status.name.toUpperCase()} Leads',
+                      count,
+                      _getLeadStatusIcon(status),
+                      _getLeadStatusColor(context, status),
+                      width: 180,
+                      onTap: () => context.read<LeadsBloc>().add(
+                            FilterLeads(
+                              filter: LeadFilter(
+                                status: status.name,
+                                processStatus: null,
+                              ),
+                            ),
+                          ),
+                    ),
+                  );
+                }),
+                ...ProcessStatus.values.map((status) {
+                  final count = state.allLeads
+                      .where((lead) => lead.processStatus == status)
+                      .length;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: _buildStatCard(
+                      context,
+                      status.name.toUpperCase().replaceAll('_', ' '),
+                      count,
+                      _getProcessStatusIcon(status),
+                      _getProcessStatusColor(context, status),
+                      width: 180,
+                      onTap: () => context.read<LeadsBloc>().add(
+                            FilterLeads(
+                              filter: LeadFilter(
+                                status: null,
+                                processStatus: status.name,
+                              ),
+                            ),
+                          ),
+                    ),
+                  );
+                }),
+                const SizedBox(width: 16),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
-    const spacing = 8.0;
-    final leadsBloc = context.watch<LeadsBloc>();
-    final state = leadsBloc.state;
+  Widget _buildLeadsTab() {
+    return BlocBuilder<LeadsBloc, LeadsState>(
+      builder: (context, state) {
+        if (state.status == LeadsStatus.initial) {
+          _loadLeads();
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return Wrap(
-      spacing: spacing,
-      runSpacing: spacing,
-      children: [
-        LeadFilterWidget(
-          initialFilter: state.filter,
-          onFilterChanged: (filter) {
-            leadsBloc.add(FilterLeads(filter: filter));
-          },
-        ),
-        OutlinedButton.icon(
-          onPressed: _importLeads,
-          icon: const Icon(Icons.upload_file),
-          label: const Text('Import'),
-        ),
-        OutlinedButton.icon(
-          onPressed: _exportLeads,
-          icon: const Icon(Icons.download),
-          label: const Text('Export'),
-        ),
-        FilledButton.icon(
-          onPressed: _addNewLead,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Lead'),
-        ),
-      ],
+        if (state.status == LeadsStatus.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (state.status == LeadsStatus.failure) {
+          return Center(
+            child: Text(
+              state.errorMessage ?? 'Error loading leads',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+            ),
+          );
+        }
+
+        if (state.filteredLeads.isEmpty) {
+          return _NoLeadsWidget(
+            hasFilter: state.filter != const LeadFilter(),
+            onAddLead: () => _showLeadCreationDialog(context),
+            onImportLeads: _importLeads,
+          );
+        }
+
+        return Column(
+          children: [
+            _buildHeader(context),
+            if (state.selectedLeadIds.isNotEmpty)
+              _buildBulkActionsToolbar(context),
+            Expanded(
+              child: Card(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(0.5),
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Search leads...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor:
+                                    Theme.of(context).colorScheme.surface,
+                                contentPadding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                              ),
+                              onChanged: (value) {
+                                // TODO: Implement search
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.filter_list),
+                            tooltip: 'Filter',
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'status',
+                                child: Text('Filter by Status'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'process',
+                                child: Text('Filter by Process'),
+                              ),
+                            ],
+                            onSelected: (value) {
+                              // TODO: Implement filtering
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          scrollbarTheme: ScrollbarThemeData(
+                            thumbColor: MaterialStateProperty.all(
+                              Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            ),
+                            trackColor: MaterialStateProperty.all(
+                              Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            ),
+                            trackBorderColor: MaterialStateProperty.all(
+                              Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            ),
+                          ),
+                        ),
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: true,
+                          trackVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: _buildLeadsTableCompact(
+                                context, state.filteredLeads),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildLeadsTableCompact(BuildContext context, List<Lead> leads) {
-    // Similar to _buildLeadsTable but with fewer columns
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: MediaQuery.of(context).size.width,
-        ),
-        child: SingleChildScrollView(
-          child: DataTable(
-            showCheckboxColumn: true,
-            sortColumnIndex:
-                _sortColumn != null ? _getColumnIndex(_sortColumn!) : null,
-            sortAscending: _sortAscending,
-            columns: [
-              const DataColumn(
-                label: Text(''), // Empty label for checkbox column
-              ),
-              DataColumn(
-                label: const Text('Name'),
-                onSort: (columnIndex, ascending) {
-                  setState(() {
-                    _sortColumn = 'name';
-                    _sortAscending = ascending;
-                  });
-                  _onSort(columnIndex, ascending);
-                },
-              ),
-              DataColumn(
-                label: const Text('Score'),
-                onSort: (columnIndex, ascending) {
-                  setState(() {
-                    _sortColumn = 'score';
-                    _sortAscending = ascending;
-                  });
-                  _onSort(columnIndex, ascending);
-                },
-              ),
-              DataColumn(
-                label: const Text('Status'),
-                onSort: (columnIndex, ascending) {
-                  setState(() {
-                    _sortColumn = 'status';
-                    _sortAscending = ascending;
-                  });
-                  _onSort(columnIndex, ascending);
-                },
-              ),
-              DataColumn(
-                label: const Text('Process'),
-                onSort: (columnIndex, ascending) {
-                  setState(() {
-                    _sortColumn = 'processStatus';
-                    _sortAscending = ascending;
-                  });
-                  _onSort(columnIndex, ascending);
-                },
-              ),
-              const DataColumn(label: Text('Actions')),
-            ],
-            rows: leads
-                .map((lead) => _buildCompactDataRow(context, lead))
-                .toList(),
-          ),
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: MediaQuery.of(context).size.width,
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const ClampingScrollPhysics(),
+        child: DataTable(
+          showCheckboxColumn: true,
+          columns: const [
+            DataColumn(label: Text('Name')),
+            DataColumn(label: Text('Score')),
+            DataColumn(label: Text('Email')),
+            DataColumn(label: Text('Phone')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Process')),
+            DataColumn(label: Text('Created')),
+            DataColumn(label: Text('Assignment')),
+            DataColumn(label: Text('Actions')),
+          ],
+          rows:
+              leads.map((lead) => _buildCompactDataRow(context, lead)).toList(),
         ),
       ),
     );
   }
 
   DataRow _buildCompactDataRow(BuildContext context, Lead lead) {
-    final state = context.watch<LeadsBloc>().state;
-    final isSelected = state.selectedLeadIds.contains(lead.id);
-
+    final leadsState = context.watch<LeadsBloc>().state;
     return DataRow(
-      selected: isSelected,
+      selected: leadsState.selectedLeadIds.contains(lead.id),
       onSelectChanged: (selected) {
-        if (selected ?? false) {
-          context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
+        final leadsBloc = context.read<LeadsBloc>();
+        if (selected == true) {
+          leadsBloc.add(SelectLead(leadId: lead.id));
         } else {
-          context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
+          leadsBloc.add(DeselectLead(leadId: lead.id));
         }
-        setState(() {
-        });
       },
       cells: [
-        DataCell(Text(_getLeadName(lead))),
-        DataCell(LeadScoreBadge(lead: lead)),
-        DataCell(_buildStatusChip(context, lead)),
-        DataCell(_buildProcessChip(context, lead)),
+        DataCell(
+          Text(_getLeadName(lead)),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(lead.score.toString()),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(lead.email),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(lead.phone),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          _buildStatusChip(context, lead),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          _buildProcessChip(context, lead),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(
+          Text(_formatDate(lead.createdAt)),
+          onTap: () => _navigateToLeadDetails(context, lead),
+        ),
+        DataCell(_buildAssignmentCell(context, lead)),
         DataCell(Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1081,75 +954,14 @@ class _LeadsViewState extends State<LeadsView>
               onPressed: () => _deleteLead(lead),
               tooltip: 'Delete Lead',
             ),
+            IconButton(
+              icon: const Icon(Icons.info_outline, color: Colors.blue),
+              onPressed: () => _navigateToLeadDetails(context, lead),
+              tooltip: 'View Details',
+            ),
           ],
         )),
       ],
-    );
-  }
-
-  Widget _buildLeadsListView(BuildContext context, List<Lead> leads) {
-    return Card(
-      child: ListView.separated(
-        shrinkWrap: true,
-        padding: const EdgeInsets.all(16),
-        itemCount: leads.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final lead = leads[index];
-          final state = context.watch<LeadsBloc>().state;
-          final isSelected = state.selectedLeadIds.contains(lead.id);
-
-          return ListTile(
-            selected: isSelected,
-            leading: Checkbox(
-              value: isSelected,
-              onChanged: (selected) {
-                if (selected ?? false) {
-                  context.read<LeadsBloc>().add(SelectLead(leadId: lead.id));
-                } else {
-                  context.read<LeadsBloc>().add(DeselectLead(leadId: lead.id));
-                }
-              },
-            ),
-            title: Text(_getLeadName(lead)),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(lead.email.isEmpty ? 'No email' : lead.email),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    _buildStatusChip(context, lead),
-                    const SizedBox(width: 8),
-                    _buildProcessChip(context, lead),
-                  ],
-                ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => _editLead(lead),
-                  tooltip: 'Edit Lead',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _deleteLead(lead),
-                  tooltip: 'Delete Lead',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.info_outline, color: Colors.blue),
-                  onPressed: () => _navigateToLeadDetails(context, lead),
-                  tooltip: 'View Details',
-                ),
-              ],
-            ),
-            onTap: () => _navigateToLeadDetails(context, lead),
-          );
-        },
-      ),
     );
   }
 
@@ -1163,11 +975,8 @@ class _LeadsViewState extends State<LeadsView>
         builder: (context) => MultiBlocProvider(
           providers: [
             BlocProvider<CustomFieldsBloc>(
-              create: (context) => CustomFieldsBloc(
-                repository: CustomFieldsRepository(
-                  organizationId: authState.employee.companyId!,
-                ),
-              )..add(LoadCustomFields()),
+              create: (context) => GetIt.instance<CustomFieldsBloc>()
+                ..add(LoadCustomFields()),
             ),
             RepositoryProvider<LeadsRepository>(
               create: (context) => LeadsRepositoryImpl(),
@@ -1179,40 +988,6 @@ class _LeadsViewState extends State<LeadsView>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildLeadDetails(BuildContext context, Lead lead) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Lead Details',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 16.0),
-        // Existing lead details UI
-        Text(lead.email.isEmpty ? 'No email' : lead.email),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            _buildStatusChip(context, lead),
-            const SizedBox(width: 8),
-            _buildProcessChip(context, lead),
-          ],
-        ),
-        const SizedBox(height: 16.0),
-        Text(
-          'Timeline',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 8.0),
-        Expanded(
-          child: TimelineWidget(
-            events: lead.timelineEvents,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1234,11 +1009,11 @@ class _LeadsViewState extends State<LeadsView>
         content: const Text('Would you like to convert this lead to a client?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.of(context).pop(false),
             child: const Text('No'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Yes'),
           ),
         ],
@@ -1248,7 +1023,7 @@ class _LeadsViewState extends State<LeadsView>
     if (confirmed != true) return;
 
     final now = DateTime.now();
-    
+
     // Create a new client from lead data
     final client = Client(
       id: const Uuid().v4(),
@@ -1261,7 +1036,8 @@ class _LeadsViewState extends State<LeadsView>
       status: ClientStatus.active,
       domain: ClientDomain.other,
       rating: 0.0,
-      organizationName: lead.metadata?['companyName'] ?? lead.metadata?['organization'],
+      organizationName:
+          lead.metadata?['companyName'] ?? lead.metadata?['organization'],
       joiningDate: now,
       lastInteractionDate: now,
       projects: const [],
@@ -1304,27 +1080,28 @@ class _LeadsViewState extends State<LeadsView>
 
       // Update lead process status
       context.read<LeadsBloc>().add(UpdateLeadProcessStatus(
-        lead: lead,
-        status: ProcessStatus.completed,
-        timelineEvent: TimelineEvent(
-          id: const Uuid().v4(),
-          leadId: lead.id,
-          title: 'Lead Converted to Client',
-          description: 'Lead was successfully converted to a client.',
-          timestamp: now,
-          category: 'conversion',
-          metadata: {
-            'clientId': editedClient.id,
-            'type': 'lead_conversion',
-            'createdAt': now.toIso8601String(),
-            'organizationId': organizationId,
-          },
-        ),
-      ));
+            lead: lead,
+            status: ProcessStatus.completed,
+            timelineEvent: TimelineEvent(
+              id: const Uuid().v4(),
+              leadId: lead.id,
+              title: 'Lead Converted to Client',
+              description: 'Lead was successfully converted to a client.',
+              timestamp: now,
+              category: 'conversion',
+              metadata: {
+                'clientId': editedClient.id,
+                'type': 'lead_conversion',
+                'createdAt': now.toIso8601String(),
+                'organizationId': organizationId,
+              },
+            ),
+          ));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lead successfully converted to client')),
+          const SnackBar(
+              content: Text('Lead successfully converted to client')),
         );
       }
     } catch (e) {
@@ -1334,6 +1111,183 @@ class _LeadsViewState extends State<LeadsView>
         );
       }
     }
+  }
+
+  Widget _buildAssignmentCell(BuildContext context, Lead lead) {
+    final assignedEmployeeId = lead.metadata?['assignedEmployeeId'] as String?;
+    if (assignedEmployeeId == null) {
+      return TextButton.icon(
+        onPressed: () => _showAssignmentDialog(context, lead),
+        icon: const Icon(Icons.person_add),
+        label: const Text('Assign'),
+      );
+    }
+
+    return BlocBuilder<EmployeesBloc, EmployeesState>(
+      builder: (context, state) {
+        if (state is EmployeesLoading) {
+          return const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          );
+        }
+
+        if (state is EmployeesLoaded) {
+          final assignedEmployee = state.employees.firstWhere(
+            (e) => e.id == assignedEmployeeId,
+            orElse: () => const Employee(
+              firstName: 'Unknown',
+              lastName: 'Employee',
+              email: '',
+              role: EmployeeRole.employee,
+            ),
+          );
+
+          return PopupMenuButton<String>(
+            tooltip: 'Manage Assignment',
+            offset: const Offset(0, 30),
+            position: PopupMenuPosition.under,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.person, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                      '${assignedEmployee.firstName} ${assignedEmployee.lastName}'),
+                ],
+              ),
+            ),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'reassign',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_add),
+                    SizedBox(width: 8),
+                    Text('Reassign'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'unassign',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_remove),
+                    SizedBox(width: 8),
+                    Text('Unassign'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              switch (value) {
+                case 'reassign':
+                  _showAssignmentDialog(context, lead);
+                  break;
+                case 'unassign':
+                  _unassignLead(lead);
+                  break;
+              }
+            },
+          );
+        }
+
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  void _showAssignmentDialog(BuildContext context, Lead lead) {
+    final leadsBloc = context.read<LeadsBloc>();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(
+            value: leadsBloc,
+          ),
+          BlocProvider.value(
+            value: context.read<EmployeesBloc>(),
+          ),
+        ],
+        child: LeadAssignmentDialog(
+          lead: lead,
+          leadsBloc: leadsBloc,
+        ),
+      ),
+    );
+  }
+
+  void _unassignLead(Lead lead) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! Authenticated) return;
+
+    final now = DateTime.now();
+    final previousAssigneeId = lead.metadata?['assignedEmployeeId'] as String?;
+
+    // Create lead timeline event
+    final leadTimelineEvent = TimelineEvent(
+      id: const Uuid().v4(),
+      leadId: lead.id,
+      title: 'Lead Unassigned',
+      description: 'Lead was unassigned',
+      timestamp: now,
+      category: 'assignment',
+      metadata: {
+        'unassignedByEmployeeId': authState.employee.id,
+        'previousAssigneeId': previousAssigneeId,
+        'type': 'lead_unassignment'
+      },
+    );
+
+    // Create employee timeline event if there was a previous assignee
+    if (previousAssigneeId != null) {
+      final employeeTimelineEvent = EmployeeTimelineEvent(
+        id: const Uuid().v4(),
+        employeeId: previousAssigneeId,
+        title: 'Lead Unassigned',
+        description: 'Lead removed from assignment: ${lead.firstName} ${lead.lastName}',
+        timestamp: now,
+        category: 'lead_unassignment',
+        metadata: {
+          'leadId': lead.id,
+          'leadName': '${lead.firstName} ${lead.lastName}',
+          'unassignedByEmployeeId': authState.employee.id,
+          'unassignedByName': '${authState.employee.firstName} ${authState.employee.lastName}',
+        },
+      );
+
+      // Add employee timeline event
+      final employeeTimelineRepo = context.read<EmployeeTimelineRepository>();
+      employeeTimelineRepo.addTimelineEvent(
+        authState.employee.companyId ?? '',
+        employeeTimelineEvent,
+      );
+    }
+
+    // Create a new metadata map with the assignment fields removed
+    final updatedMetadata = Map<String, dynamic>.from(lead.metadata ?? {});
+    updatedMetadata.remove('assignedEmployeeId');
+    updatedMetadata.remove('assignedAt');
+    updatedMetadata.remove('assignedByEmployeeId');
+    updatedMetadata['unassignedAt'] = now.toIso8601String();
+    updatedMetadata['unassignedByEmployeeId'] = authState.employee.id;
+
+    final updatedLead = lead.copyWith(
+      metadata: updatedMetadata,
+    );
+
+    context.read<LeadsBloc>().add(UpdateLead(
+      lead: updatedLead,
+      timelineEvent: leadTimelineEvent,
+    ));
   }
 
   Widget _buildBulkActionsToolbar(BuildContext context) {
@@ -1577,151 +1531,100 @@ class _LeadsViewState extends State<LeadsView>
   @override
   Widget build(BuildContext context) {
     Theme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
     final isCompact = screenWidth < 600;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leads'),
-        automaticallyImplyLeading: !isCompact,
-        leading: isCompact
-            ? IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  PersistentShell.of(context)?.toggleDrawer();
-                },
-              )
-            : null,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _addNewLead,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          TabBar(
-            controller: _tabController,
-            labelColor: Theme.of(context).primaryColor,
-            tabs: const [
-              Tab(text: 'Leads'),
-              Tab(text: 'Timeline'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildLeadsTab(),
-                _buildTimelineTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLeadsTab() {
-    return BlocBuilder<LeadsBloc, LeadsState>(
-      builder: (context, state) {
-        if (state.status == LeadsStatus.initial) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (state.status == LeadsStatus.failure) {
-          return Center(
-            child: Text(
-              state.errorMessage ?? 'An error occurred',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          );
-        }
-
-        if (state.filteredLeads.isEmpty) {
-          return _NoLeadsWidget(
-            hasFilter: state.filter != const LeadFilter(),
-            onAddLead: _addNewLead,
-            onImportLeads: _importLeads,
-          );
-        }
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth > 900;
-            final isTablet =
-                constraints.maxWidth > 600 && constraints.maxWidth <= 900;
-
-            return Column(
-              children: [
-                _buildHeader(context),
-                const SizedBox(height: 16),
-                _buildStatsGrid(context, state),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: isDesktop
-                      ? _buildLeadsTable(context, state.filteredLeads)
-                      : isTablet
-                          ? _buildLeadsTableCompact(
-                              context, state.filteredLeads)
-                          : _buildLeadsListView(context, state.filteredLeads),
-                ),
-              ],
-            );
+        leading: isCompact ? IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            PersistentShell.of(context)?.toggleDrawer();
           },
-        );
-      },
+        ) : null,
+        actions: [
+          if (isCompact) ...[
+            // Icon buttons for compact screens
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Add Lead',
+              onPressed: () => _showLeadCreationDialog(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.upload_file),
+              tooltip: 'Import Leads',
+              onPressed: _importLeads,
+            ),
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: 'Export Leads',
+              onPressed: _exportLeads,
+            ),
+          ] else ...[
+            // Text buttons for larger screens
+            TextButton.icon(
+              onPressed: () => _showLeadCreationDialog(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Lead'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _importLeads,
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Import'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _exportLeads,
+              icon: const Icon(Icons.download),
+              label: const Text('Export'),
+            ),
+            const SizedBox(width: 16),
+          ],
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Leads'),
+            Tab(text: 'Timeline'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        physics:
+            const NeverScrollableScrollPhysics(), // Disable swipe navigation
+        children: [
+          _buildLeadsTab(),
+          _buildTimelineTab(),
+        ],
+      ),
     );
   }
 
   Widget _buildTimelineTab() {
     return BlocBuilder<LeadsBloc, LeadsState>(
       builder: (context, state) {
-        if (state.status == LeadsStatus.initial ||
-            state.status == LeadsStatus.loading) {
+        if (state.status == LeadsStatus.initial || state.status == LeadsStatus.loading) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (state.status == LeadsStatus.failure) {
           return Center(
             child: Text(
-              state.errorMessage ?? 'An error occurred',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              state.errorMessage ?? 'Error loading leads',
+              style: TextStyle(color: Colors.red[700]),
             ),
           );
-        }
-
-        // Create timeline events list with lead creation date
-        final timelineEvents = <TimelineEvent>[];
-        // Add lead creation event if a lead is selected
-        if (_selectedLead != null) {
-          timelineEvents.add(TimelineEvent(
-            id: 'lead_creation',
-            leadId: _selectedLead!.id,
-            title: 'Lead Created',
-            description: 'Lead was created in the system',
-            timestamp: _selectedLead!.createdAt,
-            category: 'system',
-            metadata: {
-              'event_type': 'lead_creation',
-              'first_name': _selectedLead!.firstName,
-              'last_name': _selectedLead!.lastName,
-              'email': _selectedLead!.email.isEmpty ? 'No email' : _selectedLead!.email,
-            },
-          ));
-        }
-
-        // Add all other timeline events
-        if (state.selectedLeadTimelineEvents != null) {
-          timelineEvents.addAll(state.selectedLeadTimelineEvents!);
         }
 
         return Row(
           children: [
             // Lead selection sidebar
             SizedBox(
-              width: 250,
+              width: 300,
               child: Card(
                 margin: const EdgeInsets.all(8),
                 child: Column(
@@ -1730,28 +1633,42 @@ class _LeadsViewState extends State<LeadsView>
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'Leads',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        'Select Lead',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    const Divider(),
+                    const Divider(height: 1),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: state.allLeads.length,
+                      child: ListView.separated(
+                        itemCount: state.filteredLeads.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
                         itemBuilder: (context, index) {
-                          final lead = state.allLeads[index];
+                          final lead = state.filteredLeads[index];
                           return ListTile(
-                            title: Text(
-                              lead.firstName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              lead.email.isEmpty ? 'No email' : lead.email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
                             selected: _selectedLead?.id == lead.id,
+                            title: Text(
+                              '${lead.firstName} ${lead.lastName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  lead.email.isEmpty ? 'No email' : lead.email,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    _buildStatusChip(context, lead),
+                                    const SizedBox(width: 8),
+                                    _buildProcessChip(context, lead),
+                                  ],
+                                ),
+                              ],
+                            ),
                             onTap: () => _selectLead(lead),
                           );
                         },
@@ -1765,45 +1682,95 @@ class _LeadsViewState extends State<LeadsView>
             Expanded(
               child: Card(
                 margin: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Text(
-                            _selectedLead != null
-                                ? 'Timeline for ${_selectedLead!.firstName}'
-                                : 'All Leads Timeline',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          if (_selectedLead != null) ...[
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () => _selectLead(null),
-                              tooltip: 'Show all leads',
-                            ),
-                          ],
-                        ],
+                child: _selectedLead == null
+                    ? const Center(
+                        child: Text('Please select a lead to view its timeline'),
+                      )
+                    : StreamBuilder<List<TimelineEvent>>(
+                        stream: (context.read<AuthBloc>().state is Authenticated)
+                            ? _leadsRepository.getTimelineEvents(
+                                (context.read<AuthBloc>().state as Authenticated).employee.companyId!,
+                                _selectedLead!.id,
+                              )
+                            : const Stream.empty(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            debugPrint('Timeline error: ${snapshot.error}');
+                            return Center(
+                              child: Text(
+                                'Error loading timeline: ${snapshot.error}',
+                                style: TextStyle(color: Colors.red[700]),
+                              ),
+                            );
+                          }
+
+                          if (!snapshot.hasData) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+
+                          final events = snapshot.data!;
+                          debugPrint('Timeline events loaded: ${events.length}');
+                          return TimelineWidget(
+                            events: events,
+                            isOverview: false,
+                            height: MediaQuery.of(context).size.height - 200,
+                          );
+                        },
                       ),
-                    ),
-                    const Divider(),
-                    Expanded(
-                      child: TimelineWidget(
-                        events: timelineEvents,
-                        height: MediaQuery.of(context).size.height - 200,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  IconData _getLeadStatusIcon(LeadStatus status) {
+    switch (status) {
+      case LeadStatus.hot:
+        return Icons.local_fire_department;
+      case LeadStatus.warm:
+        return Icons.trending_up;
+      case LeadStatus.cold:
+        return Icons.ac_unit;
+    }
+  }
+
+  Color _getLeadStatusColor(BuildContext context, LeadStatus status) {
+    switch (status) {
+      case LeadStatus.hot:
+        return Colors.red;
+      case LeadStatus.warm:
+        return Colors.orange;
+      case LeadStatus.cold:
+        return Colors.blue;
+    }
+  }
+
+  IconData _getProcessStatusIcon(ProcessStatus status) {
+    switch (status) {
+      case ProcessStatus.fresh:
+        return Icons.fiber_new;
+      case ProcessStatus.inProgress:
+        return Icons.pending_actions;
+      case ProcessStatus.completed:
+        return Icons.task_alt;
+      case ProcessStatus.rejected:
+        return Icons.cancel_outlined;
+    }
+  }
+
+  Color _getProcessStatusColor(BuildContext context, ProcessStatus status) {
+    switch (status) {
+      case ProcessStatus.fresh:
+        return Colors.green;
+      case ProcessStatus.inProgress:
+        return Colors.orange;
+      case ProcessStatus.completed:
+        return Colors.blue;
+      case ProcessStatus.rejected:
+        return Colors.red;
+    }
   }
 }
 
@@ -1859,6 +1826,12 @@ class _NoLeadsWidget extends StatelessWidget {
               icon: const Icon(Icons.add),
               label: const Text('Add Lead'),
             ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onImportLeads,
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Import Leads'),
+          ),
         ],
       ),
     );

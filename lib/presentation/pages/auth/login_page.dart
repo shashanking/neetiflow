@@ -6,6 +6,7 @@ import 'package:neetiflow/presentation/pages/auth/password_reset_page.dart';
 import 'package:neetiflow/presentation/pages/auth/register_organization_page.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 import 'package:neetiflow/infrastructure/services/secure_storage_service.dart';
+import 'package:get_it/get_it.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,14 +25,15 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _loadSavedCredentials();
+    final secureStorage = context.read<SecureStorageService>();
+    _loadSavedCredentials(secureStorage);
   }
 
-  Future<void> _loadSavedCredentials() async {
-    final rememberMe = await SecureStorageService.getRememberMe();
+  Future<void> _loadSavedCredentials(SecureStorageService secureStorage) async {
+    final rememberMe = await secureStorage.getRememberMe();
     if (rememberMe) {
-      final email = await SecureStorageService.getSavedEmail();
-      final password = await SecureStorageService.getSavedPassword();
+      final email = await secureStorage.getSavedEmail();
+      final password = await secureStorage.getSavedPassword();
       if (email != null && password != null) {
         setState(() {
           _emailController.text = email;
@@ -44,7 +46,8 @@ class _LoginPageState extends State<LoginPage> {
 
   void _onSubmit() {
     if (_formKey.currentState?.validate() ?? false) {
-      SecureStorageService.saveCredentials(
+      final secureStorage = context.read<SecureStorageService>();
+      secureStorage.saveCredentials(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         rememberMe: _rememberMe,
@@ -209,7 +212,7 @@ class _LoginPageState extends State<LoginPage> {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => BlocProvider(
-                                          create: (context) => PasswordResetBloc(),
+                                          create: (context) => GetIt.instance<PasswordResetBloc>(),
                                           child: const PasswordResetPage(),
                                         ),
                                       ),

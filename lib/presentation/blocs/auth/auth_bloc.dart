@@ -6,6 +6,7 @@ import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:injectable/injectable.dart';
 
 // Events
 abstract class AuthEvent extends Equatable {
@@ -94,21 +95,15 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
+@injectable
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
-  final Logger _logger = Logger(
-    printer: PrettyPrinter(
-      methodCount: 0,
-      errorMethodCount: 5,
-      lineLength: 50,
-      colors: true,
-      printEmojis: true,
-    ),
-  );
+  final Logger _logger;
 
-  AuthBloc({required AuthRepository authRepository})
-      : _authRepository = authRepository,
-        super(AuthInitial()) {
+  AuthBloc(
+    this._authRepository,
+    this._logger,
+  ) : super(AuthInitial()) {
     on<SignInWithEmailRequested>(_onSignInWithEmailRequested);
     on<CreateOrganizationRequested>(_onCreateOrganizationRequested);
     on<SignOutRequested>(_onSignOutRequested);

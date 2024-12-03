@@ -2,6 +2,7 @@ import 'dart:convert'; // added import for jsonDecode
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+
 import 'custom_field_value.dart';
 import 'timeline_event.dart';
 
@@ -52,12 +53,12 @@ class Lead extends Equatable {
 
   factory Lead.fromJson(Map<String, dynamic> json) {
     // Handle different timestamp formats
-    DateTime parseCreatedAt(dynamic createdAt) {
-      if (createdAt == null) return DateTime.now();
-      if (createdAt is Timestamp) return createdAt.toDate();
-      if (createdAt is String) return DateTime.parse(createdAt);
-      if (createdAt is int) {
-        return DateTime.fromMillisecondsSinceEpoch(createdAt);
+    DateTime parseTimestamp(dynamic timestamp) {
+      if (timestamp == null) return DateTime.now();
+      if (timestamp is Timestamp) return timestamp.toDate();
+      if (timestamp is String) return DateTime.parse(timestamp);
+      if (timestamp is int) {
+        return DateTime.fromMillisecondsSinceEpoch(timestamp);
       }
       return DateTime.now();
     }
@@ -70,13 +71,10 @@ class Lead extends Equatable {
       email: json['email'] as String? ?? '',
       subject: json['subject'] as String? ?? '',
       message: json['message'] as String? ?? '',
-      status: _parseLeadStatus(json['status'] as String? ?? 'cold'),
-      processStatus:
-          _parseProcessStatus(json['processStatus'] as String? ?? 'fresh'),
-      createdAt: parseCreatedAt(json['createdAt']),
-      updatedAt: json['updatedAt'] == null
-          ? null
-          : DateTime.parse(json['updatedAt'] as String),
+      status: _parseLeadStatus(json['status']),
+      processStatus: _parseProcessStatus(json['processStatus']),
+      createdAt: parseTimestamp(json['createdAt']),
+      updatedAt: json['updatedAt'] != null ? parseTimestamp(json['updatedAt']) : null,
       metadata: json['metadata'] as Map<String, dynamic>?,
       segments: json['segments'] != null
           ? List<String>.from(json['segments'] as List)
@@ -96,8 +94,8 @@ class Lead extends Equatable {
           ) ??
           {},
       timelineEvents: (json['timelineEvents'] as List<dynamic>?)
-          ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
-          .toList() ??
+              ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
+              .toList() ??
           [],
     );
   }
@@ -130,7 +128,9 @@ class Lead extends Equatable {
   factory Lead.fromCSV(List<String> row,
       {Map<String, int> headers = const {}}) {
     String getValue(String key) {
-      final index = headers[key.toLowerCase().replaceAll(' ', '')];
+      // Try both with and without spaces
+      var index = headers[key.toLowerCase()];
+      index ??= headers[key.toLowerCase().replaceAll(' ', '')];
       if (index == null) throw Exception('Column $key not found in CSV');
       return row[index];
     }
@@ -159,16 +159,20 @@ class Lead extends Equatable {
     );
   }
 
-  static LeadStatus _parseLeadStatus(String status) {
+  static LeadStatus _parseLeadStatus(dynamic status) {
+    if (status == null) return LeadStatus.cold;
+    final statusStr = status.toString().toLowerCase();
     return LeadStatus.values.firstWhere(
-      (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
+      (e) => e.toString().split('.').last.toLowerCase() == statusStr,
       orElse: () => LeadStatus.cold,
     );
   }
 
-  static ProcessStatus _parseProcessStatus(String status) {
+  static ProcessStatus _parseProcessStatus(dynamic status) {
+    if (status == null) return ProcessStatus.fresh;
+    final statusStr = status.toString().toLowerCase();
     return ProcessStatus.values.firstWhere(
-      (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
+      (e) => e.toString().split('.').last.toLowerCase() == statusStr,
       orElse: () => ProcessStatus.fresh,
     );
   }
