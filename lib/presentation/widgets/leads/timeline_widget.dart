@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/timeline_event.dart';
 
+
 enum ChangeType {
   increase,
   decrease,
@@ -107,8 +108,9 @@ class _TimelineWidgetState extends State<TimelineWidget>
   }
 
   Widget _buildMainTimeline(List<TimelineEvent> events) {
+    final height = widget.height ?? MediaQuery.of(context).size.height * 0.4;
     return SizedBox(
-      height: widget.height ?? 300,
+      height: height,
       child: SingleChildScrollView(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
@@ -118,7 +120,7 @@ class _TimelineWidgetState extends State<TimelineWidget>
             Positioned(
               left: 0,
               right: 0,
-              top: (widget.height ?? 300) / 2,
+              top: height / 2,
               child: Container(
                 height: 2,
                 color: Colors.grey[300],
@@ -134,50 +136,52 @@ class _TimelineWidgetState extends State<TimelineWidget>
                   final isLastEvent = index == events.length - 1;
                   return Padding(
                     padding: const EdgeInsets.only(right: 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!isUp) ...[
-                          const Spacer(),
-                          _buildDateLabel(events[index].timestamp),
-                          const SizedBox(height: 8),
-                          _TimelineEventCard(
-                            event: events[index],
-                            isOverview: widget.isOverview,
-                            isUp: isUp,
-                          ),
-                          _buildConnector(),
-                        ] else ...[
-                          _buildConnector(),
-                          _TimelineEventCard(
-                            event: events[index],
-                            isOverview: widget.isOverview,
-                            isUp: isUp,
-                          ),
-                          const SizedBox(height: 8),
-                          _buildDateLabel(events[index].timestamp),
-                          const Spacer(),
-                        ],
-                        if (isLastEvent) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.blue[900],
-                              borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: height,
+                      child: Column(
+                        mainAxisAlignment: isUp ? MainAxisAlignment.start : MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isUp) ...[
+                            _buildDateLabel(events[index].timestamp),
+                            const SizedBox(height: 8),
+                            _TimelineEventCard(
+                              event: events[index],
+                              isOverview: widget.isOverview,
+                              isUp: isUp,
                             ),
-                            child: const Text(
-                              'Created',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
+                            _buildConnector(),
+                          ] else ...[
+                            _buildConnector(),
+                            _TimelineEventCard(
+                              event: events[index],
+                              isOverview: widget.isOverview,
+                              isUp: isUp,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDateLabel(events[index].timestamp),
+                          ],
+                          if (isLastEvent) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[900],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Created',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
-                          ),
+                          ],
+                          if (!isLastEvent) _buildTimeDifferenceIndicator(events[index].timestamp, events[index + 1].timestamp),
                         ],
-                        if (!isLastEvent) _buildTimeDifferenceIndicator(events[index].timestamp, events[index + 1].timestamp),
-                      ],
+                      ),
                     ),
                   );
                 }),
@@ -190,7 +194,6 @@ class _TimelineWidgetState extends State<TimelineWidget>
     );
   }
 
-
   Widget _buildTimeDifferenceIndicator(DateTime current, DateTime next) {
     final difference = current.difference(next).abs();
     String timeDiffText;
@@ -202,7 +205,8 @@ class _TimelineWidgetState extends State<TimelineWidget>
       final weeks = (difference.inDays / 7).floor();
       timeDiffText = '$weeks ${weeks == 1 ? 'week' : 'weeks'}';
     } else if (difference.inDays >= 1) {
-      timeDiffText = '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'}';
+      timeDiffText =
+          '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'}';
     } else if (difference.inHours >= 1) {
       final hours = difference.inHours;
       timeDiffText = '$hours ${hours == 1 ? 'hour' : 'hours'}';
@@ -398,56 +402,93 @@ class _TimelineEventCard extends StatefulWidget {
 }
 
 class _TimelineEventCardState extends State<_TimelineEventCard> {
-  bool _isExpanded = false;
-
   @override
   Widget build(BuildContext context) {
-    final isSystemEvent = widget.event.category == 'system';
-    final color = _getEventColor();
-
-    return InkWell(
-      onTap: () => setState(() => _isExpanded = !_isExpanded),
-      child: Container(
-        width: 200,
-        constraints: const BoxConstraints(maxWidth: 200),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
+    
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: isCompact ? 250 : 300,
+        maxHeight: isCompact ? 120 : 150,
+      ),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSystemEvent ? color : Colors.grey[200]!,
-            width: isSystemEvent ? 2 : 1,
+          side: BorderSide(
+            color: widget.event.category == 'system'
+                ? Colors.blue[900]!
+                : Colors.grey[200]!,
+            width: widget.event.category == 'system' ? 2 : 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 8),
+                _buildMetadata(),
+                if (widget.isOverview) ...[
+                  const SizedBox(height: 8),
+                  _buildLeadBadge(),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetadata() {
+    final metadata = widget.event.metadata;
+    if (metadata == null || metadata.isEmpty) return const SizedBox.shrink();
+
+    return DefaultTextStyle(
+      style: TextStyle(
+        fontSize: 12,
+        color: Colors.grey[600],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (metadata['leadName'] != null) ...[
+            Text(
+              'Lead: ${metadata['leadName']}',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(),
-            if (_isExpanded) _buildMetadata(),
-            if (widget.isOverview) _buildLeadBadge(),
+          if (metadata['status'] != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Status: ${metadata['status']}',
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildHeader() {
     final color = _getEventColor();
-    final isSystemEvent = widget.event.category == 'system';
+    final isEmployeeEvent = widget.event.metadata?['source'] == 'employee_timeline';
+
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(isSystemEvent ? 0.15 : 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildCategoryIcon(color),
           const SizedBox(width: 8),
@@ -455,155 +496,49 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.event.title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSystemEvent ? FontWeight.w700 : FontWeight.w600,
-                    color: isSystemEvent ? color : null,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.event.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    if (isEmployeeEvent)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Employee',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.event.description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
                 Text(
                   _formatDate(widget.event.timestamp),
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetadata() {
-    final isSystemEvent = widget.event.category == 'system';
-    final color = _getEventColor();
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.event.description != null && widget.event.description.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                widget.event.description,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isSystemEvent ? color : Colors.grey[600],
-                ),
-              ),
-            ),
-          ...widget.event.metadata!.entries.map((entry) {
-            if (entry.key == 'event_type') return const SizedBox.shrink();
-
-            final hasChange = entry.value is Map &&
-                entry.value.containsKey('old') &&
-                entry.value.containsKey('new') ||
-                (entry.key.contains('old_') &&
-                    widget.event.metadata!.containsKey(entry.key.replaceAll('old_', 'new_')));
-
-            if (hasChange && !isSystemEvent) {
-              final oldValue = entry.value is Map
-                  ? entry.value['old'].toString()
-                  : entry.value.toString();
-              final newValue = entry.value is Map
-                  ? entry.value['new'].toString()
-                  : widget.event.metadata![entry.key.replaceAll('old_', 'new_')].toString();
-              final changeType = _getChangeType(oldValue, newValue);
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.key.replaceAll('old_', '').replaceAll('_', ' ').toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.arrow_forward,
-                          size: 12,
-                          color: _getChangeColor(changeType).withOpacity(0.6),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: RichText(
-                            text: TextSpan(
-                              style: const TextStyle(fontSize: 10),
-                              children: [
-                                TextSpan(
-                                  text: oldValue,
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    decoration: TextDecoration.lineThrough,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: ' → ',
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: newValue,
-                                  style: TextStyle(
-                                    color: _getChangeColor(changeType),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            } else if (!entry.key.startsWith('new_')) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${entry.key.replaceAll('_', ' ').toUpperCase()}: ',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isSystemEvent ? color : Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        entry.value.toString(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isSystemEvent ? color : null,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            } else {
-              return const SizedBox.shrink();
-            }
-          }),
         ],
       ),
     );
@@ -626,49 +561,7 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
     );
   }
 
-  ChangeType _getChangeType(String oldValue, String newValue) {
-    try {
-      final oldNum = double.parse(oldValue);
-      final newNum = double.parse(newValue);
-      if (newNum > oldNum) return ChangeType.increase;
-      if (newNum < oldNum) return ChangeType.decrease;
-      return ChangeType.neutral;
-    } catch (_) {
-      final statusPriority = {
-        'new': 0,
-        'open': 1,
-        'in_progress': 2,
-        'pending': 3,
-        'completed': 4,
-        'closed': 5,
-      };
 
-      final oldStatus = statusPriority[oldValue.toLowerCase()] ?? -1;
-      final newStatus = statusPriority[newValue.toLowerCase()] ?? -1;
-
-      if (oldStatus != -1 && newStatus != -1) {
-        if (newStatus > oldStatus) return ChangeType.increase;
-        if (newStatus < oldStatus) return ChangeType.decrease;
-        return ChangeType.neutral;
-      }
-
-      if (oldValue == newValue) return ChangeType.neutral;
-      return ChangeType.modified;
-    }
-  }
-
-  Color _getChangeColor(ChangeType type) {
-    switch (type) {
-      case ChangeType.increase:
-        return Colors.green[700]!;
-      case ChangeType.decrease:
-        return Colors.red[700]!;
-      case ChangeType.modified:
-        return Colors.blue[700]!;
-      case ChangeType.neutral:
-        return Colors.grey[700]!;
-    }
-  }
 
   Color _getEventColor() {
     if (widget.event.category == 'system') {
@@ -677,7 +570,8 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
 
     if (widget.event.metadata != null) {
       if (widget.event.metadata!.containsKey('new_status')) {
-        final newStatus = widget.event.metadata!['new_status'].toString().toLowerCase();
+        final newStatus =
+            widget.event.metadata!['new_status'].toString().toLowerCase();
         switch (newStatus) {
           case 'new':
             return Colors.blue[400]!;
@@ -697,7 +591,8 @@ class _TimelineEventCardState extends State<_TimelineEventCard> {
             return Colors.blueGrey[600]!;
         }
       } else if (widget.event.metadata!.containsKey('new_value')) {
-        final newValue = widget.event.metadata!['new_value'].toString().toLowerCase();
+        final newValue =
+            widget.event.metadata!['new_value'].toString().toLowerCase();
         switch (newValue) {
           case 'new':
             return Colors.blue[400]!;

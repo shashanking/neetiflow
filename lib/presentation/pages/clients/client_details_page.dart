@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/client.dart';
+import 'package:neetiflow/domain/entities/client_timeline_event.dart';
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/widgets/clients/client_form.dart';
+import 'package:neetiflow/presentation/widgets/clients/client_timeline.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
 class ClientDetailsPage extends StatefulWidget {
@@ -66,20 +68,47 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                 ),
               ],
             ),
-            body: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+            body: DefaultTabController(
+              length: 2,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(context, updatedClient),
-                  const SizedBox(height: 32),
-                  _buildContactInfo(context, updatedClient),
-                  const SizedBox(height: 32),
-                  _buildBusinessInfo(context, updatedClient),
-                  if (updatedClient.projects.isNotEmpty) ...[
-                    const SizedBox(height: 32),
-                    _buildProjectsSection(context, updatedClient),
-                  ],
+                  const TabBar(
+                    tabs: [
+                      Tab(text: 'Details'),
+                      Tab(text: 'Timeline'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        // Details Tab
+                        SingleChildScrollView(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildHeader(context, updatedClient),
+                              const SizedBox(height: 32),
+                              _buildContactInfo(context, updatedClient),
+                              const SizedBox(height: 32),
+                              _buildBusinessInfo(context, updatedClient),
+                              if (updatedClient.projects.isNotEmpty) ...[
+                                const SizedBox(height: 32),
+                                _buildProjectsSection(context, updatedClient),
+                              ],
+                            ],
+                          ),
+                        ),
+                        // Timeline Tab
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: ClientTimeline(
+                            events: _getClientTimelineEvents(updatedClient),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -93,6 +122,62 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
         );
       },
     );
+  }
+
+  List<ClientTimelineEvent> _getClientTimelineEvents(Client client) {
+    final events = <ClientTimelineEvent>[];
+    
+    // Add client creation event
+    events.add(
+      ClientTimelineEvent(
+        id: '${client.id}_creation',
+        clientId: client.id,
+        title: 'Client Created',
+        description: 'Client profile was created',
+        timestamp: client.joiningDate,
+        category: 'status',
+      ),
+    );
+
+    // Add lead conversion event if client was converted from lead
+    if (client.leadId != null) {
+      events.add(
+        ClientTimelineEvent(
+          id: '${client.id}_conversion',
+          clientId: client.id,
+          title: 'Converted from Lead',
+          description: 'Lead was successfully converted to client',
+          timestamp: client.joiningDate,
+          category: 'conversion',
+          metadata: {
+            'leadId': client.leadId,
+          },
+        ),
+      );
+    }
+
+    // Add project events
+    for (final project in client.projects) {
+      events.add(
+        ClientTimelineEvent(
+          id: '${client.id}_project_${project.id}',
+          clientId: client.id,
+          title: 'Project Added',
+          description: 'New project: ${project.name}',
+          timestamp: project.startDate!,
+          category: 'project',
+          metadata: {
+            'projectId': project.id,
+            'projectName': project.name,
+          },
+        ),
+      );
+    }
+
+    // Sort events by timestamp in descending order (newest first)
+    events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    return events;
   }
 
   Widget _buildHeader(BuildContext context, Client client) {
@@ -318,7 +403,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                 final project = client.projects[index];
                 return ListTile(
                   title: Text(project.name),
-                  subtitle: Text(project.description),
+                  subtitle: Text(project.description ?? ''),
                   trailing: Text(
                     '₹${NumberFormat('#,##,###').format(project.value)}',
                     style: theme.textTheme.titleMedium?.copyWith(

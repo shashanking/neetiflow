@@ -3,11 +3,13 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:injectable/injectable.dart';
+import 'package:logger/logger.dart';
 import 'package:neetiflow/domain/entities/client.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
+import 'package:neetiflow/domain/repositories/clients_repository.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
-import 'package:neetiflow/infrastructure/repositories/firebase_clients_repository.dart';
-import 'package:logger/logger.dart';
 
 // Client sort options
 enum ClientSortOption {
@@ -70,10 +72,10 @@ class ClientsLoaded extends ClientsState {
 
   ClientsLoaded({
     required this.clients,
-    List<Client>? filteredClients,
+    required this.filteredClients,
     this.filterStatus,
     this.searchQuery = '',
-  }) : filteredClients = filteredClients ?? clients;
+  });
 
   ClientsLoaded copyWith({
     List<Client>? clients,
@@ -96,8 +98,9 @@ class ClientsError extends ClientsState {
 }
 
 // Bloc
+@injectable
 class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
-  final _clientsRepository = FirebaseClientsRepository();
+  final ClientsRepository _clientsRepository;
   final AuthRepository _authRepository;
   final EmployeesRepository _employeesRepository;
   final _logger = Logger(
@@ -113,17 +116,16 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
   String? _organizationId;
   StreamSubscription<List<Client>>? _clientsSubscription;
 
-  ClientsBloc({
-    required AuthRepository authRepository,
-    required EmployeesRepository employeesRepository,
-  })  : _authRepository = authRepository,
-        _employeesRepository = employeesRepository,
+  ClientsBloc()
+      : _clientsRepository = GetIt.I.get<ClientsRepository>(),
+        _authRepository = GetIt.I.get<AuthRepository>(),
+        _employeesRepository = GetIt.I.get<EmployeesRepository>(),
         super(ClientsInitial()) {
     on<LoadClients>(_onLoadClients);
     on<SearchClients>(_onSearchClients);
     on<FilterClientsByStatus>(_onFilterClientsByStatus);
-    on<AddClient>(_onAddClient);
     on<UpdateClient>(_onUpdateClient);
+    on<AddClient>(_onAddClient);
     on<DeleteClient>(_onDeleteClient);
     on<UpdateClientStatus>(_onUpdateClientStatus);
   }
@@ -144,23 +146,19 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
       _logger.d('✅ Got current user: ${currentUser.uid}');
 
       _logger.d('2️⃣ Getting employee data...');
-      final employee = await _employeesRepository.getEmployeeByUid(currentUser.uid);
+      final employee =
+          await _employeesRepository.getEmployeeByUid(currentUser.uid);
       if (employee == null) {
-        _logger.e('❌ No employee found for UID: ${currentUser.uid}');
+        _logger.e('❌ No employee data found');
         return null;
       }
       _logger.d('✅ Got employee data');
 
-      if (employee.companyId == null || employee.companyId!.isEmpty) {
-        _logger.e('❌ Employee has no associated company ID');
-        return null;
-      }
-      _logger.d('✅ Found company ID: ${employee.companyId}');
-
       _organizationId = employee.companyId;
+      _logger.d('🏢 Organization ID: $_organizationId');
       return _organizationId;
-    } catch (e, stackTrace) {
-      _logger.e('❌ Error getting organization ID', error: e, stackTrace: stackTrace);
+    } catch (e) {
+      _logger.e('❌ Error getting organization ID', error: e);
       return null;
     }
   }
@@ -548,11 +546,11 @@ class ClientsBloc extends Bloc<ClientsEvent, ClientsState> {
     if (state is ClientsLoaded) {
       final currentState = state as ClientsLoaded;
       _logger.i('Updating client status: ${event.clientId} to ${event.status}');
-      
+
       final clientToUpdate = currentState.clients
           .firstWhere((client) => client.id == event.clientId);
       final updatedClient = clientToUpdate.copyWith(status: event.status);
-      
+
       _logger.d('Dispatching update client event');
       add(UpdateClient(updatedClient));
     }

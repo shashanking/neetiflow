@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/department.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
-import 'package:neetiflow/domain/repositories/departments_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
@@ -13,6 +13,8 @@ import 'package:intl/intl.dart';
 import 'package:neetiflow/presentation/pages/employees/employee_details_page.dart';
 import 'package:neetiflow/presentation/pages/employee_management/employee_management_page.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
+
+import '../../../domain/repositories/departments_repository.dart';
 
 class EmployeesPage extends StatefulWidget {
   const EmployeesPage({super.key});
@@ -67,14 +69,8 @@ class _EmployeesPageState extends State<EmployeesPage> {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (context) => EmployeesBloc(
-            employeesRepository: context.read<EmployeesRepository>(),
-          )..add(LoadEmployees(orgId)),
-        ),
-        BlocProvider(
-          create: (context) => DepartmentsBloc(
-            departmentsRepository: context.read<DepartmentsRepository>(),
-          )..add(LoadDepartments(orgId)),
+          create: (context) => GetIt.I<EmployeesBloc>()
+            ..add(LoadEmployees(orgId)),
         ),
       ],
       child: Scaffold(

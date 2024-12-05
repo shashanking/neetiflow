@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
+import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
+import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
+import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/pages/clients/clients_page.dart';
 import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/finances/finances_page.dart';
@@ -14,7 +18,6 @@ import 'package:neetiflow/presentation/pages/organization/organization_page.dart
 import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
 
 import '../../domain/entities/employee.dart';
-import '../../domain/repositories/employees_repository.dart';
 
 /// Represents a single navigation item in the drawer
 class NavigationItem {
@@ -92,14 +95,14 @@ class NavigationDrawerConfig {
       icon: Icons.settings_outlined,
       selectedIcon: Icons.settings,
       label: 'Settings',
-      index: 7,
+      index: 0,
       page: SettingsPage(),
     ),
     const NavigationItem(
       icon: Icons.help_outline,
       selectedIcon: Icons.help,
       label: 'Help',
-      index: 8,
+      index: 1,
       page: HelpPage(),
     ),
   ];
@@ -319,14 +322,20 @@ class PersistentShellState extends State<PersistentShell> {
   late int _selectedIndex;
   StreamSubscription<Employee>? _employeeSubscription;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  Widget? _customPage;
+  late final DepartmentsBloc _departmentsBloc;
+  late final ClientsBloc _clientsBloc;
+  late final EmployeesBloc _employeesBloc;
 
   void setCustomPage(Widget page) {
     setState(() {
+      _customPage = page;
     });
   }
 
   void clearCustomPage() {
     setState(() {
+      _customPage = null;
     });
   }
 
@@ -361,7 +370,7 @@ class PersistentShellState extends State<PersistentShell> {
           label: Text(
             item.label,
             style: TextStyle(
-              color: _selectedIndex == item.index
+              color: _selectedIndex == (item.index + NavigationDrawerConfig.mainNavigationItems.length)
                   ? theme.colorScheme.primary
                   : theme.colorScheme.onSurface,
             ),
@@ -375,22 +384,25 @@ class PersistentShellState extends State<PersistentShell> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _departmentsBloc = GetIt.I<DepartmentsBloc>();
+    _clientsBloc = GetIt.I<ClientsBloc>();
+    _employeesBloc = GetIt.I<EmployeesBloc>();
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated && authState.employee.companyId != null) {
+      final companyId = authState.employee.companyId!;
+      _departmentsBloc.add(LoadDepartments(companyId));
+      _clientsBloc.add(LoadClients());
+      _employeesBloc.add(LoadEmployees(companyId));
+    }
   }
 
   @override
   void dispose() {
     _employeeSubscription?.cancel();
+    _departmentsBloc.close();
+    _clientsBloc.close();
+    _employeesBloc.close();
     super.dispose();
-  }
-
-  void _subscribeToEmployeeUpdates(String companyId, String employeeId) {
-    final employeesRepository = context.read<EmployeesRepository>();
-    _employeeSubscription?.cancel();
-    _employeeSubscription = employeesRepository
-        .employeeStream(companyId, employeeId)
-        .listen((employee) {
-      if (mounted) {}
-    });
   }
 
   @override
@@ -399,6 +411,16 @@ class PersistentShellState extends State<PersistentShell> {
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     final isCompact = screenWidth < 600; // Mobile breakpoint
+
+    // Determine the current page based on selected index
+    Widget currentPage;
+    if (_selectedIndex < NavigationDrawerConfig.mainNavigationItems.length) {
+      currentPage = _customPage ?? NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page ?? const SizedBox();
+    } else {
+      // Handle preference items
+      final preferenceIndex = _selectedIndex - NavigationDrawerConfig.mainNavigationItems.length;
+      currentPage = _customPage ?? NavigationDrawerConfig.preferenceItems[preferenceIndex].page ?? const SizedBox();
+    }
 
     // Drawer content that will be used in both mobile and desktop layouts
     final drawerWidget = Drawer(
@@ -422,6 +444,7 @@ class PersistentShellState extends State<PersistentShell> {
                     isSelected: _selectedIndex == item.index,
                     onTap: () {
                       setState(() {
+                        _customPage = null;  // Clear the custom page
                         _selectedIndex = item.index;
                       });
                       // Only pop for mobile screens
@@ -449,10 +472,11 @@ class PersistentShellState extends State<PersistentShell> {
                 ...NavigationDrawerConfig.preferenceItems.map((item) => 
                   _NeetiFlowNavigationItem(
                     item: item,
-                    isSelected: _selectedIndex == item.index,
+                    isSelected: _selectedIndex == (item.index + NavigationDrawerConfig.mainNavigationItems.length),
                     onTap: () {
                       setState(() {
-                        _selectedIndex = item.index;
+                        _customPage = null;  // Clear the custom page
+                        _selectedIndex = item.index + NavigationDrawerConfig.mainNavigationItems.length;
                       });
                       // Only pop for mobile screens
                       if (isCompact && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
@@ -473,6 +497,82 @@ class PersistentShellState extends State<PersistentShell> {
     );
 
     // Animated page content
+    
+    Widget getPage() {
+      final isLargeScreen = MediaQuery.of(context).size.width >= 1200;
+
+      if (_customPage != null) {
+        return MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: _departmentsBloc),
+            BlocProvider.value(value: _clientsBloc),
+            BlocProvider.value(value: _employeesBloc),
+          ],
+          child: _customPage!,
+        );
+      }
+
+      switch (_selectedIndex) {
+        case 0:
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppBar(
+                  title: const Text('Dashboard'),
+                  automaticallyImplyLeading: !isLargeScreen,
+                ),
+                const Expanded(child: HomePage()),
+              ],
+            ),
+          );
+        case 1:
+          return const LeadsPage();
+        case 2:
+          return BlocProvider.value(
+            value: _clientsBloc,
+            child: const ClientsPage(),
+          );
+        case 3:
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: _departmentsBloc),
+              BlocProvider.value(value: _clientsBloc),
+              BlocProvider.value(value: _employeesBloc),
+            ],
+            child: const OperationsPage(),
+          );
+        case 4:
+          return const FinancesPage();
+        case 5:
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: _departmentsBloc),
+              BlocProvider.value(value: _employeesBloc),
+            ],
+            child: const EmployeesPage(),
+          );
+        case 6:
+          return const OrganizationPage();
+        case 7:
+          return const SettingsPage();
+        case 8:
+          return const HelpPage();
+        default:
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppBar(
+                  title: const Text('Dashboard'),
+                  automaticallyImplyLeading: !isLargeScreen,
+                ),
+                const Expanded(child: HomePage()),
+              ],
+            ),
+          );
+      }
+    }
     final pageContent = AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, animation) {
@@ -489,34 +589,42 @@ class PersistentShellState extends State<PersistentShell> {
       },
       child: KeyedSubtree(
         key: ValueKey<int>(_selectedIndex),
-        child: NavigationDrawerConfig.mainNavigationItems[_selectedIndex].page!,
+        child: currentPage,
       ),
     );
 
     // Responsive layout
-    return Scaffold(
-      key: _scaffoldKey,
-      // Drawer only for mobile
-      drawer: isCompact ? drawerWidget : null,
-      body: isCompact
-          ? pageContent
-          : Row(
-              children: [
-                // Permanent drawer for larger screens
-                SizedBox(
-                  width: 280,
-                  child: drawerWidget,
-                ),
-                // Expanded content area
-                Expanded(child: pageContent),
-              ],
-            ),
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthInitial) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        // Drawer only for mobile
+        drawer: isCompact ? drawerWidget : null,
+        body: isCompact
+            ? pageContent
+            : Row(
+                children: [
+                  // Permanent drawer for larger screens
+                  SizedBox(
+                    width: 280,
+                    child: drawerWidget,
+                  ),
+                  // Expanded content area
+                  Expanded(child: pageContent),
+                ],
+              ),
+      ),
     );
   }
 
   GlobalKey<ScaffoldState> get scaffoldKey => _scaffoldKey;
 }
 
+// ignore: unused_element
 class _AnimatedListTile extends StatelessWidget {
   final IconData leading;
   final String title;

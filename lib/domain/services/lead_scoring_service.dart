@@ -125,7 +125,6 @@ class LeadScoringService {
     return score;
   }
 
-
   /// Normalize a value between 0 and 1 based on a maximum value
   double _normalizeValue(num value, num max) {
     return (value / max).clamp(0.0, 1.0);
