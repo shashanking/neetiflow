@@ -292,7 +292,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
         'id': employeeId,
         'companyId': companyId,
         'companyName': organization.name,
-        'role': 'admin',
+        'roleId': 'admin_role_id',
         'isActive': true,
         'joiningDate': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
@@ -306,7 +306,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
           .set({
         'companyId': companyId,
         'employeeId': employeeId,
-        'role': 'admin',
+        'roleId': 'admin_role_id',
       });
 
       _logger.i('Organization registered successfully');
@@ -368,7 +368,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
       final employee = foundEmployee;
 
       // Check if employee is active (skip check for admins)
-      if (!employee.isActive && employee.role != EmployeeRole.admin) {
+      if (!employee.isActive && employee.role?.id != 'admin_role_id') {
         throw FirebaseAuthException(
           code: 'user-disabled',
           message: 'This account has been deactivated. Please contact your administrator.',
@@ -395,7 +395,7 @@ class FirebaseAuthRepositoryImpl implements AuthRepository {
       // Get the updated employee data
       final updatedEmployee = employee.copyWith(
         isOnline: true,
-        isActive: employee.role == EmployeeRole.admin ? employee.isActive : true
+        isActive: employee.role?.id == 'admin_role_id',
       );
 
       _logger.i('Login successful for employee: ${updatedEmployee.firstName} ${updatedEmployee.lastName}');

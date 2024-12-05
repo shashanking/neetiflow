@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
-import 'package:neetiflow/domain/entities/department.dart';
-
-enum EmployeeRole { admin, manager, employee }
+import 'package:neetiflow/domain/entities/role.dart';
 
 class Employee extends Equatable {
   final String? id;
@@ -14,15 +12,17 @@ class Employee extends Equatable {
   final String? phone;
   final String email;
   final String? address;
-  final EmployeeRole role;
+  final Role? role;
+  final List<RoleChangeRecord>? roleHistory;
   final DateTime? joiningDate;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? photoUrl;
   final bool isActive;
   final bool isOnline;
-  final String? departmentId;  
-  final DepartmentRole? departmentRole;  
+  final String? departmentId;
+  final String? departmentName;
+  final DepartmentHierarchy? departmentRole;
 
   const Employee({
     this.id,
@@ -34,15 +34,17 @@ class Employee extends Equatable {
     this.phone,
     required this.email,
     this.address,
-    required this.role,
+    this.role,
+    this.roleHistory,
     this.joiningDate,
     this.createdAt,
     this.updatedAt,
     this.photoUrl,
     this.isActive = true,
     this.isOnline = false,
-    this.departmentId,  
-    this.departmentRole,  
+    this.departmentId,
+    this.departmentName,
+    this.departmentRole,
   });
 
   @override
@@ -57,14 +59,16 @@ class Employee extends Equatable {
         email,
         address,
         role,
+        roleHistory,
         joiningDate,
         createdAt,
         updatedAt,
         photoUrl,
         isActive,
         isOnline,
-        departmentId,  
-        departmentRole,  
+        departmentId,
+        departmentName,
+        departmentRole,
       ];
 
   Map<String, dynamic> toJson() {
@@ -78,15 +82,17 @@ class Employee extends Equatable {
       'phone': phone,
       'email': email,
       'address': address,
-      'role': role.toString().split('.').last,
+      'role': role?.toJson(),
+      'roleHistory': roleHistory?.map((e) => e.toJson()).toList(),
       'joiningDate': joiningDate != null ? Timestamp.fromDate(joiningDate!) : null,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
       'isActive': isActive,
       'isOnline': isOnline,
-      'departmentId': departmentId,  
-      'departmentRole': departmentRole?.toString().split('.').last,  
+      'departmentId': departmentId,
+      'departmentName': departmentName,
+      'departmentRole': departmentRole?.toString().split('.').last,
     };
   }
 
@@ -101,10 +107,22 @@ class Employee extends Equatable {
       phone: json['phone'] as String?,
       email: json['email'] as String,
       address: json['address'] as String?,
-      role: EmployeeRole.values.firstWhere(
-        (e) => e.toString().split('.').last == json['role'],
-        orElse: () => EmployeeRole.employee,
-      ),
+      role: json['role'] != null 
+          ? (json['role'] is Map<String, dynamic>
+              ? Role.fromJson(json['role'] as Map<String, dynamic>)
+              : Role(
+                  id: json['roleId'] as String? ?? 'employee_role_id',
+                  name: json['role'] is String ? json['role'] as String : 'Employee',
+                  description: '',
+                  type: RoleType.system,
+                  organizationId: json['companyId'] as String? ?? '',
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ))
+          : null,
+      roleHistory: json['roleHistory'] != null
+          ? (json['roleHistory'] as List).map((e) => RoleChangeRecord.fromJson(e)).toList()
+          : null,
       joiningDate: json['joiningDate'] != null
           ? (json['joiningDate'] as Timestamp).toDate()
           : null,
@@ -117,9 +135,10 @@ class Employee extends Equatable {
       photoUrl: json['photoUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
       isOnline: json['isOnline'] as bool? ?? false,
-      departmentId: json['departmentId'] as String?,  
-      departmentRole: json['departmentRole'] != null  
-          ? DepartmentRole.values.firstWhere(
+      departmentId: json['departmentId'] as String?,
+      departmentName: json['departmentName'] as String?,
+      departmentRole: json['departmentRole'] != null
+          ? DepartmentHierarchy.values.firstWhere(
               (role) => role.toString().split('.').last == json['departmentRole'],
             )
           : null,
@@ -136,15 +155,17 @@ class Employee extends Equatable {
     String? phone,
     String? email,
     String? address,
-    EmployeeRole? role,
+    Role? role,
+    List<RoleChangeRecord>? roleHistory,
     DateTime? joiningDate,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? photoUrl,
     bool? isActive,
     bool? isOnline,
-    String? departmentId,  
-    DepartmentRole? departmentRole,  
+    String? departmentId,
+    String? departmentName,
+    DepartmentHierarchy? departmentRole,
   }) {
     return Employee(
       id: id ?? this.id,
@@ -157,14 +178,16 @@ class Employee extends Equatable {
       email: email ?? this.email,
       address: address ?? this.address,
       role: role ?? this.role,
+      roleHistory: roleHistory ?? this.roleHistory,
       joiningDate: joiningDate ?? this.joiningDate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       photoUrl: photoUrl ?? this.photoUrl,
       isActive: isActive ?? this.isActive,
       isOnline: isOnline ?? this.isOnline,
-      departmentId: departmentId ?? this.departmentId,  
-      departmentRole: departmentRole ?? this.departmentRole,  
+      departmentId: departmentId ?? this.departmentId,
+      departmentName: departmentName ?? this.departmentName,
+      departmentRole: departmentRole ?? this.departmentRole,
     );
   }
 
@@ -172,4 +195,50 @@ class Employee extends Equatable {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
     return '$companyId-EMP$timestamp';
   }
+}
+
+class RoleChangeRecord extends Equatable {
+  final String roleId;
+  final DateTime changedAt;
+  final String changedBy;
+  final String? previousRoleId;
+  final String? departmentId;
+  final String? departmentName;
+
+  const RoleChangeRecord({
+    required this.roleId,
+    required this.changedAt,
+    required this.changedBy,
+    this.previousRoleId,
+    this.departmentId,
+    this.departmentName,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'roleId': roleId,
+    'changedAt': changedAt.toIso8601String(),
+    'changedBy': changedBy,
+    'previousRoleId': previousRoleId,
+    'departmentId': departmentId,
+    'departmentName': departmentName,
+  };
+
+  factory RoleChangeRecord.fromJson(Map<String, dynamic> json) => RoleChangeRecord(
+    roleId: json['roleId'],
+    changedAt: DateTime.parse(json['changedAt']),
+    changedBy: json['changedBy'],
+    previousRoleId: json['previousRoleId'],
+    departmentId: json['departmentId'],
+    departmentName: json['departmentName'],
+  );
+
+  @override
+  List<Object?> get props => [
+    roleId, 
+    changedAt, 
+    changedBy, 
+    previousRoleId, 
+    departmentId, 
+    departmentName
+  ];
 }

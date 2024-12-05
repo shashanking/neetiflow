@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:neetiflow/domain/entities/department.dart';
+import 'package:neetiflow/domain/entities/department.dart' hide DepartmentHierarchy;
+import 'package:neetiflow/domain/entities/role.dart';
 import 'package:neetiflow/domain/repositories/departments_repository.dart';
 
 // Events
@@ -48,7 +49,7 @@ class DeleteDepartment extends DepartmentsEvent {
 class UpdateEmployeeDepartmentRole extends DepartmentsEvent {
   final String departmentId;
   final String employeeId;
-  final DepartmentRole role;
+  final dynamic role;
   const UpdateEmployeeDepartmentRole(this.departmentId, this.employeeId, this.role);
 
   @override
@@ -62,6 +63,14 @@ class RemoveEmployeeFromDepartment extends DepartmentsEvent {
 
   @override
   List<Object?> get props => [departmentId, employeeId];
+}
+
+class WatchDepartments extends DepartmentsEvent {
+  final String organizationId;
+  const WatchDepartments(this.organizationId);
+
+  @override
+  List<Object> get props => [organizationId];
 }
 
 // States
@@ -108,9 +117,19 @@ class DepartmentsError extends DepartmentsState {
   List<Object?> get props => [message, departments];
 }
 
+class DepartmentOperationFailure extends DepartmentsState {
+  final String message;
+  final List<Department> departments;
+  const DepartmentOperationFailure(this.message, this.departments);
+
+  @override
+  List<Object?> get props => [message, departments];
+}
+
 // Bloc
 class DepartmentsBloc extends Bloc<DepartmentsEvent, DepartmentsState> {
   final DepartmentsRepository _departmentsRepository;
+  StreamSubscription? _departmentsSubscription;
 
   DepartmentsBloc({
     required DepartmentsRepository departmentsRepository,
@@ -122,6 +141,7 @@ class DepartmentsBloc extends Bloc<DepartmentsEvent, DepartmentsState> {
     on<DeleteDepartment>(_onDeleteDepartment);
     on<UpdateEmployeeDepartmentRole>(_onUpdateEmployeeRole);
     on<RemoveEmployeeFromDepartment>(_onRemoveEmployeeFromDepartment);
+    on<WatchDepartments>(_onWatchDepartments);
   }
 
   Future<void> _onLoadDepartments(
@@ -151,26 +171,32 @@ class DepartmentsBloc extends Bloc<DepartmentsEvent, DepartmentsState> {
     Emitter<DepartmentsState> emit,
   ) async {
     try {
-      emit(DepartmentsLoading(
-        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [],
-      ));
+      // Validate department input
+      if (event.department.name.trim().isEmpty) {
+        emit(DepartmentOperationFailure(
+          'Department name cannot be empty', 
+          state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : []
+        ));
+        return;
+      }
 
-      final department = await _departmentsRepository.addDepartment(
-        event.department,
-      );
+      // Attempt to add the department
+      final addedDepartment = await _departmentsRepository.addDepartment(event.department);
 
-      final currentDepartments = state is DepartmentsLoaded
-          ? (state as DepartmentsLoaded).departments
-          : <Department>[];
+      // Update the current state by adding the new department
+      final updatedDepartments = List<Department>.from(state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [])
+        ..add(addedDepartment);
 
+      // Emit success state
       emit(DepartmentOperationSuccess(
-        'Department created successfully',
-        List<Department>.from([...currentDepartments, department]),
+        'Department "${addedDepartment.name}" created successfully', 
+        updatedDepartments
       ));
     } catch (e) {
-      emit(DepartmentsError(
-        e.toString(),
-        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [],
+      // Handle any errors during department creation
+      emit(DepartmentOperationFailure(
+        'Failed to create department: ${e.toString()}', 
+        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : []
       ));
     }
   }
@@ -240,43 +266,47 @@ class DepartmentsBloc extends Bloc<DepartmentsEvent, DepartmentsState> {
     }
   }
 
-  Future<void> _onUpdateEmployeeRole(
-    UpdateEmployeeDepartmentRole event,
+  FutureOr<void> _onUpdateEmployeeRole(
+    UpdateEmployeeDepartmentRole event, 
     Emitter<DepartmentsState> emit,
   ) async {
-    try {
-      emit(DepartmentsLoading(
-        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [],
-      ));
+    if (state is DepartmentsLoaded) {
+      try {
+        await _departmentsRepository.updateEmployeeRole(
+          event.departmentId, 
+          event.employeeId, 
+          event.role,
+        );
 
-      await _departmentsRepository.updateEmployeeRole(
-        event.departmentId,
-        event.employeeId,
-        event.role,
-      );
+        final updatedDepartments = List<Department>.from(
+          (state as DepartmentsLoaded).departments.map((d) {
+            if (d.id == event.departmentId) {
+              // Convert role to Role if it's a DepartmentHierarchy
+              final roleToUpdate = event.role is DepartmentHierarchy
+                  ? Role(
+                      name: event.role.toString().split('.').last,
+                      description: 'Department Role',
+                      type: RoleType.department,
+                      organizationId: d.organizationId,
+                      hierarchy: event.role,
+                    )
+                  : event.role;
 
-      final departments = state is DepartmentsLoaded
-          ? List<Department>.from(
-              (state as DepartmentsLoaded).departments.map((d) {
-                if (d.id == event.departmentId) {
-                  final updatedRoles = Map<String, DepartmentRole>.from(d.employeeRoles);
-                  updatedRoles[event.employeeId] = event.role;
-                  return d.copyWith(employeeRoles: updatedRoles);
-                }
-                return d;
-              }),
-            )
-          : <Department>[];
+              final updatedRoles = Map<String, Role>.from(d.employeeRoles);
+              updatedRoles[event.employeeId] = roleToUpdate;
+              return d.copyWith(employeeRoles: updatedRoles);
+            }
+            return d;
+          }),
+        );
 
-      emit(DepartmentOperationSuccess(
-        'Employee role updated successfully',
-        departments,
-      ));
-    } catch (e) {
-      emit(DepartmentsError(
-        e.toString(),
-        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [],
-      ));
+        emit(DepartmentsLoaded(updatedDepartments));
+      } catch (e) {
+        // Handle error
+        emit(DepartmentOperationFailure(e.toString(), 
+          (state as DepartmentsLoaded).departments
+        ));
+      }
     }
   }
 
@@ -284,38 +314,66 @@ class DepartmentsBloc extends Bloc<DepartmentsEvent, DepartmentsState> {
     RemoveEmployeeFromDepartment event,
     Emitter<DepartmentsState> emit,
   ) async {
-    try {
-      emit(DepartmentsLoading(
-        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [],
-      ));
-
-      await _departmentsRepository.removeEmployeeFromDepartment(
-        event.departmentId,
-        event.employeeId,
+    if (state is DepartmentsLoaded) {
+      final departments = List<Department>.from(
+        (state as DepartmentsLoaded).departments.map((d) {
+          if (d.id == event.departmentId) {
+            final updatedRoles = Map<String, Role>.from(d.employeeRoles);
+            updatedRoles.remove(event.employeeId);
+            return d.copyWith(employeeRoles: updatedRoles);
+          }
+          return d;
+        }),
       );
 
-      final departments = state is DepartmentsLoaded
-          ? List<Department>.from(
-              (state as DepartmentsLoaded).departments.map((d) {
-                if (d.id == event.departmentId) {
-                  final updatedRoles = Map<String, DepartmentRole>.from(d.employeeRoles);
-                  updatedRoles.remove(event.employeeId);
-                  return d.copyWith(employeeRoles: updatedRoles);
-                }
-                return d;
-              }),
-            )
-          : <Department>[];
+      try {
+        await _departmentsRepository.removeEmployeeFromDepartment(
+          event.departmentId,
+          event.employeeId,
+        );
 
-      emit(DepartmentOperationSuccess(
-        'Employee removed from department successfully',
-        departments,
-      ));
+        emit(DepartmentsLoaded(departments));
+      } catch (e) {
+        emit(DepartmentOperationFailure(
+          e.toString(), 
+          (state as DepartmentsLoaded).departments
+        ));
+      }
+    }
+  }
+
+  void _onWatchDepartments(
+    WatchDepartments event, 
+    Emitter<DepartmentsState> emit
+  ) async {
+    // Cancel any existing subscription
+    await _departmentsSubscription?.cancel();
+
+    try {
+      _departmentsSubscription = _departmentsRepository
+          .watchDepartments(event.organizationId)
+          .listen(
+        (departments) {
+          add(LoadDepartments(event.organizationId));
+        },
+        onError: (error) {
+          emit(DepartmentsError(
+            error.toString(), 
+            state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : []
+          ));
+        },
+      );
     } catch (e) {
       emit(DepartmentsError(
-        e.toString(),
-        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : [],
+        e.toString(), 
+        state is DepartmentsLoaded ? (state as DepartmentsLoaded).departments : []
       ));
     }
+  }
+
+  @override
+  Future<void> close() {
+    _departmentsSubscription?.cancel();
+    return super.close();
   }
 }

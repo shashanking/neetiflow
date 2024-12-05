@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:neetiflow/domain/repositories/roles_repository.dart';
+import 'package:neetiflow/domain/repositories/departments_repository.dart';
+import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
-
+import 'package:neetiflow/presentation/blocs/roles/roles_bloc.dart';
+import 'package:neetiflow/presentation/widgets/employee_management/roles_tab.dart';
+import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import '../../widgets/persistent_shell.dart';
 
 class EmployeeManagementPage extends StatelessWidget {
@@ -10,6 +15,12 @@ class EmployeeManagementPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final authState = context.read<AuthBloc>().state;
+    
+    if (authState is! Authenticated) {
+      return const Center(child: Text('Not authenticated'));
+    }
+
     return DefaultTabController(
       length: 3,
       child: Column(
@@ -52,8 +63,18 @@ class EmployeeManagementPage extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _DepartmentsTab(),
-                _RolesTab(),
+                BlocProvider(
+                  create: (context) => DepartmentsBloc(
+                    departmentsRepository: context.read<DepartmentsRepository>(),
+                  )..add(LoadDepartments(authState.employee.companyId!)),
+                  child: _DepartmentsTab(),
+                ),
+                BlocProvider(
+                  create: (context) => RolesBloc(
+                    rolesRepository: context.read<RolesRepository>(),
+                  )..add(LoadRoles(authState.employee.companyId!)),
+                  child: const RolesTab(),
+                ),
                 _FunctionsTab(),
               ],
             ),
@@ -99,7 +120,15 @@ class _DepartmentsTab extends StatelessWidget {
                     const Spacer(),
                     FilledButton.icon(
                       onPressed: () {
-                        // Show add department dialog
+                        final authState = context.read<AuthBloc>().state;
+                        if (authState is Authenticated && authState.employee.companyId != null) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => CreateDepartmentDialog(
+                              organizationId: authState.employee.companyId!,
+                            ),
+                          );
+                        }
                       },
                       icon: const Icon(Icons.add),
                       label: const Text('Add Department'),

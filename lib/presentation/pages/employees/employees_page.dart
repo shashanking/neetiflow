@@ -2,17 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
-import 'package:neetiflow/domain/entities/department.dart';
+import 'package:neetiflow/domain/entities/department.dart' as department_entity;
+import 'package:neetiflow/domain/entities/role.dart' as role_entity;
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/domain/repositories/departments_repository.dart';
+import 'package:neetiflow/domain/repositories/roles_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
-import 'package:intl/intl.dart';
+import 'package:neetiflow/presentation/blocs/roles/roles_bloc.dart';
 import 'package:neetiflow/presentation/pages/employees/employee_details_page.dart';
 import 'package:neetiflow/presentation/pages/employee_management/employee_management_page.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
+import 'package:uuid/uuid.dart';
 
 class EmployeesPage extends StatefulWidget {
   const EmployeesPage({super.key});
@@ -23,31 +27,42 @@ class EmployeesPage extends StatefulWidget {
 
 class _EmployeesPageState extends State<EmployeesPage> {
   final _searchController = TextEditingController();
-  EmployeeRole? _selectedRole;
+  String? _selectedRoleId;
   String? _selectedDepartmentId;
   String _searchQuery = '';
+  bool _showOnlyActiveEmployees = false;
+
+  List<Employee> _filterEmployees(List<Employee> employees) {
+    return employees.where((employee) {
+      // Search query filter
+      final matchesSearch = 
+        employee.firstName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        employee.lastName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        employee.email.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        (employee.phone?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
+      
+      // Role filter with null safety
+      final matchesRole = _selectedRoleId == null || 
+        (employee.role?.id == _selectedRoleId || 
+         (employee.role?.name.toLowerCase() == _selectedRoleId?.toLowerCase()));
+      
+      // Department filter
+      final matchesDepartment = _selectedDepartmentId == null || 
+        employee.departmentId == _selectedDepartmentId;
+      
+      // Active status filter
+      final matchesActiveStatus = _showOnlyActiveEmployees 
+        ? employee.isActive 
+        : true;
+
+      return matchesSearch && matchesRole && matchesDepartment && matchesActiveStatus;
+    }).toList();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  List<Employee> _filterEmployees(List<Employee> employees) {
-    return employees.where((employee) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          employee.firstName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          employee.lastName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          employee.email.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (employee.phone?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
-
-      final matchesRole = _selectedRole == null || employee.role == _selectedRole;
-      
-      final matchesDepartment = _selectedDepartmentId == null || 
-          employee.departmentId == _selectedDepartmentId;
-
-      return matchesSearch && matchesRole && matchesDepartment;
-    }).toList();
   }
 
   @override
@@ -76,311 +91,352 @@ class _EmployeesPageState extends State<EmployeesPage> {
             departmentsRepository: context.read<DepartmentsRepository>(),
           )..add(LoadDepartments(orgId)),
         ),
-      ],
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Employees'),
-          automaticallyImplyLeading: !isCompact,
-          leading: isCompact
-              ? IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () {
-                    // Use PersistentShell's toggleDrawer method
-                    PersistentShell.of(context)?.toggleDrawer();
-                  },
-                )
-              : null,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () {
-                final state = PersistentShell.of(context);
-                if (state != null) {
-                  state.setCustomPage(
-                    MultiBlocProvider(
-                      providers: [
-                        BlocProvider(
-                          create: (context) => DepartmentsBloc(
-                            departmentsRepository: context.read<DepartmentsRepository>(),
-                          ),
-                        ),
-                      ],
-                      child: const EmployeeManagementPage(),
-                    ),
-                  );
-                }
-              },
-            ),
-            const SizedBox(width: 8),
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: FilledButton.icon(
-                onPressed: () => _showAddEmployeeDialog(
-                  context,
-                  authState.employee,
-                ),
-                icon: const Icon(Icons.person_add),
-                label: const Text('Add Employee'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
-            ),
-          ],
+        BlocProvider(
+          create: (context) => RolesBloc(
+            rolesRepository: context.read<RolesRepository>(),
+          )..add(LoadRoles(orgId)),
         ),
-        body: BlocBuilder<EmployeesBloc, EmployeesState>(
-          builder: (context, state) {
-            if (state is EmployeesInitial) {
-              context.read<EmployeesBloc>().add(
-                LoadEmployees(
-                  (context.read<AuthBloc>().state is Authenticated)
-                      ? (context.read<AuthBloc>().state as Authenticated).organization?.id ?? ''
-                      : '',
-                ),
-              );
-            }
-
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: 'Search employees...',
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+      ],
+      child: BlocListener<DepartmentsBloc, DepartmentsState>(
+        listener: (context, state) {
+          if (state is DepartmentOperationSuccess) {
+            // Show success snackbar
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else if (state is DepartmentOperationFailure) {
+            // Show error snackbar
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Employees'),
+            automaticallyImplyLeading: !isCompact,
+            leading: isCompact
+                ? IconButton(
+                    icon: const Icon(Icons.menu),
+                    onPressed: () {
+                      // Use PersistentShell's toggleDrawer method
+                      PersistentShell.of(context)?.toggleDrawer();
+                    },
+                  )
+                : null,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  final state = PersistentShell.of(context);
+                  if (state != null) {
+                    state.setCustomPage(
+                      MultiBlocProvider(
+                        providers: [
+                          BlocProvider(
+                            create: (context) => DepartmentsBloc(
+                              departmentsRepository: context.read<DepartmentsRepository>(),
                             ),
-                            onChanged: (value) {
-                              setState(() {
-                                _searchQuery = value;
-                              });
-                            },
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        DropdownButton<EmployeeRole>(
-                          value: _selectedRole,
-                          hint: const Text('Role'),
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('All Roles'),
-                            ),
-                            ...EmployeeRole.values.map((role) {
-                              return DropdownMenuItem(
-                                value: role,
-                                child: Text(role.toString().split('.').last),
-                              );
-                            }),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedRole = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 16),
-                        BlocBuilder<DepartmentsBloc, DepartmentsState>(
-                          builder: (context, state) {
-                            if (state is DepartmentsLoaded) {
-                              return DropdownButton<String>(
-                                value: _selectedDepartmentId,
-                                hint: const Text('Department'),
-                                items: [
-                                  const DropdownMenuItem(
-                                    value: null,
-                                    child: Text('All Departments'),
-                                  ),
-                                  ...state.departments.map((department) {
-                                    return DropdownMenuItem(
-                                      value: department.id,
-                                      child: Text(department.name),
-                                    );
-                                  }),
-                                ],
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedDepartmentId = value;
-                                  });
-                                },
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
-                      ],
-                    ),
+                        ],
+                        child: const EmployeeManagementPage(),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: FilledButton.icon(
+                  onPressed: () => _showAddEmployeeDialog(
+                    context,
+                    authState.employee,
+                  ),
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Add Employee'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
                 ),
-                SliverFillRemaining(
-                  child: BlocBuilder<EmployeesBloc, EmployeesState>(
-                    builder: (context, state) {
-                      List<Employee> employeesList = state is EmployeesLoaded 
-                          ? state.employees 
-                          : state is EmployeesLoading 
+              ),
+            ],
+          ),
+          body: BlocBuilder<RolesBloc, RolesState>(
+            builder: (context, rolesState) {
+              if (rolesState is! RolesLoaded) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              return BlocBuilder<EmployeesBloc, EmployeesState>(
+                builder: (context, state) {
+                  List<Employee> employeesList = state is EmployeesLoaded 
+                      ? state.employees 
+                      : state is EmployeesLoading 
+                          ? state.employees
+                          : state is EmailAvailabilityChecked
                               ? state.employees
-                              : state is EmailAvailabilityChecked
+                              : state is EmployeesEmailError
                                   ? state.employees
-                                  : state is EmployeesEmailError
-                                      ? state.employees
-                                      : state is EmployeesEmailAvailable
-                                          ? state.employees
-                                          : [];
+                              : state is EmployeesEmailAvailable
+                                  ? state.employees
+                              : [];
 
-                      final filteredEmployees = _filterEmployees(employeesList);
+                  final filteredEmployees = _filterEmployees(employeesList);
 
-                      if (state is EmployeesLoading) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
+                  if (state is EmployeesLoading) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
 
-                      if (state is EmployeesError) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: Colors.red,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Error: ${state.message}',
-                                style: Theme.of(context).textTheme.titleMedium,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              FilledButton.icon(
-                                onPressed: () {
-                                  context.read<EmployeesBloc>().add(
-                                    LoadEmployees(
-                                      (context.read<AuthBloc>().state is Authenticated)
-                                          ? (context.read<AuthBloc>().state as Authenticated).organization?.id ?? ''
-                                          : '',
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry'),
-                              ),
-                            ],
+                  if (state is EmployeesError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red,
                           ),
-                        );
-                      }
-
-                      if (filteredEmployees.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.people_outline,
-                                size: 64,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No employees found',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Add your first employee to get started',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 24),
-                              FilledButton.icon(
-                                onPressed: () => _showAddEmployeeDialog(
-                                  context,
-                                  authState.employee,
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error: ${state.message}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: () {
+                              context.read<EmployeesBloc>().add(
+                                LoadEmployees(
+                                  (context.read<AuthBloc>().state is Authenticated)
+                                      ? (context.read<AuthBloc>().state as Authenticated).organization?.id ?? ''
+                                      : '',
                                 ),
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add Employee'),
+                              );
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (filteredEmployees.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 64,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No employees found',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Add your first employee to get started',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 24),
+                          FilledButton.icon(
+                            onPressed: () => _showAddEmployeeDialog(
+                              context,
+                              authState.employee,
+                            ),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Employee'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      decoration: InputDecoration(
+                                        hintText: 'Search employees...',
+                                        prefixIcon: const Icon(Icons.search),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _searchQuery = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  DropdownButton<String>(
+                                    value: _selectedRoleId,
+                                    hint: const Text('Filter by Role'),
+                                    items: [
+                                      const DropdownMenuItem(
+                                        value: null,
+                                        child: Text('All Roles'),
+                                      ),
+                                      ...rolesState.roles.map((role) {
+                                        return DropdownMenuItem(
+                                          value: role.id,
+                                          child: Text(role.name),
+                                        );
+                                      }),
+                                    ],
+                                    onChanged: (roleId) {
+                                      setState(() {
+                                        _selectedRoleId = roleId;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 16),
+                                  BlocBuilder<DepartmentsBloc, DepartmentsState>(
+                                    builder: (context, state) {
+                                      if (state is DepartmentsLoaded) {
+                                        return DropdownButton<String>(
+                                          value: _selectedDepartmentId,
+                                          hint: const Text('Department'),
+                                          items: [
+                                            const DropdownMenuItem(
+                                              value: null,
+                                              child: Text('All Departments'),
+                                            ),
+                                            ...state.departments.map((department) {
+                                              return DropdownMenuItem(
+                                                value: department.id,
+                                                child: Text(department.name),
+                                              );
+                                            }),
+                                          ],
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _selectedDepartmentId = value;
+                                            });
+                                          },
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    },
+                                  ),
+                                  const SizedBox(width: 16),
+                                  SizedBox(
+                                    width: 250, // Fixed width for the checkbox
+                                    child: CheckboxListTile(
+                                      dense: true,
+                                      title: const Text(
+                                        'Show only active employees',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                      value: _showOnlyActiveEmployees,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _showOnlyActiveEmployees = value ?? false;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        );
-                      }
-
-                      return GridView.builder(
+                        ),
+                      ),
+                      SliverGrid(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 16,
                           mainAxisExtent: 220,
                         ),
-                        itemCount: filteredEmployees.length,
-                        itemBuilder: (context, index) {
-                          final employee = filteredEmployees[index];
-                          return EmployeeCard(
-                            employee: employee,
-                            onTap: () {
-                              final state = PersistentShell.of(context);
-                              if (state != null) {
-                                state.setCustomPage(
-                                  MultiBlocProvider(
-                                    providers: [
-                                      BlocProvider.value(
-                                        value: context.read<EmployeesBloc>(),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final employee = filteredEmployees[index];
+                            return EmployeeCard(
+                              employee: employee,
+                              onEdit: () => _showEditEmployeeDialog(
+                                context,
+                                employee,
+                                authState.employee,
+                              ),
+                              onDelete: () => _showDeleteConfirmationDialog(
+                                context,
+                                employee,
+                              ),
+                              onView: () {
+                                final state = PersistentShell.of(context);
+                                if (state != null) {
+                                  state.setCustomPage(
+                                    MultiBlocProvider(
+                                      providers: [
+                                        BlocProvider.value(
+                                          value: context.read<EmployeesBloc>(),
+                                        ),
+                                        BlocProvider.value(
+                                          value: context.read<DepartmentsBloc>(),
+                                        ),
+                                        RepositoryProvider.value(
+                                          value: context.read<EmployeesRepository>(),
+                                        ),
+                                      ],
+                                      child: EmployeeDetailsPage(
+                                        employee: employee,
+                                        onEdit: () {
+                                          state.clearCustomPage();
+                                          _showEditEmployeeDialog(
+                                            context,
+                                            employee,
+                                            authState.employee,
+                                          );
+                                        },
+                                        onDelete: () {
+                                          state.clearCustomPage();
+                                          _showDeleteConfirmationDialog(
+                                            context,
+                                            employee,
+                                          );
+                                        },
                                       ),
-                                      BlocProvider.value(
-                                        value: context.read<DepartmentsBloc>(),
-                                      ),
-                                      RepositoryProvider.value(
-                                        value: context.read<EmployeesRepository>(),
-                                      ),
-                                    ],
-                                    child: EmployeeDetailsPage(
-                                      employee: employee,
-                                      onEdit: () {
-                                        state.clearCustomPage();
-                                        _showEditEmployeeDialog(
-                                          context,
-                                          employee,
-                                          authState.employee,
-                                        );
-                                      },
-                                      onDelete: () {
-                                        state.clearCustomPage();
-                                        _showDeleteConfirmationDialog(
-                                          context,
-                                          employee,
-                                        );
-                                      },
                                     ),
-                                  ),
-                                );
-                              }
-                            },
-                            onEdit: () => _showEditEmployeeDialog(
-                              context,
-                              employee,
-                              authState.employee,
-                            ),
-                            onDelete: () => _showDeleteConfirmationDialog(
-                              context,
-                              employee,
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
-          },
+                                  );
+                                }
+                              },
+                            );
+                          },
+                          childCount: filteredEmployees.length,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -389,8 +445,15 @@ class _EmployeesPageState extends State<EmployeesPage> {
   void _showAddEmployeeDialog(BuildContext context, Employee currentEmployee) {
     showDialog(
       context: context,
-      builder: (dialogContext) => BlocProvider.value(
-        value: context.read<EmployeesBloc>(),
+      builder: (dialogContext) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(
+            value: context.read<EmployeesBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<RolesBloc>(),
+          ),
+        ],
         child: EmployeeFormDialog(
           companyId: currentEmployee.companyId!,
           companyName: currentEmployee.companyName!,
@@ -400,7 +463,10 @@ class _EmployeesPageState extends State<EmployeesPage> {
       if (result != null) {
         final Map<String, dynamic> data = result as Map<String, dynamic>;
         context.read<EmployeesBloc>().add(
-          AddEmployee(data['employee'] as Employee, data['password'] as String),
+          AddEmployee(
+            data['employee'] as Employee,
+            data['password'] as String,
+          ),
         );
       }
     });
@@ -413,8 +479,15 @@ class _EmployeesPageState extends State<EmployeesPage> {
   ) {
     showDialog(
       context: context,
-      builder: (dialogContext) => BlocProvider.value(
-        value: context.read<EmployeesBloc>(),
+      builder: (dialogContext) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(
+            value: context.read<EmployeesBloc>(),
+          ),
+          BlocProvider.value(
+            value: context.read<RolesBloc>(),
+          ),
+        ],
         child: EmployeeFormDialog(
           employee: employee,
           companyId: currentEmployee.companyId!,
@@ -457,236 +530,266 @@ class _EmployeesPageState extends State<EmployeesPage> {
       ),
     );
   }
+
 }
 
 class EmployeeCard extends StatelessWidget {
   final Employee employee;
-  final VoidCallback? onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onView;
 
   const EmployeeCard({
     super.key,
     required this.employee,
-    this.onTap,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,
+    this.onDelete,
+    this.onView,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Generate a consistent color based on the employee's name
+    final employeeColor = _generateColorFromName(employee.firstName);
+    final isActive = employee.isActive;
+
     return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isActive 
+            ? employeeColor.withOpacity(0.3) 
+            : colorScheme.error.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              employeeColor.withOpacity(0.05),
+              employeeColor.withOpacity(0.02),
+            ],
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onView,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header with Name and Actions
                   Row(
                     children: [
-                      Hero(
-                        tag: 'employee_avatar_${employee.id}',
-                        child: CircleAvatar(
-                          radius: 24,
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          child: Text(
-                            (employee.firstName.isNotEmpty)
-                                ? employee.firstName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                              fontSize: 20,
+                      // Circular Avatar with Active/Inactive Indicator
+                      Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 30,
+                            backgroundColor: employeeColor.withOpacity(0.2),
+                            child: Text(
+                              (employee.firstName[0] + employee.lastName[0]).toUpperCase(),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: employeeColor,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isActive 
+                                  ? Colors.green 
+                                  : colorScheme.error,
+                                border: Border.all(
+                                  color: Colors.white, 
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
+                      
+                      // Name and Department
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Hero(
-                              tag: 'employee_name_${employee.id}',
-                              child: Text(
-                                employee.firstName,
-                                style: Theme.of(context).textTheme.titleLarge,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            Text(
+                              '${employee.firstName} ${employee.lastName}',
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: isActive 
+                                  ? colorScheme.onSurface 
+                                  : colorScheme.onSurface.withOpacity(0.6),
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    employee.role.toString().split('.').last.toUpperCase(),
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                if (employee.departmentId != null) ...[
-                                  const SizedBox(width: 8),
-                                  BlocBuilder<DepartmentsBloc, DepartmentsState>(
-                                    builder: (context, state) {
-                                      if (state is DepartmentsLoaded) {
-                                        final department = state.departments.firstWhere(
-                                          (d) => d.id == employee.departmentId,
-                                          orElse: () => Department(
-                                            id: '',
-                                            name: 'Unknown Department',
-                                            description: '',
-                                            organizationId: '',
-                                            employeeRoles: const {},
-                                            createdAt: DateTime.now(),
-                                            updatedAt: DateTime.now(),
-                                          ),
-                                        );
-                                        
-                                        final role = department.employeeRoles[employee.id] ?? DepartmentRole.member;
-                                        
-                                        return Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .tertiary
-                                                .withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            '${department.name} (${role.toString().split('.').last})',
-                                            style: TextStyle(
-                                              color: Theme.of(context).colorScheme.tertiary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      return const SizedBox.shrink();
-                                    },
-                                  ),
-                                ],
-                              ],
+                            Text(
+                              employee.departmentName ?? 'Unassigned',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: isActive 
+                                  ? colorScheme.onSurfaceVariant 
+                                  : colorScheme.onSurfaceVariant.withOpacity(0.6),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
+                      
+                      // Action Buttons
+                      IconButton(
+                        icon: Icon(
+                          Icons.edit_outlined, 
+                          size: 24, 
+                          color: isActive 
+                            ? colorScheme.primary 
+                            : colorScheme.primary.withOpacity(0.4),
+                        ),
+                        onPressed: isActive ? onEdit : null,
+                        tooltip: 'Edit',
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline, 
+                          size: 24, 
+                          color: isActive 
+                            ? colorScheme.error 
+                            : colorScheme.error.withOpacity(0.4),
+                        ),
+                        onPressed: isActive ? onDelete : null,
+                        tooltip: 'Delete',
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ],
                   ),
-                  const Spacer(),
-                  _InfoRow(
-                    icon: Icons.email_outlined,
-                    text: employee.email,
+                  
+                  const Divider(height: 24, thickness: 0.5),
+                  
+                  // Employee Details
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDetailChip(
+                          context, 
+                          icon: Icons.work_outline, 
+                          text: employee.role?.name ?? 'No Role',
+                          color: employeeColor,
+                          isActive: isActive,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildDetailChip(
+                          context, 
+                          icon: Icons.email_outlined, 
+                          text: employee.email,
+                          color: employeeColor,
+                          isActive: isActive,
+                        ),
+                      ),
+                    ],
                   ),
-                  if (employee.phone != null && employee.phone!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    _InfoRow(
-                      icon: Icons.phone_outlined,
-                      text: employee.phone!,
-                    ),
-                  ],
                   const SizedBox(height: 8),
-                  _InfoRow(
-                    icon: Icons.calendar_today_outlined,
-                    text: employee.joiningDate != null
-                        ? 'Joined: ${DateFormat('MMM d, y').format(employee.joiningDate!)}'
-                        : 'No joining date',
+                  _buildDetailChip(
+                    context, 
+                    icon: Icons.phone_outlined, 
+                    text: employee.phone ?? 'No Phone',
+                    color: employeeColor,
+                    fullWidth: true,
+                    isActive: isActive,
                   ),
                 ],
               ),
             ),
-            if (employee.role != EmployeeRole.admin)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filled(
-                      onPressed: onEdit,
-                      icon: const Icon(Icons.edit_outlined, size: 20),
-                      tooltip: 'Edit Employee',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        minimumSize: const Size(36, 36),
-                        padding: const EdgeInsets.all(8),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      onPressed: onDelete,
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      tooltip: 'Delete Employee',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.error.withOpacity(0.1),
-                        foregroundColor: Theme.of(context).colorScheme.error,
-                        minimumSize: const Size(36, 36),
-                        padding: const EdgeInsets.all(8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
+  Widget _buildDetailChip(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    required Color color,
+    bool fullWidth = false,
+    bool isActive = true,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-  const _InfoRow({
-    required this.icon,
-    required this.text,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(isActive ? 0.1 : 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(isActive ? 0.2 : 0.1),
+          width: 1,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+      ),
+      child: Row(
+        mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Icon(
+            icon, 
+            size: 18, 
+            color: isActive 
+              ? color 
+              : color.withOpacity(0.4),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isActive 
+                  ? colorScheme.onSurfaceVariant 
+                  : colorScheme.onSurfaceVariant.withOpacity(0.6),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _generateColorFromName(String name) {
+    // Generate a consistent color based on the name
+    final hash = name.hashCode;
+    return Color.fromRGBO(
+      (hash & 0xFF0000) >> 16,
+      (hash & 0x00FF00) >> 8,
+      hash & 0x0000FF,
+      0.8,
     );
   }
 }
@@ -714,465 +817,324 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _passwordController = TextEditingController();
   DateTime? _joiningDate;
-  EmployeeRole _selectedRole = EmployeeRole.employee;
-  bool _isActive = true;
-  bool _isPasswordVisible = false;
-  Timer? _emailDebounce;
+  String? _selectedDepartmentId;
+  String? _selectedRoleId;
+  String? _selectedRoleName;
+  bool _isSubmitting = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.employee != null) {
-      _firstNameController.text = widget.employee!.firstName;
-      _lastNameController.text = widget.employee!.lastName;
-      _emailController.text = widget.employee!.email;
-      _phoneController.text = widget.employee!.phone ?? '';
-      _addressController.text = widget.employee!.address ?? '';
-      _selectedRole = widget.employee!.role;
-      _joiningDate = widget.employee!.joiningDate;
-      _isActive = widget.employee!.isActive;
+    final employee = widget.employee;
+    if (employee != null) {
+      _firstNameController.text = employee.firstName;
+      _lastNameController.text = employee.lastName;
+      _emailController.text = employee.email;
+      _phoneController.text = employee.phone ?? '';
+      _addressController.text = employee.address ?? '';
+      _joiningDate = employee.joiningDate;
+      _selectedDepartmentId = employee.departmentId;
+      _selectedRoleId = employee.role?.id;
+      _selectedRoleName = employee.role?.name;
     }
 
-    _emailController.addListener(_onEmailChanged);
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated) {
+      context.read<RolesBloc>().add(LoadRoles(authState.employee.companyId!));
+      context.read<DepartmentsBloc>().add(LoadDepartments(authState.employee.companyId!));
+    }
   }
 
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    _passwordController.dispose();
-    _emailDebounce?.cancel();
-    super.dispose();
-  }
-
-  void _onEmailChanged() {
-    if (_emailDebounce?.isActive ?? false) _emailDebounce!.cancel();
-    
-    final email = _emailController.text.trim();
-    
-    if (email.isEmpty) {
-      if (mounted) {
-        setState(() {});
+  void _initializeRoleIfNeeded(List<role_entity.Role> roles) {
+    if (!_isInitialized) {
+      final activeRoles = roles.where((role) => role.isActive).toList();
+      
+      if (widget.employee != null && _selectedRoleId != null) {
+        // For existing employee, ensure their role is in the list
+        final currentRole = roles.firstWhere(
+          (role) => role.id == _selectedRoleId,
+          orElse: () => activeRoles.first,
+        );
+        _selectedRoleId = currentRole.id;
+        _selectedRoleName = currentRole.name;
+      } else if (activeRoles.isNotEmpty) {
+        // For new employee, select first active role
+        _selectedRoleId = activeRoles.first.id;
+        _selectedRoleName = activeRoles.first.name;
       }
-      return;
+      _isInitialized = true;
     }
-    
-    _emailDebounce = Timer(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      if (email.contains('@')) {
-        context.read<EmployeesBloc>().add(CheckEmailAvailability(email));
-      } else {
-      }
-    });
-  }
-
-  String? _getEmailErrorText(String email, EmployeesState state) {
-    if (state is EmployeesEmailError) {
-      return state.message;
-    } else if (state is EmailAvailabilityChecked) {
-      return !state.isAvailable ? 'Email is already in use' : null;
-    }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isEditing = widget.employee != null;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! Authenticated) return const SizedBox.shrink();
 
-    return BlocListener<EmployeesBloc, EmployeesState>(
-      listener: (context, state) {
-        if (state is EmployeeOperationSuccess) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
-        } else if (state is EmployeesError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: theme.colorScheme.error,
-            ),
-          );
-        }
-      },
-      child: Dialog(
-        child: PopScope(
-          onPopInvoked: (didPop) {
-            if (didPop) {
-              context.read<EmployeesBloc>().add(LoadEmployees(widget.companyId));
-            }
-          },
-          child: Container(
-            width: 500,
-            constraints: const BoxConstraints(maxHeight: 700),
+    return Dialog(
+      child: Container(
+        width: 500,
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(28),
-                      topRight: Radius.circular(28),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isEditing ? 'Edit Employee' : 'Add Employee',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        isEditing ? 'Update employee information' : 'Enter employee details',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
-                        ),
-                      ),
-                    ],
-                  ),
+                Text(
+                  widget.employee == null ? 'Add Employee' : 'Edit Employee',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Basic Information',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _firstNameController,
-                                  decoration: InputDecoration(
-                                    labelText: 'First Name',
-                                    hintText: 'Enter first name',
-                                    prefixIcon: const Icon(Icons.person_outline),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter first name';
-                                    }
-                                    return null;
-                                  },
-                                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _firstNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'First Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter first name';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _lastNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Last Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter last name';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _addressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Address',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: BlocBuilder<DepartmentsBloc, DepartmentsState>(
+                        builder: (context, state) {
+                          if (state is DepartmentsLoading) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (state is DepartmentsLoaded) {
+                            final departments = state.departments;
+                            if (departments.isEmpty) {
+                              return const Text('No departments available');
+                            }
+                            return DropdownButtonFormField<String>(
+                              value: _selectedDepartmentId,
+                              decoration: const InputDecoration(
+                                labelText: 'Department',
+                                border: OutlineInputBorder(),
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _lastNameController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Last Name',
-                                    hintText: 'Enter last name',
-                                    prefixIcon: const Icon(Icons.person_outline),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter last name';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          BlocBuilder<EmployeesBloc, EmployeesState>(
-                            builder: (context, state) {
-                              final email = _emailController.text.trim();
-                              final errorText = _getEmailErrorText(email, state);
-                              final isChecking = state is EmployeesLoading;
-                              final isChecked = state is EmailAvailabilityChecked && 
-                                  state.email == email;
-                              final isAvailable = isChecked && state.isAvailable;
-                              
-                              return TextFormField(
-                                controller: _emailController,
-                                enabled: !isChecking,
-                                onChanged: (_) => _onEmailChanged(),
-                                decoration: InputDecoration(
-                                  labelText: 'Email',
-                                  hintText: 'Enter employee email',
-                                  prefixIcon: const Icon(Icons.email_outlined),
-                                  suffixIcon: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (email.isNotEmpty)
-                                        IconButton(
-                                          icon: const Icon(Icons.clear),
-                                          onPressed: () {
-                                            _emailController.clear();
-                                            _onEmailChanged();
-                                          },
-                                          tooltip: 'Clear email',
-                                        ),
-                                      if (isChecking)
-                                        const Padding(
-                                          padding: EdgeInsets.all(12.0),
-                                          child: SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          ),
-                                        )
-                                      else if (isChecked)
-                                        Padding(
-                                          padding: const EdgeInsets.only(right: 12.0),
-                                          child: Icon(
-                                            isAvailable
-                                                ? Icons.check_circle_outline
-                                                : Icons.error_outline,
-                                            color: isAvailable
-                                                ? theme.colorScheme.primary
-                                                : theme.colorScheme.error,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  errorText: errorText,
-                                  helperText: isChecking 
-                                      ? 'Checking email availability...'
-                                      : isAvailable
-                                          ? 'Email is available'
-                                          : null,
-                                  helperStyle: TextStyle(
-                                    color: isAvailable
-                                        ? theme.colorScheme.primary
-                                        : null,
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter employee email';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  if (errorText != null) {
-                                    return errorText;
-                                  }
-                                  if (!isChecked || !isAvailable) {
-                                    return 'Please wait for email availability check';
-                                  }
-                                  return null;
-                                },
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _phoneController,
-                            decoration: InputDecoration(
-                              labelText: 'Phone',
-                              hintText: 'Enter employee phone',
-                              prefixIcon: const Icon(Icons.phone_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter employee phone number';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _addressController,
-                            maxLines: 2,
-                            decoration: InputDecoration(
-                              labelText: 'Address (Optional)',
-                              hintText: 'Enter employee address',
-                              prefixIcon: const Icon(Icons.location_on_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              alignLabelWithHint: true,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'Additional Information',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (!isEditing) ...[
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: !_isPasswordVisible,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                hintText: 'Enter employee password',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _isPasswordVisible
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isPasswordVisible = !_isPasswordVisible;
-                                    });
-                                  },
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter a password';
-                                }
-                                if (value.length < 6) {
-                                  return 'Password must be at least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          // Employment Details
-                          Text(
-                            'Employment Details',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          InkWell(
-                            onTap: () async {
-                              final date = await showDatePicker(
-                                context: context,
-                                initialDate: _joiningDate ?? DateTime.now(),
-                                firstDate: DateTime(2000),
-                                lastDate: DateTime.now(),
-                              );
-                              if (date != null) {
-                                setState(() {
-                                  _joiningDate = date;
-                                });
-                              }
-                            },
-                            child: InputDecorator(
-                              decoration: InputDecoration(
-                                labelText: 'Joining Date',
-                                prefixIcon: const Icon(Icons.calendar_today_outlined),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: Text(
-                                _joiningDate != null
-                                    ? DateFormat('MMMM d, y').format(_joiningDate!)
-                                    : 'Select date',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: 'Role',
-                              prefixIcon: Icon(
-                                _selectedRole == EmployeeRole.admin
-                                    ? Icons.admin_panel_settings
-                                    : _selectedRole == EmployeeRole.manager
-                                        ? Icons.manage_accounts
-                                        : Icons.work,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: DropdownButton<EmployeeRole>(
-                              value: _selectedRole,
-                              isExpanded: true,
-                              underline: const SizedBox.shrink(),
-                              items: EmployeeRole.values.map((role) {
+                              items: departments.map((dept) {
                                 return DropdownMenuItem(
-                                  value: role,
-                                  child: Text(role.toString().split('.').last),
+                                  value: dept.id,
+                                  child: Text(dept.name),
                                 );
                               }).toList(),
-                              onChanged: (role) {
-                                if (role != null) {
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedDepartmentId = value;
+                                });
+                              },
+                            );
+                          }
+                          if (state is DepartmentsError) {
+                            return Text('Error: ${state.message}');
+                          }
+                          return const Text('No departments available');
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: BlocBuilder<RolesBloc, RolesState>(
+                        builder: (context, state) {
+                          if (state is RolesLoading) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (state is RolesLoaded) {
+                            final roles = state.roles;
+                            if (roles.isEmpty) {
+                              return const Text('No roles available');
+                            }
+
+                            final activeRoles = roles.where((role) => role.isActive).toList();
+                            
+                            // Initialize role selection if needed
+                            if (!_isInitialized) {
+                              _initializeRoleIfNeeded(roles);
+                              return const Center(child: CircularProgressIndicator());
+                            }
+
+                            // Ensure selected role exists in dropdown items
+                            if (_selectedRoleId != null) {
+                              final roleExists = activeRoles.any((role) => role.id == _selectedRoleId);
+                              if (!roleExists) {
+                                // Add current role to active roles if it exists
+                                final currentRole = roles.firstWhere(
+                                  (role) => role.id == _selectedRoleId,
+                                  orElse: () => activeRoles.first,
+                                );
+                                if (!activeRoles.contains(currentRole)) {
+                                  activeRoles.add(currentRole);
+                                }
+                              }
+                            }
+
+                            return DropdownButtonFormField<String>(
+                              value: _selectedRoleId,
+                              decoration: const InputDecoration(
+                                labelText: 'Role',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: activeRoles.map((role) {
+                                return DropdownMenuItem<String>(
+                                  value: role.id,
+                                  child: Text(role.name),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  final selectedRole = roles.firstWhere(
+                                    (role) => role.id == value,
+                                  );
                                   setState(() {
-                                    _selectedRole = role;
+                                    _selectedRoleId = value;
+                                    _selectedRoleName = selectedRole.name;
                                   });
                                 }
                               },
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SwitchListTile(
-                            title: const Text('Active Status'),
-                            subtitle: Text(_isActive ? 'Employee is active' : 'Employee is inactive'),
-                            value: _isActive,
-                            onChanged: (value) {
-                              setState(() {
-                                _isActive = value;
-                              });
-                            },
-                            secondary: Icon(
-                              _isActive ? Icons.check_circle_outline : Icons.cancel_outlined,
-                              color: _isActive ? theme.colorScheme.primary : theme.colorScheme.error,
-                            ),
-                          ),
-                        ],
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please select a role';
+                                }
+                                return null;
+                              },
+                            );
+                          }
+                          return const Text('Error loading roles');
+                        },
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: Text(
+                    'Joining Date',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  subtitle: Text(
+                    _joiningDate != null
+                        ? DateFormat('MMM dd, yyyy').format(_joiningDate!)
+                        : 'Not set',
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.calendar_today),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _joiningDate ?? DateTime.now(),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _joiningDate = date;
+                        });
+                      }
+                    },
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 16),
-                      FilledButton.icon(
-                        onPressed: _submit,
-                        icon: Icon(isEditing ? Icons.save : Icons.add),
-                        label: Text(isEditing ? 'Save Changes' : 'Add Employee'),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () {
+                              Navigator.of(context).pop();
+                            },
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 16),
+                    FilledButton(
+                      onPressed: _isSubmitting ? null : _submit,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              widget.employee == null ? 'Add Employee' : 'Save Changes',
+                            ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1182,30 +1144,313 @@ class _EmployeeFormDialogState extends State<EmployeeFormDialog> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedRoleId == null) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! Authenticated) return;
+
+    final employee = Employee(
+      id: widget.employee?.id,
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      address: _addressController.text,
+      role: role_entity.Role(
+        id: _selectedRoleId ?? '',
+        name: _selectedRoleName ?? '',
+        description: 'Employee Role', // Add default description
+        organizationId: authState.employee.companyId ?? '',
+        type: role_entity.RoleType.global, // Use global instead of custom
+        hierarchy: role_entity.DepartmentHierarchy.member, // Use member as default
+      ),
+      departmentId: _selectedDepartmentId,
+      companyId: authState.employee.companyId,
+      companyName: authState.employee.companyName,
+      joiningDate: _joiningDate ?? DateTime.now(),
+    );
+
+    if (widget.employee == null) {
+      context.read<EmployeesBloc>().add(AddEmployee(employee, _emailController.text));
+    } else {
+      context.read<EmployeesBloc>().add(UpdateEmployee(employee));
+    }
+
+    setState(() {
+      _isSubmitting = false;
+    });
+
+    if (mounted) {
+      Navigator.of(context).pop({'employee': employee, 'password': _emailController.text});
+    }
+  }
+}
+
+class CreateDepartmentDialog extends StatefulWidget {
+  final String organizationId;
+
+  const CreateDepartmentDialog({
+    Key? key, 
+    required this.organizationId
+  }) : super(key: key);
+
+  @override
+  _CreateDepartmentDialogState createState() => _CreateDepartmentDialogState();
+}
+
+class _CreateDepartmentDialogState extends State<CreateDepartmentDialog> {
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  void _createDepartment() {
     if (_formKey.currentState?.validate() ?? false) {
-      final employee = Employee(
-        id: widget.employee?.id,
-        companyId: widget.companyId,
-        companyName: widget.companyName,
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        address: _addressController.text.trim(),
-        role: _selectedRole,
-        joiningDate: _joiningDate,
-        isActive: _isActive,
+      final newDepartment = department_entity.Department(
+        id: const Uuid().v4(), // Generate a unique ID
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        organizationId: widget.organizationId,
+        createdAt: DateTime.now(),
       );
 
-      if (widget.employee != null) {
-        Navigator.pop(context, {'employee': employee});
-      } else {
-        Navigator.pop(context, {
-          'employee': employee,
-          'password': _passwordController.text,
-        });
-      }
+      // Dispatch add department event
+      context.read<DepartmentsBloc>().add(AddDepartment(newDepartment));
+      
+      // Close the dialog
+      Navigator.of(context).pop();
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Department'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Department Name',
+                hintText: 'e.g., Engineering, Sales, Marketing',
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a department name';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Department Description',
+                hintText: 'Optional description of the department',
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _createDepartment,
+          child: const Text('Create Department'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManageEmployeeRoleDialog extends StatefulWidget {
+  final Employee employee;
+
+  const _ManageEmployeeRoleDialog({
+    required this.employee,
+  });
+
+  @override
+  State<_ManageEmployeeRoleDialog> createState() => _ManageEmployeeRoleDialogState();
+}
+
+class _ManageEmployeeRoleDialogState extends State<_ManageEmployeeRoleDialog> {
+  String? _selectedDepartmentId;
+  String? _selectedRoleId;
+  role_entity.Role? _selectedRole;
+  department_entity.Department? _selectedDepartment;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDepartmentId = widget.employee.departmentId;
+    // Load departments and roles
+    context.read<DepartmentsBloc>().add(LoadDepartments(widget.employee.companyId ?? ''));
+    context.read<RolesBloc>().add(LoadRoles(widget.employee.companyId ?? ''));
+    
+    // Defer setting the initial role ID to ensure roles are loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final rolesState = context.read<RolesBloc>().state;
+      if (rolesState is RolesLoaded) {
+        final roleExists = rolesState.roles.any((r) => r.id == widget.employee.role?.id);
+        if (roleExists) {
+          setState(() {
+            _selectedRoleId = widget.employee.role?.id;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Manage Role & Department'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Department Selection
+            BlocBuilder<DepartmentsBloc, DepartmentsState>(
+              builder: (context, state) {
+                if (state is DepartmentsLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is DepartmentsLoaded) {
+                  final departments = state.departments;
+                  if (departments.isEmpty) {
+                    return const Text('No departments available');
+                  }
+                  return DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Department',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: _selectedDepartmentId,
+                    items: departments.map((dept) {
+                      return DropdownMenuItem(
+                        value: dept.id,
+                        child: Text(dept.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedDepartmentId = value;
+                        _selectedDepartment = state.departments
+                            .firstWhere((dept) => dept.id == value);
+                        // Reset role when department changes
+                        _selectedRoleId = null;
+                        _selectedRole = null;
+                      });
+                    },
+                  );
+                }
+                if (state is DepartmentsError) {
+                  return Text('Error: ${state.message}');
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            const SizedBox(height: 16),
+            // Role Selection
+            BlocBuilder<RolesBloc, RolesState>(
+              builder: (context, state) {
+                if (state is RolesLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is RolesLoaded) {
+                  final roles = state.roles;
+                  if (roles.isEmpty) {
+                    return const Text('No roles available');
+                  }
+                  
+                  // Filter roles based on selected department
+                  final availableRoles = state.roles.where((role) {
+                    if (_selectedDepartmentId == null) return true;
+                    return role.departmentId == null || 
+                           role.departmentId == _selectedDepartmentId;
+                  }).toList();
+
+                  // Validate current selection
+                  if (_selectedRoleId != null) {
+                    final roleExists = availableRoles.any((r) => r.id == _selectedRoleId);
+                    if (!roleExists) {
+                      _selectedRoleId = null;
+                    }
+                  }
+
+                  return DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Role',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: _selectedRoleId,
+                    items: availableRoles.map((role) {
+                      return DropdownMenuItem(
+                        value: role.id,
+                        child: Text(role.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedRoleId = value;
+                        _selectedRole = state.roles
+                            .firstWhere((role) => role.id == value);
+                      });
+                    },
+                  );
+                }
+                if (state is RolesError) {
+                  return Text('Error: ${state.message}');
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _selectedRole == null ? null : () {
+            context.read<EmployeesBloc>().add(
+              UpdateEmployeeRole(
+                widget.employee,
+                _selectedRole!,
+                context.read<AuthBloc>().state is Authenticated
+                    ? (context.read<AuthBloc>().state as Authenticated).employee.id!
+                    : 'unknown',
+                newDepartmentId: _selectedDepartmentId,
+                newDepartmentName: _selectedDepartment?.name,
+              ),
+            );
+            Navigator.pop(context);
+          },
+          child: const Text('Update'),
+        ),
+      ],
+    );
   }
 }

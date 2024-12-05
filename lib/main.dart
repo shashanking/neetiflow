@@ -2,14 +2,18 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:neetiflow/domain/repositories/departments_repository.dart';
 import 'package:neetiflow/domain/repositories/clients_repository.dart';
+import 'package:neetiflow/domain/repositories/roles_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_employees_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_departments_repository.dart';
 import 'package:neetiflow/infrastructure/repositories/firebase_clients_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_roles_repository.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employees/employees_bloc.dart';
@@ -18,6 +22,7 @@ import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.
 import 'package:neetiflow/presentation/blocs/clients/clients_bloc.dart';
 import 'package:neetiflow/presentation/blocs/custom_fields/custom_fields_bloc.dart';
 import 'package:neetiflow/presentation/blocs/employee_timeline/employee_timeline_bloc.dart';
+import 'package:neetiflow/presentation/blocs/roles/roles_bloc.dart';
 import 'package:neetiflow/presentation/pages/splash/splash_page.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
@@ -54,16 +59,24 @@ class MainApp extends StatelessWidget {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>(
-          create: (context) => FirebaseAuthRepositoryImpl(),
+          create: (context) => FirebaseAuthRepositoryImpl(
+            firebaseAuth: FirebaseAuth.instance,
+            firestore: FirebaseFirestore.instance,
+          ),
         ),
         RepositoryProvider<EmployeesRepository>(
           create: (context) => FirebaseEmployeesRepository(),
         ),
         RepositoryProvider<DepartmentsRepository>(
-          create: (context) => FirebaseDepartmentsRepository(),
+          create: (context) => FirebaseDepartmentsRepository(
+            firestore: FirebaseFirestore.instance,
+          ),
         ),
         RepositoryProvider<ClientsRepository>(
           create: (context) => FirebaseClientsRepository(),
+        ),
+        RepositoryProvider<RolesRepository>(
+          create: (context) => FirebaseRolesRepository(),
         ),
         RepositoryProvider<EmployeeTimelineRepository>(
           create: (context) => EmployeeTimelineRepositoryImpl(),
@@ -85,51 +98,51 @@ class MainApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider(
+          BlocProvider<AuthBloc>(
             create: (context) => AuthBloc(
               authRepository: context.read<AuthRepository>(),
             ),
           ),
-          BlocProvider(
+          BlocProvider<DepartmentsBloc>(
             create: (context) => DepartmentsBloc(
               departmentsRepository: context.read<DepartmentsRepository>(),
             ),
           ),
-          BlocProvider(
+          BlocProvider<EmployeesBloc>(
             create: (context) => EmployeesBloc(
               employeesRepository: context.read<EmployeesRepository>(),
             ),
           ),
-          BlocProvider(
+          BlocProvider<EmployeeStatusBloc>(
             create: (context) => EmployeeStatusBloc(
               employeesRepository: context.read<EmployeesRepository>() as FirebaseEmployeesRepository,
             ),
           ),
-          BlocProvider(
+          BlocProvider<PasswordResetBloc>(
             create: (context) => PasswordResetBloc(),
           ),
-          MultiBlocProvider(
-            providers: [
-              BlocProvider(
-                create: (context) => ClientsBloc(
-                  authRepository: context.read<AuthRepository>(),
-                  employeesRepository: context.read<EmployeesRepository>(),
-                ),
-              ),
-              BlocProvider(
-                create: (context) => CustomFieldsBloc(
-                  repository: context.read<CustomFieldsRepository>(),
-                  entityType: 'leads',
-                  organizationId: (context.read<AuthBloc>().state as Authenticated).employee.companyId!,
-                )..add(LoadCustomFields()),
-              ),
-              BlocProvider(
-                create: (context) => EmployeeTimelineBloc(
-                  context.read<EmployeeTimelineRepository>(),
-                ),
-              ),
-            ],
-            child: Container(),
+          BlocProvider<RolesBloc>(
+            create: (context) => RolesBloc(
+              rolesRepository: context.read<RolesRepository>(),
+            ),
+          ),
+          BlocProvider<ClientsBloc>(
+            create: (context) => ClientsBloc(
+              authRepository: context.read<AuthRepository>(),
+              employeesRepository: context.read<EmployeesRepository>(),
+            ),
+          ),
+          BlocProvider<CustomFieldsBloc>(
+            create: (context) => CustomFieldsBloc(
+              repository: context.read<CustomFieldsRepository>(),
+              entityType: 'leads',
+              organizationId: (context.read<AuthBloc>().state as Authenticated).employee.companyId!,
+            )..add(LoadCustomFields()),
+          ),
+          BlocProvider<EmployeeTimelineBloc>(
+            create: (context) => EmployeeTimelineBloc(
+              context.read<EmployeeTimelineRepository>(),
+            ),
           ),
         ],
         child: MaterialApp(

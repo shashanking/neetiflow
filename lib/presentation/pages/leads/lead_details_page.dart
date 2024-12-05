@@ -156,7 +156,7 @@ class _LeadDetailsPageState extends State<LeadDetailsPage> {
                         firstName: 'Unknown',
                         lastName: 'Employee',
                         email: '',
-                        role: EmployeeRole.employee,
+                        isActive: true,
                       ),
                     );
 
@@ -166,7 +166,7 @@ class _LeadDetailsPageState extends State<LeadDetailsPage> {
                         firstName: 'Unknown',
                         lastName: 'Employee',
                         email: '',
-                        role: EmployeeRole.employee,
+                        isActive: true,
                       ),
                     );
 

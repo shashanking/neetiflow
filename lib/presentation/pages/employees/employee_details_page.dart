@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/presentation/widgets/employees/employee_timeline_container.dart';
 import 'package:intl/intl.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
+import 'package:neetiflow/domain/entities/permission.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
@@ -12,7 +13,9 @@ import 'package:neetiflow/presentation/blocs/employee_status/employee_status_blo
 
 import '../../../domain/entities/department.dart';
 import '../../../domain/repositories/employees_repository.dart';
+import '../../blocs/employees/employees_bloc.dart';
 import '../../widgets/persistent_shell.dart';
+import 'employees_page.dart';
 
 class EmployeeDetailsPage extends StatefulWidget {
   final Employee employee;
@@ -95,6 +98,16 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
     }
   }
 
+  void _updateDepartmentRole(DepartmentHierarchy newRole) {
+    context.read<DepartmentsBloc>().add(
+      UpdateEmployeeDepartmentRole(
+        widget.employee.departmentId!, 
+        widget.employee.id!, 
+        newRole
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final employee = _currentEmployee ?? widget.employee;
@@ -111,7 +124,15 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                 onPressed: () {
                   final state = PersistentShell.of(context);
                   if (state != null) {
-                    state.clearCustomPage();
+                    // Explicitly navigate to Employees page
+                    state.setCustomPage(
+                      BlocProvider(
+                        create: (context) => EmployeesBloc(
+                          employeesRepository: context.read<EmployeesRepository>(),
+                        )..add(LoadEmployees(widget.employee.companyId!)),
+                        child: const EmployeesPage(),
+                      ),
+                    );
                   }
                 },
                 tooltip: 'Back to Employees',
@@ -122,7 +143,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                   builder: (context, authState) {
                     if (authState is Authenticated) {
                       final isCurrentUser = authState.employee.id == employee.id;
-                      final isAdmin = authState.employee.role == EmployeeRole.admin;
+                      final isAdmin = authState.employee.role?.id == 'admin_role_id';
  
                       return Row(
                         mainAxisSize: MainAxisSize.min,
@@ -211,7 +232,18 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
 
   Widget _buildDetails(BuildContext context) {
     final theme = Theme.of(context);
-    final employee = widget.employee;
+    final colorScheme = theme.colorScheme;
+    final authBloc = context.read<AuthBloc>();
+    
+    // Safely access the current user from the auth state
+    final currentUser = authBloc.state is Authenticated 
+      ? (authBloc.state as Authenticated).employee 
+      : null;
+
+    // Check if the current user is an admin and not editing their own profile
+    final canManageEmployee = currentUser?.role?.permissions.contains(Permission.manageEmployees) ?? false;
+    final isOwnProfile = currentUser?.id == widget.employee.id;
+    final canToggleStatus = canManageEmployee && !isOwnProfile;
 
     return Stack(
       children: [
@@ -240,7 +272,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                 child: Column(
                   children: [
                     Hero(
-                      tag: 'employee-avatar-${employee.id}',
+                      tag: 'employee-avatar-${widget.employee.id}',
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
                         decoration: BoxDecoration(
@@ -257,7 +289,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                           radius: 56,
                           backgroundColor: theme.colorScheme.primary,
                           child: Text(
-                            employee.firstName[0].toUpperCase(),
+                            widget.employee.firstName[0].toUpperCase(),
                             style: theme.textTheme.displaySmall?.copyWith(
                               color: theme.colorScheme.onPrimary,
                             ),
@@ -267,7 +299,7 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      '${employee.firstName} ${employee.lastName}',
+                      '${widget.employee.firstName} ${widget.employee.lastName}',
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -282,21 +314,21 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                       children: [
                         _buildStatusChip(
                           context: context,
-                          icon: employee.role == EmployeeRole.admin
+                          icon: widget.employee.role?.id == 'admin_role_id'
                               ? Icons.admin_panel_settings
-                              : employee.role == EmployeeRole.manager
+                              : widget.employee.role?.id == 'manager_role_id'
                                   ? Icons.manage_accounts
                                   : Icons.person,
-                          label: employee.role.toString().split('.').last.toUpperCase(),
+                          label: widget.employee.role?.name ?? 'No Role',
                           backgroundColor: theme.colorScheme.primaryContainer,
                           foregroundColor: theme.colorScheme.primary,
                         ),
-                        if (employee.departmentId != null)
+                        if (widget.employee.departmentId != null)
                           BlocBuilder<DepartmentsBloc, DepartmentsState>(
                             builder: (context, state) {
                               if (state is DepartmentsLoaded) {
                                 final department = state.departments.firstWhere(
-                                  (d) => d.id == employee.departmentId,
+                                  (d) => d.id == widget.employee.departmentId,
                                   orElse: () => Department(
                                     id: '',
                                     name: 'Unknown Department',
@@ -308,13 +340,13 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                                   ),
                                 );
                                 
-                                final role = department.employeeRoles[employee.id] ?? DepartmentRole.member;
+                                final role = department.employeeRoles[widget.employee.id] ?? DepartmentHierarchy.member;
                                 
                                 return _buildStatusChip(
                                   context: context,
-                                  icon: role == DepartmentRole.head
+                                  icon: role == DepartmentHierarchy.head
                                       ? Icons.supervised_user_circle
-                                      : role == DepartmentRole.manager
+                                      : role == DepartmentHierarchy.manager
                                           ? Icons.manage_accounts
                                           : Icons.group,
                                   label: '${department.name} (${role.toString().split('.').last})',
@@ -327,27 +359,27 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                           ),
                         _buildStatusChip(
                           context: context,
-                          icon: employee.isActive
+                          icon: widget.employee.isActive
                               ? Icons.check_circle_outline
                               : Icons.cancel_outlined,
-                          label: employee.isActive ? 'ACTIVE' : 'INACTIVE',
-                          backgroundColor: employee.isActive
+                          label: widget.employee.isActive ? 'ACTIVE' : 'INACTIVE',
+                          backgroundColor: widget.employee.isActive
                               ? theme.colorScheme.secondaryContainer
                               : theme.colorScheme.errorContainer,
-                          foregroundColor: employee.isActive
+                          foregroundColor: widget.employee.isActive
                               ? theme.colorScheme.secondary
                               : theme.colorScheme.error,
                         ),
                         _buildStatusChip(
                           context: context,
-                          icon: employee.isOnline
+                          icon: widget.employee.isOnline
                               ? Icons.circle
                               : Icons.circle_outlined,
-                          label: employee.isOnline ? 'ONLINE' : 'OFFLINE',
-                          backgroundColor: employee.isOnline
+                          label: widget.employee.isOnline ? 'ONLINE' : 'OFFLINE',
+                          backgroundColor: widget.employee.isOnline
                               ? theme.colorScheme.primaryContainer
                               : theme.colorScheme.surfaceVariant,
-                          foregroundColor: employee.isOnline
+                          foregroundColor: widget.employee.isOnline
                               ? theme.colorScheme.primary
                               : theme.colorScheme.onSurfaceVariant,
                         ),
@@ -369,25 +401,25 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                         _DetailItem(
                           icon: Icons.email_outlined,
                           title: 'Email',
-                          value: employee.email,
+                          value: widget.employee.email,
                           onTap: () {
                             // Handle email tap
                           },
                         ),
-                        if (employee.phone != null && employee.phone!.isNotEmpty)
+                        if (widget.employee.phone != null && widget.employee.phone!.isNotEmpty)
                           _DetailItem(
                             icon: Icons.phone_outlined,
                             title: 'Phone',
-                            value: employee.phone!,
+                            value: widget.employee.phone!,
                             onTap: () {
                               // Handle phone tap
                             },
                           ),
-                        if (employee.address != null && employee.address!.isNotEmpty)
+                        if (widget.employee.address != null && widget.employee.address!.isNotEmpty)
                           _DetailItem(
                             icon: Icons.location_on_outlined,
                             title: 'Address',
-                            value: employee.address!,
+                            value: widget.employee.address!,
                             onTap: () {
                               // Handle address tap
                             },
@@ -399,11 +431,11 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                       context: context,
                       title: 'Employment Information',
                       children: [
-                        if (employee.companyName != null && employee.companyName!.isNotEmpty)
+                        if (widget.employee.companyName != null && widget.employee.companyName!.isNotEmpty)
                           _DetailItem(
                             icon: Icons.business_outlined,
                             title: 'Company',
-                            value: employee.companyName!,
+                            value: widget.employee.companyName!,
                           )
                         else
                           const _DetailItem(
@@ -411,19 +443,46 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
                             title: 'Company',
                             value: 'Not Assigned',
                           ),
-                        if (employee.joiningDate != null)
+                        if (widget.employee.joiningDate != null)
                           _DetailItem(
                             icon: Icons.calendar_today_outlined,
                             title: 'Joining Date',
-                            value: DateFormat('MMMM d, y').format(employee.joiningDate!),
+                            value: DateFormat('MMMM d, y').format(widget.employee.joiningDate!),
                           ),
-                        if (employee.updatedAt != null)
+                        if (widget.employee.updatedAt != null)
                           _DetailItem(
                             icon: Icons.update_outlined,
                             title: 'Last Updated',
-                            value: DateFormat('MMMM d, y').format(employee.updatedAt!),
+                            value: DateFormat('MMMM d, y').format(widget.employee.updatedAt!),
                           ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+              if (canToggleStatus) Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.employee.isActive ? 'Deactivate Employee' : 'Activate Employee',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: widget.employee.isActive 
+                            ? colorScheme.error 
+                            : colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: widget.employee.isActive,
+                      onChanged: (bool newStatus) {
+                        _showActivationDialog(context);
+                      },
+                      activeColor: colorScheme.primary,
+                      activeTrackColor: colorScheme.primary.withOpacity(0.5),
+                      inactiveThumbColor: colorScheme.error,
+                      inactiveTrackColor: colorScheme.error.withOpacity(0.5),
                     ),
                   ],
                 ),
@@ -596,91 +655,62 @@ class _EmployeeDetailsPageState extends State<EmployeeDetailsPage> {
 
   void _showActivationDialog(BuildContext context) {
     final theme = Theme.of(context);
-    
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          widget.employee.isActive ? 'Deactivate Employee' : 'Activate Employee'
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.employee.isActive
-                  ? 'Are you sure you want to deactivate this employee?'
-                  : 'Are you sure you want to activate this employee?',
-              style: theme.textTheme.bodyLarge,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(
+            widget.employee.isActive 
+              ? 'Deactivate Employee' 
+              : 'Activate Employee',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: widget.employee.isActive 
+                ? colorScheme.error 
+                : colorScheme.primary,
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${widget.employee.firstName} ${widget.employee.lastName}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+          ),
+          content: Text(
+            widget.employee.isActive 
+              ? 'Are you sure you want to deactivate this employee? They will lose access to the system.' 
+              : 'Are you sure you want to activate this employee? They will regain system access.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
               ),
             ),
-            Text(
-              widget.employee.email,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.primary,
+            ElevatedButton(
+              onPressed: () {
+                // Create a new employee object with updated active status
+                final updatedEmployee = widget.employee.copyWith(
+                  isActive: !widget.employee.isActive,
+                );
+
+                // Toggle employee active status
+                context.read<EmployeesBloc>().add(
+                  UpdateEmployee(updatedEmployee),
+                );
+                Navigator.of(dialogContext).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.employee.isActive 
+                  ? colorScheme.error 
+                  : colorScheme.primary,
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.employee.isActive
-                  ? 'They will not be able to log in until reactivated.'
-                  : 'They will be able to log in after activation.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              child: Text(
+                widget.employee.isActive ? 'Deactivate' : 'Activate',
+                style: TextStyle(color: colorScheme.onPrimary),
               ),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (widget.employee.id != null && widget.employee.companyId != null) {
-                context.read<EmployeeStatusBloc>().add(
-                  UpdateEmployeeStatus(
-                    employeeId: widget.employee.id!,
-                    companyId: widget.employee.companyId!,
-                    isActive: !widget.employee.isActive,
-                  ),
-                );
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Cannot update status: Invalid employee data'),
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                );
-              }
-            },
-            child: BlocBuilder<EmployeeStatusBloc, EmployeeStatusState>(
-              builder: (context, state) {
-                if (state is EmployeeStatusUpdating) {
-                  return const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  );
-                }
-                return Text(
-                  widget.employee.isActive ? 'Deactivate' : 'Activate'
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -1,7 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:logger/logger.dart';
-import 'package:neetiflow/domain/entities/department.dart';
+import 'package:neetiflow/domain/entities/department.dart' hide DepartmentHierarchy;
+import 'package:neetiflow/domain/entities/role.dart';
 import 'package:neetiflow/domain/repositories/departments_repository.dart';
+
+class DepartmentRepositoryException implements Exception {
+  final String message;
+  final Object? originalException;
+
+  const DepartmentRepositoryException(
+    this.message, {
+    this.originalException,
+  });
+
+  @override
+  String toString() => message;
+}
 
 class FirebaseDepartmentsRepository implements DepartmentsRepository {
   final FirebaseFirestore _firestore;
@@ -35,7 +49,10 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
       }).toList();
     } catch (e, stackTrace) {
       _logger.e('Error getting departments', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to get departments: $e');
+      throw DepartmentRepositoryException(
+        'Failed to get departments: $e', 
+        originalException: e
+      );
     }
   }
 
@@ -52,7 +69,13 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
         'description': department.description,
         'organizationId': department.organizationId,
         'employeeRoles': department.employeeRoles.map(
-          (key, value) => MapEntry(key, value.toString().split('.').last),
+          (key, value) => MapEntry(key, {
+            'id': value.id,
+            'name': value.name,
+            'type': value.type.toString().split('.').last,
+            'hierarchy': value.hierarchy.toString().split('.').last,
+            'permissions': value.permissions,
+          }),
         ),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -68,7 +91,10 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
       return Department.fromJson(data);
     } catch (e, stackTrace) {
       _logger.e('Error creating department', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to create department: $e');
+      throw DepartmentRepositoryException(
+        'Failed to create department: $e', 
+        originalException: e
+      );
     }
   }
 
@@ -86,7 +112,13 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
         'description': department.description,
         'organizationId': department.organizationId,
         'employeeRoles': department.employeeRoles.map(
-          (key, value) => MapEntry(key, value.toString().split('.').last),
+          (key, value) => MapEntry(key, {
+            'id': value.id,
+            'name': value.name,
+            'type': value.type.toString().split('.').last,
+            'hierarchy': value.hierarchy.toString().split('.').last,
+            'permissions': value.permissions,
+          }),
         ),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -94,7 +126,10 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
       _logger.i('Department updated successfully');
     } catch (e, stackTrace) {
       _logger.e('Error updating department', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to update department: $e');
+      throw DepartmentRepositoryException(
+        'Failed to update department: $e', 
+        originalException: e
+      );
     }
   }
 
@@ -112,45 +147,86 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
       _logger.i('Department deleted successfully');
     } catch (e, stackTrace) {
       _logger.e('Error deleting department', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to delete department: $e');
+      throw DepartmentRepositoryException(
+        'Failed to delete department: $e', 
+        originalException: e
+      );
     }
   }
 
   @override
   Future<void> updateEmployeeRole(
-    String departmentId,
-    String employeeId,
-    DepartmentRole role,
+    String departmentId, 
+    String employeeId, 
+    Role role
   ) async {
     try {
-      _logger.i('Updating role for employee: $employeeId in department: $departmentId');
+      // Validate role input
+      if (role == null) {
+        throw ArgumentError('Role cannot be null');
+      }
+
+      _logger.i('Updating employee role: $employeeId in department: $departmentId');
+      
+      // Get the organization ID from the role
+      final organizationId = role.organizationId;
+
       await _firestore
           .collection('organizations')
-          .doc(departmentId)
+          .doc(organizationId)
           .collection('departments')
           .doc(departmentId)
           .update({
-        'employeeRoles.$employeeId': role.toString().split('.').last,
+        'employeeRoles.$employeeId': {
+          'id': role.id,
+          'name': role.name,
+          'type': role.type.toString().split('.').last,
+          'hierarchy': role.hierarchy.toString().split('.').last,
+          'permissions': role.permissions,
+        },
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
       _logger.i('Employee role updated successfully');
     } catch (e, stackTrace) {
-      _logger.e('Error updating employee role', error: e, stackTrace: stackTrace);
-      throw Exception('Failed to update employee role: $e');
+      _logger.e(
+        'Error updating employee role', 
+        error: e, 
+        stackTrace: stackTrace
+      );
+      throw DepartmentRepositoryException(
+        'Failed to update employee role: ${e.toString()}', 
+        originalException: e
+      );
     }
   }
 
   @override
   Future<void> removeEmployeeFromDepartment(
-    String departmentId,
-    String employeeId,
+    String departmentId, 
+    String employeeId
   ) async {
     try {
       _logger.i('Removing employee: $employeeId from department: $departmentId');
-      await _firestore
+      
+      // Find the organization ID
+      final departmentSnapshot = await _firestore
           .collection('organizations')
           .doc(departmentId)
+          .collection('departments')
+          .doc(departmentId)
+          .get();
+      
+      final organizationId = departmentSnapshot.data()?['organizationId'];
+      
+      if (organizationId == null) {
+        throw ArgumentError('Department not found');
+      }
+
+      // Remove employee role from department
+      await _firestore
+          .collection('organizations')
+          .doc(organizationId)
           .collection('departments')
           .doc(departmentId)
           .update({
@@ -160,9 +236,101 @@ class FirebaseDepartmentsRepository implements DepartmentsRepository {
 
       _logger.i('Employee removed from department successfully');
     } catch (e, stackTrace) {
-      _logger.e('Error removing employee from department',
-          error: e, stackTrace: stackTrace);
-      throw Exception('Failed to remove employee from department: $e');
+      _logger.e(
+        'Error removing employee from department', 
+        error: e, 
+        stackTrace: stackTrace
+      );
+      throw DepartmentRepositoryException(
+        'Failed to remove employee from department: ${e.toString()}', 
+        originalException: e
+      );
+    }
+  }
+
+  // Method to seed initial departments for a new organization
+  Future<void> seedInitialDepartments(String organizationId) async {
+    try {
+      final departmentsCollection = _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .collection('departments');
+
+      // Check if departments already exist
+      final existingDepartments = await departmentsCollection.get();
+      if (existingDepartments.docs.isNotEmpty) return;
+
+      // Define default departments with unique identifiers
+      final defaultDepartments = [
+        Department(
+          id: 'hr_department', // Explicitly set unique ID
+          name: 'Human Resources',
+          description: 'Manages employee relations, recruitment, and benefits',
+          organizationId: organizationId,
+        ),
+        Department(
+          id: 'it_department', // Explicitly set unique ID
+          name: 'Information Technology',
+          description: 'Manages technology infrastructure and support',
+          organizationId: organizationId,
+        ),
+        Department(
+          id: 'finance_department', // Explicitly set unique ID
+          name: 'Finance',
+          description: 'Handles financial planning, accounting, and budgeting',
+          organizationId: organizationId,
+        ),
+        Department(
+          id: 'sales_department', // Explicitly set unique ID
+          name: 'Sales',
+          description: 'Responsible for revenue generation and customer acquisition',
+          organizationId: organizationId,
+        ),
+        Department(
+          id: 'marketing_department', // Explicitly set unique ID
+          name: 'Marketing',
+          description: 'Manages brand strategy and promotional activities',
+          organizationId: organizationId,
+        ),
+      ];
+
+      // Add default departments with predefined IDs
+      for (var department in defaultDepartments) {
+        await departmentsCollection.doc(department.id).set(department.toJson());
+      }
+
+      _logger.i('Seeded initial departments for organization: $organizationId');
+    } catch (e, stackTrace) {
+      _logger.e('Error seeding initial departments', error: e, stackTrace: stackTrace);
+      throw DepartmentRepositoryException(
+        'Failed to seed initial departments: ${e.toString()}',
+        originalException: e,
+      );
+    }
+  }
+
+  @override
+  Stream<List<Department>> watchDepartments(String organizationId) {
+    try {
+      _logger.i('Watching departments for organization: $organizationId');
+      return _firestore
+          .collection('organizations')
+          .doc(organizationId)
+          .collection('departments')
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return Department.fromJson(data);
+        }).toList();
+      });
+    } catch (e, stackTrace) {
+      _logger.e('Error watching departments', error: e, stackTrace: stackTrace);
+      return Stream.error(DepartmentRepositoryException(
+        'Failed to watch departments: ${e.toString()}',
+        originalException: e,
+      ));
     }
   }
 }

@@ -815,8 +815,18 @@ class _LeadsViewState extends State<LeadsView> with SingleTickerProviderStateMix
                                 contentPadding:
                                     const EdgeInsets.symmetric(horizontal: 16),
                               ),
+                              controller: _searchController,
                               onChanged: (value) {
-                                // TODO: Implement search
+                                final currentState = context.read<LeadsBloc>().state;
+                                if (currentState.status == LeadsStatus.success) {
+                                  context.read<LeadsBloc>().add(
+                                    FilterLeads(
+                                      filter: currentState.filter.copyWith(
+                                        searchTerm: value.trim(),
+                                      ),
+                                    ),
+                                  );
+                                }
                               },
                             ),
                           ),
@@ -1150,10 +1160,11 @@ class _LeadsViewState extends State<LeadsView> with SingleTickerProviderStateMix
           final assignedEmployee = state.employees.firstWhere(
             (e) => e.id == assignedEmployeeId,
             orElse: () => const Employee(
+              id: '',
               firstName: 'Unknown',
               lastName: 'Employee',
               email: '',
-              role: EmployeeRole.employee,
+              isActive: true,
             ),
           );
 

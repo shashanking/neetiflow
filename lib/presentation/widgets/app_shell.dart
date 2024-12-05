@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/pages/auth/login_page.dart';
 import 'package:neetiflow/presentation/pages/home/home_page.dart';
@@ -8,6 +10,13 @@ import 'package:neetiflow/presentation/pages/settings/settings_page.dart';
 import 'package:neetiflow/presentation/pages/help/help_page.dart';
 import 'package:neetiflow/presentation/pages/employees/employees_page.dart';
 import 'package:neetiflow/presentation/pages/organization/organization_page.dart';
+import 'package:neetiflow/domain/repositories/roles_repository.dart';
+import 'package:neetiflow/domain/repositories/auth_repository.dart';
+import 'package:neetiflow/domain/repositories/departments_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_roles_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_auth_repository.dart';
+import 'package:neetiflow/infrastructure/repositories/firebase_departments_repository.dart';
+import 'package:neetiflow/presentation/blocs/roles/roles_bloc.dart';
 import 'dart:math' as math;
 
 class AppShell extends StatefulWidget {
@@ -261,38 +270,70 @@ class _AppShellState extends State<AppShell> {
       ),
     );
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.background,
-      drawer: isLargeScreen ? null : Container(
-        width: 280,
-        color: theme.colorScheme.primary.withOpacity(0.05),
-        child: drawerContent,
-      ),
-      body: isLargeScreen
-          ? Row(
-              children: [
-                Container(
-                  width: 280,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.05),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 4,
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<RolesRepository>(
+          create: (context) => FirebaseRolesRepository(),
+        ),
+        RepositoryProvider<AuthRepository>(
+          create: (context) => FirebaseAuthRepositoryImpl(
+            firebaseAuth: FirebaseAuth.instance,
+            firestore: FirebaseFirestore.instance,
+          ),
+        ),
+        RepositoryProvider<DepartmentsRepository>(
+          create: (context) => FirebaseDepartmentsRepository(
+            firestore: FirebaseFirestore.instance,
+          ),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<RolesBloc>(
+            create: (context) => RolesBloc(
+              rolesRepository: context.read<RolesRepository>(),
+            ),
+          ),
+          BlocProvider<AuthBloc>(
+            create: (context) => AuthBloc(
+              authRepository: context.read<AuthRepository>(),
+            ),
+          ),
+        ],
+        child: Scaffold(
+          backgroundColor: theme.colorScheme.background,
+          drawer: isLargeScreen ? null : Container(
+            width: 280,
+            color: theme.colorScheme.primary.withOpacity(0.05),
+            child: drawerContent,
+          ),
+          body: isLargeScreen
+              ? Row(
+                  children: [
+                    Container(
+                      width: 280,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.05),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: drawerContent,
-                ),
-                Expanded(
-                  child: SizedBox(
-                    height: double.infinity,
-                    child: mainContent,
-                  ),
-                ),
-              ],
-            )
-          : mainContent,
+                      child: drawerContent,
+                    ),
+                    Expanded(
+                      child: SizedBox(
+                        height: double.infinity,
+                        child: mainContent,
+                      ),
+                    ),
+                  ],
+                )
+              : mainContent,
+        ),
+      ),
     );
   }
 

@@ -1,7 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:neetiflow/domain/entities/role.dart';
 
-enum DepartmentRole {
+enum DepartmentHierarchy {
   head,
   manager,
   member
@@ -12,7 +13,8 @@ class Department extends Equatable {
   final String name;
   final String description;
   final String organizationId;
-  final Map<String, DepartmentRole> employeeRoles; // Maps employeeId to their role in the department
+  final Map<String, Role> employeeRoles; // Maps employeeId to their role
+  final List<Role> availableRoles; // Predefined roles for this department
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -22,9 +24,39 @@ class Department extends Equatable {
     required this.description,
     required this.organizationId,
     this.employeeRoles = const {},
+    this.availableRoles = const [],
     this.createdAt,
     this.updatedAt,
   });
+
+  // Get employees with a specific role hierarchy
+  List<String> getEmployeesByHierarchy(DepartmentHierarchy hierarchy) {
+    return employeeRoles.entries
+        .where((entry) => 
+          entry.value.hierarchy == hierarchy ||
+          (entry.value.hierarchy != null && 
+           entry.value.hierarchy == hierarchy))
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  // Check if an employee has a specific role
+  bool hasEmployeeRole(String employeeId, DepartmentHierarchy hierarchy) {
+    final employeeRole = employeeRoles[employeeId];
+    return employeeRole != null && 
+           (employeeRole.hierarchy == hierarchy || 
+            (employeeRole.hierarchy != null && 
+             employeeRole.hierarchy == hierarchy));
+  }
+
+  // Add a role to available department roles
+  Department addAvailableRole(Role role) {
+    final updatedRoles = List<Role>.from(availableRoles);
+    if (!updatedRoles.any((r) => r.id == role.id)) {
+      updatedRoles.add(role);
+    }
+    return copyWith(availableRoles: updatedRoles);
+  }
 
   @override
   List<Object?> get props => [
@@ -33,6 +65,7 @@ class Department extends Equatable {
         description,
         organizationId,
         employeeRoles,
+        availableRoles,
         createdAt,
         updatedAt,
       ];
@@ -44,43 +77,42 @@ class Department extends Equatable {
       'description': description,
       'organizationId': organizationId,
       'employeeRoles': employeeRoles.map(
-        (key, value) => MapEntry(key, value.toString().split('.').last),
+        (key, value) => MapEntry(key, value.toJson()),
       ),
+      'availableRoles': availableRoles.map((role) => role.toJson()).toList(),
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
   }
 
+  // Factory method to create a department from Firestore data
   factory Department.fromJson(Map<String, dynamic> json) {
     return Department(
-      id: json['id'] as String?,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      organizationId: json['organizationId'] as String,
+      id: json['id'],
+      name: json['name'],
+      description: json['description'],
+      organizationId: json['organizationId'],
       employeeRoles: (json['employeeRoles'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(
-              key,
-              DepartmentRole.values.firstWhere(
-                (role) => role.toString().split('.').last == value,
-              ),
-            ),
+            (key, value) => MapEntry(key, Role.fromJson(value)),
           ) ??
           {},
-      createdAt: json['createdAt'] != null
-          ? (json['createdAt'] as Timestamp).toDate()
-          : null,
-      updatedAt: json['updatedAt'] != null
-          ? (json['updatedAt'] as Timestamp).toDate()
-          : null,
+      availableRoles: (json['availableRoles'] as List<dynamic>?)
+              ?.map((roleJson) => Role.fromJson(roleJson))
+              .toList() ??
+          [],
+      createdAt: (json['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (json['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
+  // Copy method for immutable updates
   Department copyWith({
     String? id,
     String? name,
     String? description,
     String? organizationId,
-    Map<String, DepartmentRole>? employeeRoles,
+    Map<String, Role>? employeeRoles,
+    List<Role>? availableRoles,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -90,6 +122,7 @@ class Department extends Equatable {
       description: description ?? this.description,
       organizationId: organizationId ?? this.organizationId,
       employeeRoles: employeeRoles ?? this.employeeRoles,
+      availableRoles: availableRoles ?? this.availableRoles,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

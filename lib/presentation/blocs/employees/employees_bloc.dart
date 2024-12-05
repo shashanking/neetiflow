@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
+import 'package:neetiflow/domain/entities/role.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -65,6 +66,18 @@ class UpdateEmployeesList extends EmployeesEvent {
   List<Object?> get props => [employees];
 }
 
+class UpdateEmployeeRole extends EmployeesEvent {
+  final Employee employee;
+  final Role newRole;
+  final String changedBy;
+  final String? newDepartmentId;
+  final String? newDepartmentName;
+  const UpdateEmployeeRole(this.employee, this.newRole, this.changedBy, {this.newDepartmentId, this.newDepartmentName});
+
+  @override
+  List<Object?> get props => [employee, newRole, changedBy, newDepartmentId, newDepartmentName];
+}
+
 // States
 abstract class EmployeesState extends Equatable {
   const EmployeesState();
@@ -78,7 +91,7 @@ class EmployeesInitial extends EmployeesState {}
 class EmployeesLoading extends EmployeesState {
   final List<Employee> employees;
   
-  const EmployeesLoading({this.employees = const []});
+  const EmployeesLoading({required this.employees});
   
   @override
   List<Object?> get props => [employees];
@@ -115,7 +128,11 @@ class EmailAvailabilityChecked extends EmployeesState {
   final bool isAvailable;
   final List<Employee> employees;
 
-  const EmailAvailabilityChecked(this.email, this.isAvailable, {this.employees = const []});
+  const EmailAvailabilityChecked(
+    this.email,
+    this.isAvailable,
+    {required this.employees}
+  );
 
   @override
   List<Object?> get props => [email, isAvailable, employees];
@@ -124,7 +141,7 @@ class EmailAvailabilityChecked extends EmployeesState {
 class EmployeesEmailAvailable extends EmployeesState {
   final List<Employee> employees;
   
-  const EmployeesEmailAvailable({this.employees = const []});
+  const EmployeesEmailAvailable({required this.employees});
   
   @override
   List<Object?> get props => [employees];
@@ -134,10 +151,18 @@ class EmployeesEmailError extends EmployeesState {
   final String message;
   final List<Employee> employees;
 
-  const EmployeesEmailError(this.message, {this.employees = const []});
+  const EmployeesEmailError(this.message, {required this.employees});
 
   @override
   List<Object?> get props => [message, employees];
+}
+
+class EmployeeRoleUpdated extends EmployeesState {
+  final Employee employee;
+  const EmployeeRoleUpdated(this.employee);
+
+  @override
+  List<Object?> get props => [employee];
 }
 
 // Bloc
@@ -156,6 +181,7 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     on<CheckEmailAvailability>(_onCheckEmailAvailability);
     on<ResetEmployeesState>(_onResetState);
     on<UpdateEmployeesList>(_onUpdateEmployeesList);
+    on<UpdateEmployeeRole>(_onUpdateEmployeeRole);
   }
 
   @override
@@ -164,34 +190,24 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     return super.close();
   }
 
-  Future<void> _onLoadEmployees(
-    LoadEmployees event,
-    Emitter<EmployeesState> emit,
-  ) async {
-    final currentEmployees = state is EmployeesLoaded 
-        ? (state as EmployeesLoaded).employees 
-        : const <Employee>[];
-    emit(EmployeesLoading(employees: currentEmployees));
-    
+  void _onLoadEmployees(LoadEmployees event, Emitter<EmployeesState> emit) async {
     try {
-      // Cancel any existing subscription
-      await _employeesSubscription?.cancel();
-      
-      // Subscribe to real-time updates
-      _employeesSubscription = _employeesRepository
-          .employeesStream(event.companyId)
-          .listen(
-            (employees) => add(UpdateEmployeesList(employees)),
-          );
+      final currentState = state is EmployeesLoaded 
+        ? (state as EmployeesLoaded).employees 
+        : <Employee>[];
+
+      // Emit loading state to show progress
+      emit(EmployeesLoading(employees: currentState));
+
+      // Load employees
+      final employees = await _employeesRepository.getEmployees(event.companyId);
+      emit(EmployeesLoaded(employees));
     } catch (e) {
-      emit(EmployeesError(
-        'Failed to load employees: ${e.toString()}',
-        currentEmployees,
-      ));
+      emit(const EmployeesError('Failed to load employees', []));
     }
   }
 
-  Future<void> _onUpdateEmployeesList(
+  void _onUpdateEmployeesList(
     UpdateEmployeesList event,
     Emitter<EmployeesState> emit,
   ) async {
@@ -200,7 +216,7 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     emit(EmployeesLoaded(sortedEmployees));
   }
 
-  Future<void> _onAddEmployee(
+  void _onAddEmployee(
     AddEmployee event,
     Emitter<EmployeesState> emit,
   ) async {
@@ -240,50 +256,25 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     }
   }
 
-  Future<void> _onUpdateEmployee(
-    UpdateEmployee event,
-    Emitter<EmployeesState> emit,
-  ) async {
+  void _onUpdateEmployee(UpdateEmployee event, Emitter<EmployeesState> emit) async {
     try {
-      if (event.employee.companyId == null) {
-        throw Exception('Company ID is required');
-      }
-
-      // Preserve the current state before updating
       final currentState = state is EmployeesLoaded 
         ? (state as EmployeesLoaded).employees 
         : <Employee>[];
 
-      // Emit loading state to show progress
       emit(EmployeesLoading(employees: currentState));
 
-      // Update the employee
       await _employeesRepository.updateEmployee(event.employee);
-
-      // Fetch updated employees list
-      final employees = await _employeesRepository.getEmployees(event.employee.companyId!);
-      final sortedEmployees = List<Employee>.from(employees)
-        ..sort((a, b) => '${a.firstName} ${a.lastName}'.compareTo('${b.firstName} ${b.lastName}'));
-
-      // Emit the updated list with a success message
-      emit(EmployeesLoaded(sortedEmployees));
-
-      // Optional: Add a brief success notification
-      await Future.delayed(const Duration(milliseconds: 500), () {
-        add(ResetEmployeesState());
-      });
-
+      final updatedEmployees = await _employeesRepository.getEmployees(event.employee.companyId ?? '');
+      
+      emit(EmployeesLoaded(updatedEmployees));
+      emit(const EmployeeOperationSuccess('Employee updated successfully'));
     } catch (e) {
-      // If current state is EmployeesLoaded, preserve its employees
-      final currentEmployees = state is EmployeesLoaded 
-        ? (state as EmployeesLoaded).employees 
-        : <Employee>[];
-
-      emit(EmployeesError('Failed to update employee: ${e.toString()}', currentEmployees));
+      emit(const EmployeesError('Failed to update employee', []));
     }
   }
 
-  Future<void> _onDeleteEmployee(
+  void _onDeleteEmployee(
     DeleteEmployee event,
     Emitter<EmployeesState> emit,
   ) async {
@@ -298,13 +289,13 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     }
   }
 
-  FutureOr<void> _onCheckEmailAvailability(
+  void _onCheckEmailAvailability(
     CheckEmailAvailability event,
     Emitter<EmployeesState> emit,
   ) async {
     final currentEmployees = state is EmployeesLoaded 
-        ? (state as EmployeesLoaded).employees 
-        : const <Employee>[];
+      ? (state as EmployeesLoaded).employees 
+      : const <Employee>[];
 
     if (event.email.isEmpty) {
       emit(EmployeesEmailAvailable(employees: currentEmployees));
@@ -338,6 +329,42 @@ class EmployeesBloc extends Bloc<EmployeesEvent, EmployeesState> {
     if (state is EmployeesLoaded) {
       final currentEmployees = (state as EmployeesLoaded).employees;
       emit(EmployeesLoaded(currentEmployees));
+    }
+  }
+
+  void _onUpdateEmployeeRole(UpdateEmployeeRole event, Emitter<EmployeesState> emit) async {
+    try {
+      // Get current employees list
+      final currentEmployees = state is EmployeesLoaded 
+        ? (state as EmployeesLoaded).employees 
+        : <Employee>[];
+
+      // Create updated employee with new role
+      final updatedEmployee = event.employee.copyWith(
+        role: event.newRole,
+        roleHistory: [...(event.employee.roleHistory ?? []), RoleChangeRecord(
+          roleId: event.newRole.id ?? '',
+          changedAt: DateTime.now(),
+          changedBy: event.changedBy,
+          previousRoleId: event.employee.role?.id,
+          departmentId: event.newDepartmentId,
+          departmentName: event.newDepartmentName,
+        )],
+        departmentId: event.newDepartmentId,
+        departmentName: event.newDepartmentName,
+      );
+
+      // Update in repository
+      await _employeesRepository.updateEmployee(updatedEmployee);
+      
+      // Get fresh list of employees
+      final updatedEmployees = await _employeesRepository.getEmployees(updatedEmployee.companyId ?? '');
+
+      // Emit updated states
+      emit(EmployeesLoaded(updatedEmployees));
+      emit(EmployeeRoleUpdated(updatedEmployee));
+    } catch (e) {
+      emit(EmployeesError('Failed to update employee role: ${e.toString()}', const []));
     }
   }
 }

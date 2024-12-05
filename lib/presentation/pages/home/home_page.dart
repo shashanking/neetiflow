@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/data/repositories/custom_fields_repository.dart';
 import 'package:neetiflow/data/repositories/leads_repository.dart';
-import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/lead.dart';
 import 'package:neetiflow/domain/repositories/auth_repository.dart';
 import 'package:neetiflow/domain/repositories/employees_repository.dart';
@@ -112,7 +111,7 @@ class _HomePageContent extends StatelessWidget {
                 ],
 
                 // Quick Stats Section
-                if (employee.role == EmployeeRole.admin || employee.role == EmployeeRole.manager) ...[
+                if (employee.role?.id == 'admin_role_id' || employee.role?.id == 'manager_role_id') ...[
                   Row(
                     children: [
                       Expanded(
@@ -180,7 +179,7 @@ class _HomePageContent extends StatelessWidget {
                 ],
 
                 // Employee's Personal Stats
-                if (employee.role == EmployeeRole.employee) ...[
+                if (employee.role?.id == 'employee_role_id') ...[
                   Row(
                     children: [
                       Expanded(

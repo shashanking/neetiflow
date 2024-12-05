@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:neetiflow/domain/entities/employee.dart';
 import 'package:neetiflow/domain/entities/organization.dart';
+import 'package:neetiflow/domain/entities/role.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
 import 'package:neetiflow/presentation/widgets/persistent_shell.dart';
 
@@ -29,6 +30,59 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
   final _adminPasswordController = TextEditingController();
   bool _isPasswordVisible = false;
 
+  Role _createAdminRole(String organizationId) {
+    return Role(
+      id: 'admin_role_id', // Explicitly set ID
+      name: 'Admin',
+      description: 'Organization Administrator',
+      organizationId: organizationId,
+      type: RoleType.system,
+      hierarchy: DepartmentHierarchy.admin,
+      permissions: const [
+        'full_access',
+        'manage_users',
+        'manage_organization',
+        'view_all_data'
+      ]
+    );
+  }
+
+  void _registerOrganization() async {
+    if (_formKey.currentState!.validate()) {
+      try {
+        final organization = Organization(
+          name: _organizationNameController.text.trim(),
+          email: _organizationEmailController.text.trim(),
+          phone: _organizationPhoneController.text.trim(),
+          address: _organizationAddressController.text.trim(),
+        );
+
+        final admin = Employee(
+          firstName: _adminFirstNameController.text.trim(),
+          lastName: _adminLastNameController.text.trim(),
+          email: _adminEmailController.text.trim(),
+          phone: _adminPhoneController.text.trim(),
+          address: _adminAddressController.text.trim(),
+          role: _createAdminRole(''), // Temporary ID, will be set by repository
+          isActive: true,
+          joiningDate: DateTime.now(),
+        );
+
+        context.read<AuthBloc>().add(
+          CreateOrganizationRequested(
+            organization: organization,
+            admin: admin,
+            password: _adminPasswordController.text.trim(),
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Registration failed: $e')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _organizationNameController.dispose();
@@ -45,39 +99,6 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
     _adminAddressController.dispose();
     _adminPasswordController.dispose();
     super.dispose();
-  }
-
-  void _onSubmit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      final organization = Organization(
-        name: _organizationNameController.text.trim(),
-        address: _organizationAddressController.text.trim(),
-        phone: _organizationPhoneController.text.trim(),
-        email: _organizationEmailController.text.trim(),
-        website: _organizationWebsiteController.text.trim(),
-        pan: _organizationPanController.text.trim(),
-        gstin: _organizationGstinController.text.trim(),
-      );
-
-      final admin = Employee(
-        firstName: _adminFirstNameController.text.trim(),
-        lastName: _adminLastNameController.text.trim(),
-        phone: _adminPhoneController.text.trim(),
-        email: _adminEmailController.text.trim(),
-        address: _adminAddressController.text.trim(),
-        role: EmployeeRole.admin,
-        isActive: true,
-        joiningDate: DateTime.now(),
-      );
-
-      context.read<AuthBloc>().add(
-            CreateOrganizationRequested(
-              organization: organization,
-              admin: admin,
-              password: _adminPasswordController.text,
-            ),
-          );
-    }
   }
 
   @override
@@ -357,7 +378,7 @@ class _RegisterOrganizationPageState extends State<RegisterOrganizationPage> {
                 BlocBuilder<AuthBloc, AuthState>(
                   builder: (context, state) {
                     return FilledButton(
-                      onPressed: state is AuthLoading ? null : _onSubmit,
+                      onPressed: state is AuthLoading ? null : _registerOrganization,
                       child: state is AuthLoading
                           ? const SizedBox(
                               height: 20,
