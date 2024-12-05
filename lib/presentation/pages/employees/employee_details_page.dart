@@ -9,7 +9,6 @@ import 'package:neetiflow/domain/entities/permission.dart';
 import 'package:neetiflow/presentation/blocs/departments/departments_bloc.dart';
 import 'package:neetiflow/presentation/blocs/password_reset/password_reset_bloc.dart';
 import 'package:neetiflow/presentation/blocs/auth/auth_bloc.dart';
-import 'package:neetiflow/presentation/blocs/employee_status/employee_status_bloc.dart';
 
 import '../../../domain/entities/department.dart';
 import '../../../domain/repositories/employees_repository.dart';
